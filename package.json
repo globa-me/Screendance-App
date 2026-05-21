@@ -1,15 +1,15 @@
 {
-	"name": "recordly",
-	"productName": "Recordly",
-	"description": "A free, creator-focused screen recorder with auto-zoom, cursor effects, backgrounds, annotations, and more - built for polished videos out of the box.",
-	"author": "webadderall",
-	"homepage": "https://github.com/webadderallorg/Recordly",
+	"name": "screendance-app",
+	"productName": "Screendance App",
+	"description": "A macOS Apple Silicon-focused fork of Recordly for optimized screen recording workflows.",
+	"author": "globa-me",
+	"homepage": "https://github.com/globa-me/Screendance-App",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/webadderallorg/Recordly.git"
+		"url": "https://github.com/globa-me/Screendance-App.git"
 	},
 	"bugs": {
-		"url": "https://github.com/webadderallorg/Recordly/issues"
+		"url": "https://github.com/globa-me/Screendance-App/issues"
 	},
 	"private": true,
 	"version": "1.3.0-beta.3",
@@ -17,7 +17,7 @@
 	"scripts": {
 		"dev": "vite --config vite.config.ts",
 		"postinstall": "node scripts/postinstall.mjs",
-		"build": "npm run build:platform-native-helpers && tsc && vite build --config vite.config.ts && npm run normalize:electron-main-cjs && npm run smoke:electron-main-cjs && electron-builder",
+		"build": "npm run build:mac",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",
@@ -25,14 +25,9 @@
 		"rebuild:native": "node ./node_modules/@electron/rebuild/lib/cli.js --force --only uiohook-napi",
 		"build:native-helpers": "node scripts/build-native-helpers.mjs",
 		"build:whisper-runtime": "node scripts/build-whisper-runtime.mjs",
-		"build:platform-native-helpers": "npm run build:native-helpers && npm run build:windows-capture && npm run build:windows-gpu-export && npm run build:nvidia-cuda-compositor && npm run build:cursor-monitor && npm run build:whisper-runtime",
-		"build:windows-gpu-export": "node scripts/build-windows-gpu-export.mjs",
-		"build:nvidia-cuda-compositor": "node scripts/build-nvidia-cuda-compositor.mjs",
-		"build:windows-capture": "node scripts/build-windows-capture.mjs",
-		"build:cursor-monitor": "node scripts/build-cursor-monitor.mjs",
-		"build:mac": "npm run build:platform-native-helpers && tsc && vite build --config vite.config.ts && npm run normalize:electron-main-cjs && npm run smoke:electron-main-cjs && electron-builder --mac",
-		"build:win": "npm run build:platform-native-helpers && tsc && vite build --config vite.config.ts && npm run normalize:electron-main-cjs && npm run smoke:electron-main-cjs && electron-builder --win",
-		"build:linux": "npm run build:platform-native-helpers && tsc && vite build --config vite.config.ts && npm run normalize:electron-main-cjs && npm run smoke:electron-main-cjs && electron-builder --linux",
+		"build:mac-native-helpers": "npm run build:native-helpers && npm run build:whisper-runtime",
+		"build:platform-native-helpers": "npm run build:mac-native-helpers",
+		"build:mac": "npm run build:mac-native-helpers && tsc && vite build --config vite.config.ts && npm run normalize:electron-main-cjs && npm run smoke:electron-main-cjs && electron-builder --mac",
 		"i18n:check": "node scripts/i18n-check.mjs",
 		"benchmark:export-queues": "node scripts/benchmark-export-queues.mjs",
 		"normalize:electron-main-cjs": "node scripts/normalize-electron-main-cjs.mjs",

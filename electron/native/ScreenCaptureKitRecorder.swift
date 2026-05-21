@@ -535,6 +535,20 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 			if let matchedDevice = audioDevices.first(where: { $0.localizedName == microphoneLabel }) {
 				return matchedDevice.uniqueID
 			}
+
+			let normalizedRequestedLabel = Self.normalizedMicrophoneLabel(microphoneLabel)
+			if !normalizedRequestedLabel.isEmpty {
+				if let matchedDevice = audioDevices.first(where: {
+					let normalizedDeviceLabel = Self.normalizedMicrophoneLabel($0.localizedName)
+					return normalizedDeviceLabel == normalizedRequestedLabel ||
+						normalizedRequestedLabel.hasPrefix("\(normalizedDeviceLabel) ") ||
+						normalizedDeviceLabel.hasPrefix("\(normalizedRequestedLabel) ") ||
+						normalizedRequestedLabel.contains(normalizedDeviceLabel) ||
+						normalizedDeviceLabel.contains(normalizedRequestedLabel)
+				}) {
+					return matchedDevice.uniqueID
+				}
+			}
 		}
 
 		if let microphoneDeviceId = config.microphoneDeviceId?.trimmingCharacters(in: .whitespacesAndNewlines), !microphoneDeviceId.isEmpty {
@@ -544,6 +558,19 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		}
 
 		return nil
+	}
+
+	private static func normalizedMicrophoneLabel(_ label: String) -> String {
+		let withoutSuffix = label
+			.replacingOccurrences(of: #"\s+\([^)]*\)\s*$"#, with: "", options: .regularExpression)
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+		let folded = withoutSuffix.folding(
+			options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+			locale: .current
+		)
+		return folded
+			.replacingOccurrences(of: #"[^[:alnum:]]+"#, with: " ", options: .regularExpression)
+			.trimmingCharacters(in: .whitespacesAndNewlines)
 	}
 
 	private func supportsNativeMicrophoneCapture(streamConfig: SCStreamConfiguration) -> Bool {
@@ -718,4 +745,3 @@ DispatchQueue.global(qos: .utility).async {
 }
 
 service.waitUntilFinished()
-

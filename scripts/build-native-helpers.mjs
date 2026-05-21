@@ -16,10 +16,6 @@ function getTargetConfigs() {
 			archTag: "darwin-arm64",
 			swiftTarget: "arm64-apple-macos14.0",
 		},
-		{
-			archTag: "darwin-x64",
-			swiftTarget: "x86_64-apple-macos14.0",
-		},
 	];
 }
 

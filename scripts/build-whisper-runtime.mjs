@@ -32,6 +32,10 @@ function getNativeArchTag(platform, arch) {
 }
 
 function getRequestedArchitectures(platform) {
+	if (platform === "darwin") {
+		return ["arm64"];
+	}
+
 	const hostArch = getHostArch();
 	const configured = process.env.WHISPER_RUNTIME_ARCHS?.trim();
 
