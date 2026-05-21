@@ -38,16 +38,6 @@
       "to": "assets/wallpapers"
     }
   ],
-  "publish": [
-    {
-      "provider": "github",
-      "owner": "globa-me",
-      "repo": "Screendance-App",
-      "tagNamePrefix": "v",
-      "publishAutoUpdate": true
-    }
-  ],
-
   "mac": {
     "identity": null,
     "hardenedRuntime": true,

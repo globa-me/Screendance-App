@@ -543,22 +543,22 @@ function syncDockIcon() {
 function getUpdateNotificationTitle(payload: UpdateToastPayload) {
 	switch (payload.phase) {
 		case "available":
-			return `Recordly ${payload.version} is available`;
+			return `Screendance App ${payload.version} is available`;
 		case "downloading":
-			return `Downloading Recordly ${payload.version}`;
+			return `Downloading Screendance App ${payload.version}`;
 		case "ready":
-			return `Recordly ${payload.version} is ready`;
+			return `Screendance App ${payload.version} is ready`;
 		case "error":
-			return `Recordly ${payload.version} needs attention`;
+			return `Screendance App ${payload.version} needs attention`;
 	}
 }
 
 function getUpdateNotificationBody(payload: UpdateToastPayload) {
 	switch (payload.phase) {
 		case "available":
-			return "Click to install the update and restart Recordly.";
+			return "Click to install the update and restart Screendance App.";
 		case "downloading":
-			return "Recordly is downloading the update and will restart when it is ready.";
+			return "Screendance App is downloading the update and will restart when it is ready.";
 		case "ready":
 			return "Click to install the downloaded update and restart.";
 		case "error":
@@ -733,7 +733,7 @@ ipcMain.handle("check-for-app-updates", async () => {
 function updateTrayMenu(recording: boolean = false) {
 	if (!tray) return;
 	const trayIcon = recording ? getRecordingTrayIcon() : getDefaultTrayIcon();
-	const trayToolTip = recording ? `Recording: ${selectedSourceName}` : "Recordly";
+	const trayToolTip = recording ? `Recording: ${selectedSourceName}` : "Screendance App";
 	const menuTemplate = recording
 		? [
 				{
@@ -803,7 +803,7 @@ function createEditorWindowWrapper() {
 	const previousWindow = mainWindow;
 	if (previousWindow && !previousWindow.isDestroyed()) {
 		const closingEditorWindow = isEditorWindow(previousWindow);
-		
+
 		if (closingEditorWindow) {
 			closeEditorWindowBypassingUnsavedPrompt(previousWindow);
 		} else {

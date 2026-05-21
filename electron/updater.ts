@@ -8,10 +8,10 @@ import { USER_DATA_PATH } from "./appPaths";
 const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 export const UPDATE_REMINDER_DELAY_MS = 3 * 60 * 60 * 1000;
 const DISMISSED_READY_REMINDER_DELAY_MS = 5 * 60 * 1000;
-const AUTO_UPDATES_DISABLED = process.env.RECORDLY_DISABLE_AUTO_UPDATES === "1";
-const UPDATE_FEED_URL_OVERRIDE = process.env.RECORDLY_UPDATE_FEED_URL?.trim() ?? "";
+const AUTO_UPDATES_ENABLED = process.env.SCREENDANCE_ENABLE_AUTO_UPDATES === "1";
+const UPDATE_FEED_URL_OVERRIDE = process.env.SCREENDANCE_UPDATE_FEED_URL?.trim() ?? "";
 const UPDATER_LOG_PATH =
-	process.env.RECORDLY_UPDATER_LOG_PATH?.trim() || path.join(USER_DATA_PATH, "updater.log");
+	process.env.SCREENDANCE_UPDATER_LOG_PATH?.trim() || path.join(USER_DATA_PATH, "updater.log");
 const DEV_UPDATE_PREVIEW_VERSION = "9.9.9";
 const DEV_UPDATE_PREVIEW_PROGRESS_STEP_MS = 300;
 const DEV_UPDATE_PREVIEW_PROGRESS_INCREMENT = 20;
@@ -112,7 +112,7 @@ function writeUpdaterLog(message: string, detail?: unknown) {
 
 function configureUpdateFeed() {
 	if (!UPDATE_FEED_URL_OVERRIDE) {
-		writeUpdaterLog("Using published GitHub update feed.");
+		writeUpdaterLog("No Screendance update feed configured.");
 		return;
 	}
 
@@ -125,11 +125,13 @@ function configureUpdateFeed() {
 }
 
 function canUseAutoUpdates() {
-	return !AUTO_UPDATES_DISABLED && app.isPackaged && !process.mas;
+	return (
+		AUTO_UPDATES_ENABLED && Boolean(UPDATE_FEED_URL_OVERRIDE) && app.isPackaged && !process.mas
+	);
 }
 
 export function isAutoUpdateFeatureEnabled() {
-	return !AUTO_UPDATES_DISABLED;
+	return AUTO_UPDATES_ENABLED && Boolean(UPDATE_FEED_URL_OVERRIDE);
 }
 
 function getDialogWindow(getMainWindow: () => BrowserWindow | null) {
@@ -212,10 +214,10 @@ function createDownloadingUpdateToastPayload(
 		phase: "downloading",
 		detail:
 			normalizedProgress >= 100
-				? "Finishing the update download. Recordly will restart as soon as the installer is ready."
+				? "Finishing the update download. Screendance App will restart as soon as the installer is ready."
 				: remainingMb !== null
-					? `${remainingMb.toFixed(1)} MB left before Recordly restarts.`
-					: "Downloading the update now. Recordly will restart when it finishes.",
+					? `${remainingMb.toFixed(1)} MB left before Screendance App restarts.`
+					: "Downloading the update now. Screendance App will restart when it finishes.",
 		delayMs: UPDATE_REMINDER_DELAY_MS,
 		progressPercent: normalizedProgress,
 		transferredBytes,
@@ -412,7 +414,7 @@ export async function downloadAvailableUpdate(
 	setUpdateStatusSummary({
 		status: "downloading",
 		availableVersion,
-		detail: `Downloading Recordly ${availableVersion}`,
+		detail: `Downloading Screendance App ${availableVersion}`,
 	});
 	emitUpdateToastState(
 		sendToRenderer,
@@ -524,7 +526,7 @@ async function showAvailableUpdateDialog(
 	const result = await showMessageBox(getMainWindow, {
 		type: "info",
 		title: "Update Available",
-		message: `Recordly ${version} is available.`,
+		message: `Screendance App ${version} is available.`,
 		detail: "Install and restart now, or remind me later.",
 		buttons: ["Install & Restart", "Later"],
 		defaultId: 0,
@@ -550,8 +552,8 @@ async function showDownloadedUpdateDialog(
 		type: "info",
 		title: "Update Ready",
 		message: isPreview
-			? `Recordly ${version} is ready to install.`
-			: `Recordly ${version} has been downloaded.`,
+			? `Screendance App ${version} is ready to install.`
+			: `Screendance App ${version} has been downloaded.`,
 		detail: isPreview
 			? "Development preview of the native update prompt. No real update will be installed."
 			: "Install and restart now, or remind me later.",
@@ -594,16 +596,14 @@ export async function checkForAppUpdates(
 ) {
 	if (!canUseAutoUpdates()) {
 		writeUpdaterLog(
-			`Skipped update check because auto-updates are unavailable. packaged=${app.isPackaged} mas=${process.mas ? "yes" : "no"} disabled=${AUTO_UPDATES_DISABLED ? "yes" : "no"}`,
+			`Skipped update check because auto-updates are unavailable. packaged=${app.isPackaged} mas=${process.mas ? "yes" : "no"} enabled=${AUTO_UPDATES_ENABLED ? "yes" : "no"} feed=${UPDATE_FEED_URL_OVERRIDE ? "configured" : "missing"}`,
 		);
 		if (options?.manual) {
 			await showMessageBox(getMainWindow, {
 				type: "info",
 				title: "Updates Not Enabled",
-				message: "Auto-updates are only available in packaged releases.",
-				detail: AUTO_UPDATES_DISABLED
-					? "This build disabled auto-updates through RECORDLY_DISABLE_AUTO_UPDATES=1."
-					: "Development builds do not ship the packaged update metadata required by electron-updater.",
+				message: "Auto-updates are disabled for Screendance App.",
+				detail: "Set SCREENDANCE_ENABLE_AUTO_UPDATES=1 and SCREENDANCE_UPDATE_FEED_URL to a Screendance-owned feed before enabling updater checks.",
 			});
 		}
 		return;
@@ -674,7 +674,7 @@ export function setupAutoUpdates(
 		setUpdateStatusSummary({
 			status: "available",
 			availableVersion: info.version,
-			detail: `Recordly ${info.version} is available.`,
+			detail: `Screendance App ${info.version} is available.`,
 		});
 		if (skippedVersion === info.version) {
 			manualCheckRequested = false;
@@ -704,7 +704,7 @@ export function setupAutoUpdates(
 		setUpdateStatusSummary({
 			status: "up-to-date",
 			availableVersion: null,
-			detail: `Recordly ${app.getVersion()} is up to date.`,
+			detail: `Screendance App ${app.getVersion()} is up to date.`,
 		});
 		clearVisibleUpdateToast(sendToRenderer);
 		manualCheckRequested = false;
@@ -719,7 +719,7 @@ export function setupAutoUpdates(
 		setUpdateStatusSummary({
 			status: "downloading",
 			availableVersion,
-			detail: `Downloading Recordly ${availableVersion}`,
+			detail: `Downloading Screendance App ${availableVersion}`,
 		});
 		writeUpdaterLog(
 			`Download progress for ${availableVersion}: ${progress.percent.toFixed(1)}%`,
@@ -775,7 +775,7 @@ export function setupAutoUpdates(
 		setUpdateStatusSummary({
 			status: "ready",
 			availableVersion: info.version,
-			detail: `Recordly ${info.version} is ready to install.`,
+			detail: `Screendance App ${info.version} is ready to install.`,
 		});
 		clearDeferredReminderTimer();
 
