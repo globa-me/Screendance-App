@@ -51,6 +51,19 @@ describe("export bitrate policy", () => {
 		).toBe(3_000_000);
 	});
 
+	it("keeps modern native static-layout fast portrait exports high enough for screen text", () => {
+		expect(
+			getMp4ExportBitrate({
+				width: 1080,
+				height: 1920,
+				frameRate: 60,
+				quality: "source",
+				encodingMode: "fast",
+				useModernNativeStaticLayout: true,
+			}),
+		).toBe(31_112_698);
+	});
+
 	it("scales the modern native cap with output pixel rate", () => {
 		expect(
 			getMp4ExportBitrate({

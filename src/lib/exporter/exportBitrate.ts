@@ -77,6 +77,22 @@ function getModernNativeStaticLayoutBitrateFloor(
 	return Math.round(referenceFloor * Math.sqrt(pixelRateScale));
 }
 
+function shouldApplyModernNativeStaticLayoutBitrateFloor(options: {
+	width: number;
+	height: number;
+	encodingMode: ExportEncodingMode;
+	useModernNativeStaticLayout?: boolean;
+}): boolean {
+	if (!options.useModernNativeStaticLayout) {
+		return false;
+	}
+	if (options.encodingMode !== "fast") {
+		return true;
+	}
+
+	return options.height > options.width;
+}
+
 export function getMp4ExportBitrate(options: {
 	width: number;
 	height: number;
@@ -90,7 +106,7 @@ export function getMp4ExportBitrate(options: {
 			getEncodingModeBitrateMultiplier(options.encodingMode),
 	);
 	const nativeStaticLayoutBitrate =
-		options.useModernNativeStaticLayout && options.encodingMode !== "fast"
+		shouldApplyModernNativeStaticLayoutBitrateFloor(options)
 			? Math.max(
 					requestedBitrate,
 					getModernNativeStaticLayoutBitrateFloor(

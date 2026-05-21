@@ -308,6 +308,23 @@ describe("ModernVideoExporter native static-layout eligibility", () => {
 		).toBe("unsupported-background-video");
 	});
 
+	it("keeps caption overlays on the renderer path instead of native static-layout", () => {
+		const exporter = createExporter({
+			autoCaptions: [{ id: "caption-1", text: "hello", startMs: 0, endMs: 1_000 }],
+		});
+
+		expect(
+			exporter.getNativeStaticLayoutSkipReason(
+				{
+					audioMode: "copy-source",
+					audioSourcePath: "recording.mp4",
+				},
+				videoInfo,
+				60,
+			),
+		).toBe("unsupported-caption-overlay");
+	});
+
 	it("collects every native static-layout blocker for beta diagnostics", () => {
 		const exporter = createExporter({
 			width: 1921,
