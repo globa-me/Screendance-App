@@ -1656,6 +1656,7 @@ export class FrameRenderer {
 			settings.fontSize,
 			this.config.width,
 			settings.maxWidth,
+			this.config.height,
 		);
 		measureCtx.font = `${CAPTION_FONT_WEIGHT} ${fontSize}px ${fontFamily}`;
 

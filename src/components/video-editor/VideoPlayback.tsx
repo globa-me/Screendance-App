@@ -661,10 +661,12 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 			}
 
 			const overlayWidth = overlayRef.current?.clientWidth || 960;
+			const overlayHeight = overlayRef.current?.clientHeight || overlayWidth;
 			const fontSize = getCaptionScaledFontSize(
 				autoCaptionSettings.fontSize,
 				overlayWidth,
 				autoCaptionSettings.maxWidth,
+				overlayHeight,
 			);
 			const maxTextWidthPx = getCaptionTextMaxWidth(
 				overlayWidth,
@@ -709,6 +711,7 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 					autoCaptionSettings.fontSize,
 					overlayRef.current?.clientWidth || 960,
 					autoCaptionSettings.maxWidth,
+					overlayRef.current?.clientHeight || overlayRef.current?.clientWidth || 960,
 				);
 
 				const squirclePath = getSquircleSvgPath({
@@ -2841,6 +2844,9 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 												autoCaptionSettings.fontSize,
 												overlayRef.current?.clientWidth || 960,
 												autoCaptionSettings.maxWidth,
+												overlayRef.current?.clientHeight ||
+													overlayRef.current?.clientWidth ||
+													960,
 											)}px`,
 											lineHeight: CAPTION_LINE_HEIGHT,
 											textAlign: "center",
@@ -2851,6 +2857,9 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 														autoCaptionSettings.fontSize,
 														overlayRef.current?.clientWidth || 960,
 														autoCaptionSettings.maxWidth,
+														overlayRef.current?.clientHeight ||
+															overlayRef.current?.clientWidth ||
+															960,
 													),
 												).y
 											}px ${
@@ -2859,6 +2868,9 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 														autoCaptionSettings.fontSize,
 														overlayRef.current?.clientWidth || 960,
 														autoCaptionSettings.maxWidth,
+														overlayRef.current?.clientHeight ||
+															overlayRef.current?.clientWidth ||
+															960,
 													),
 												).x
 											}px`,
@@ -2868,6 +2880,9 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 													autoCaptionSettings.fontSize,
 													overlayRef.current?.clientWidth || 960,
 													autoCaptionSettings.maxWidth,
+													overlayRef.current?.clientHeight ||
+														overlayRef.current?.clientWidth ||
+														960,
 												),
 											)}px`,
 											boxSizing: "border-box",

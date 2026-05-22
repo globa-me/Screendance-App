@@ -29,7 +29,7 @@ export function renderCaptions(
 
 	ctx.save();
 
-	const fontSize = getCaptionScaledFontSize(settings.fontSize, width, settings.maxWidth);
+	const fontSize = getCaptionScaledFontSize(settings.fontSize, width, settings.maxWidth, height);
 	ctx.font = `${CAPTION_FONT_WEIGHT} ${fontSize}px ${getDefaultCaptionFontFamily()}`;
 	const padding = getCaptionPadding(fontSize);
 

@@ -14,11 +14,13 @@ export function getCaptionScaledFontSize(
 	fontSize: number,
 	containerWidth: number,
 	maxWidthPercent: number,
+	containerHeight = containerWidth,
 ) {
+	const scaleDimension = Math.max(1, containerWidth, containerHeight);
 	return Math.max(
 		14,
 		fontSize *
-			(getCaptionTargetWidth(containerWidth, maxWidthPercent) /
+			(getCaptionTargetWidth(scaleDimension, maxWidthPercent) /
 				DEFAULT_CAPTION_REFERENCE_WIDTH),
 	);
 }
