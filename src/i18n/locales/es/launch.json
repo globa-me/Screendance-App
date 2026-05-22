@@ -50,8 +50,8 @@
 			"checkingTitle": "Buscando actualizaciones...",
 			"downloadingTitle": "Descargando actualización...",
 			"errorTitle": "La comprobación de actualizaciones falló. Haz clic para reintentar.",
-			"upToDateTitle": "Recordly {{version}} está actualizado.",
-			"availableTitle": "Recordly {{version}} está disponible.",
+			"upToDateTitle": "Screendance App {{version}} está actualizado.",
+			"availableTitle": "Screendance App {{version}} está disponible.",
 			"availableGenericTitle": "Hay una actualización disponible."
 		}
 	},
@@ -67,10 +67,10 @@
 		"share": "Compartir"
 	},
 	"permissions": {
-		"screenRecordingNeeded": "Recordly necesita permiso de grabación de pantalla antes de comenzar. Se ha abierto Configuración del sistema. Después de habilitarlo, cierra y vuelve a abrir Recordly.",
-		"screenRecordingMissing": "El permiso de grabación de pantalla aún falta. Se ha abierto Configuración del sistema nuevamente. Habilítalo, luego cierra y vuelve a abrir Recordly antes de grabar.",
-		"accessibilityNeeded": "Recordly también necesita permiso de accesibilidad para el seguimiento del cursor. Se ha abierto Configuración del sistema. Después de habilitarlo, cierra y vuelve a abrir Recordly.",
-		"accessibilityMissing": "El permiso de accesibilidad aún falta. Se ha abierto Configuración del sistema nuevamente. Habilítalo, luego cierra y vuelve a abrir Recordly antes de grabar.",
+		"screenRecordingNeeded": "Screendance App necesita permiso de grabación de pantalla antes de comenzar. Se ha abierto Configuración del sistema. Después de habilitarlo, cierra y vuelve a abrir Screendance App.",
+		"screenRecordingMissing": "El permiso de grabación de pantalla aún falta. Se ha abierto Configuración del sistema nuevamente. Habilítalo, luego cierra y vuelve a abrir Screendance App antes de grabar.",
+		"accessibilityNeeded": "Screendance App también necesita permiso de accesibilidad para el seguimiento del cursor. Se ha abierto Configuración del sistema. Después de habilitarlo, cierra y vuelve a abrir Screendance App.",
+		"accessibilityMissing": "El permiso de accesibilidad aún falta. Se ha abierto Configuración del sistema nuevamente. Habilítalo, luego cierra y vuelve a abrir Screendance App antes de grabar.",
 		"selectSource": "Por favor selecciona una fuente para grabar",
 		"systemAudioUnavailable": "El audio del sistema no está disponible para esta fuente. La grabación continuará sin audio del sistema.",
 		"microphoneDenied": "Se denegó el acceso al micrófono. La grabación continuará sin audio del micrófono.",

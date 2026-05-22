@@ -1,7 +1,7 @@
 {
 	"app": {
-		"name": "Recordly",
-		"editorTitle": "Editor do Recordly",
+		"name": "Screendance App",
+		"editorTitle": "Editor do Screendance App",
 		"subtitle": "Gravação e edição de tela",
 		"language": "Idioma",
 		"manageRecordings": "Abrir pasta de gravações"

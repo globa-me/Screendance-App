@@ -152,7 +152,7 @@ import {
 	DiscordLinkButton,
 	FeedbackDialog,
 	openExternalLink,
-	RECORDLY_ISSUES_URL,
+	SCREENDANCE_ISSUES_URL,
 } from "./TutorialHelp";
 import TimelineEditor, { type TimelineEditorHandle } from "./timeline/TimelineEditor";
 import { normalizeCursorTelemetry } from "./timeline/zoomSuggestionUtils";
@@ -4827,7 +4827,7 @@ export default function VideoEditor() {
 
 	const openLightningIssues = useCallback(async () => {
 		await openExternalLink(
-			RECORDLY_ISSUES_URL,
+			SCREENDANCE_ISSUES_URL,
 			t("editor.feedback.openFailed", "Failed to open link."),
 		);
 	}, [t]);
@@ -4982,7 +4982,7 @@ export default function VideoEditor() {
 					<DialogDescription className="text-muted-foreground">
 						{t(
 							"editor.nativeCaptureUnavailable.description",
-							"Your device does not support native capture. This could be for a variety of reasons we haven’t figured out yet. This doesn’t break Recordly, but it does make cursor smoothing impossible.",
+							"Your device does not support native capture. This could be for a variety of reasons we haven’t figured out yet. This doesn’t break Screendance App, but it does make cursor smoothing impossible.",
 						)}
 					</DialogDescription>
 				</DialogHeader>

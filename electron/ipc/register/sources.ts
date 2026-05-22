@@ -1,29 +1,27 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { app, BrowserWindow, desktopCapturer, ipcMain } from "electron";
+import { reassertHudOverlayMousePassthrough } from "../../windows";
 import { ALLOW_RECORDLY_WINDOW_CAPTURE } from "../constants";
+import {
+	getNativeMacWindowSources,
+	resolveLinuxWindowBounds,
+	resolveMacWindowBounds,
+	resolveWindowsWindowBounds,
+	stopWindowBoundsCapture,
+} from "../cursor/bounds";
+import { getDisplayBoundsForSource, getDisplayWorkAreaForSource } from "../recording/ffmpeg";
 import { selectedSource, setSelectedSource } from "../state";
 import type { SelectedSource } from "../types";
 import { getScreen, parseWindowId } from "../utils";
-import { getDisplayBoundsForSource, getDisplayWorkAreaForSource } from "../recording/ffmpeg";
-import {
-	getNativeMacWindowSources,
-	resolveMacWindowBounds,
-	resolveWindowsWindowBounds,
-	resolveLinuxWindowBounds,
-	stopWindowBoundsCapture,
-} from "../cursor/bounds";
-import { reassertHudOverlayMousePassthrough } from "../../windows";
 
 const execFileAsync = promisify(execFile);
 const SOURCE_LIST_CACHE_TTL_MS = 1200;
-let sourceListCache:
-	| {
-			key: string;
-			expiresAt: number;
-			value: Array<Record<string, unknown>>;
-	  }
-	| null = null;
+let sourceListCache: {
+	key: string;
+	expiresAt: number;
+	value: Array<Record<string, unknown>>;
+} | null = null;
 
 function normalizeDesktopSourceName(value: string) {
 	return value.trim().replace(/\s+/g, " ").toLowerCase();
@@ -52,7 +50,11 @@ export function registerSourceHandlers({
 			thumbnailSize: opts?.thumbnailSize,
 			fetchWindowIcons: opts?.fetchWindowIcons,
 		});
-		if (sourceListCache && sourceListCache.key === cacheKey && sourceListCache.expiresAt > Date.now()) {
+		if (
+			sourceListCache &&
+			sourceListCache.key === cacheKey &&
+			sourceListCache.expiresAt > Date.now()
+		) {
 			return sourceListCache.value;
 		}
 
@@ -81,7 +83,7 @@ export function registerSourceHandlers({
 		const ownWindowNames = new Set(
 			[
 				app.getName(),
-				"Recordly",
+				"Screendance App",
 				...BrowserWindow.getAllWindows().flatMap((win) => {
 					const title = win.getTitle().trim();
 					return title ? [title] : [];
@@ -230,13 +232,12 @@ export function registerSourceHandlers({
 						thumbnail: electronWindowSource?.thumbnail
 							? electronWindowSource.thumbnail.toDataURL()
 							: null,
-						appIcon:
-							includeWindowIcons
-								? (source.appIcon ??
-									(electronWindowSource?.appIcon
-										? electronWindowSource.appIcon.toDataURL()
-										: null))
-								: null,
+						appIcon: includeWindowIcons
+							? (source.appIcon ??
+								(electronWindowSource?.appIcon
+									? electronWindowSource.appIcon.toDataURL()
+									: null))
+							: null,
 						appName: source.appName,
 						windowTitle: source.windowTitle,
 						sourceType: "window" as const,
@@ -477,15 +478,17 @@ body{background:transparent;overflow:hidden;width:100vw;height:100vh}
 </style></head><body>
 <div class="glow-wrap"></div>
 <div class="border-wrap"></div>
-</body></html>`
+</body></html>`;
 
 			try {
-				await highlightWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+				await highlightWin.loadURL(
+					`data:text/html;charset=utf-8,${encodeURIComponent(html)}`,
+				);
 			} catch (loadError) {
 				if (!highlightWin.isDestroyed()) {
-					highlightWin.close()
+					highlightWin.close();
 				}
-				throw loadError
+				throw loadError;
 			}
 
 			// The highlight window appearing (even with focusable:false) can corrupt
@@ -495,8 +498,8 @@ body{background:transparent;overflow:hidden;width:100vw;height:100vh}
 			reassertHudOverlayMousePassthrough();
 
 			const highlightCloseTimer = setTimeout(() => {
-				if (!highlightWin.isDestroyed()) highlightWin.close()
-			}, 1700)
+				if (!highlightWin.isDestroyed()) highlightWin.close();
+			}, 1700);
 
 			highlightWin.on("closed", () => {
 				clearTimeout(highlightCloseTimer);
@@ -505,32 +508,31 @@ body{background:transparent;overflow:hidden;width:100vw;height:100vh}
 				reassertHudOverlayMousePassthrough();
 			});
 
-			return { success: true }
-    } catch (error) {
-      console.error('Failed to show source highlight:', error)
-      return { success: false }
-    }
-  })
+			return { success: true };
+		} catch (error) {
+			console.error("Failed to show source highlight:", error);
+			return { success: false };
+		}
+	});
 
-  ipcMain.handle('get-selected-source', () => {
-    return selectedSource
-  })
+	ipcMain.handle("get-selected-source", () => {
+		return selectedSource;
+	});
 
-  ipcMain.handle('open-source-selector', () => {
-    const sourceSelectorWin = getSourceSelectorWindow()
-    if (sourceSelectorWin) {
-      sourceSelectorWin.focus()
-      return
-    }
-    createSourceSelectorWindow()
-  })
-  ipcMain.handle('switch-to-editor', () => {
-    console.log('[switch-to-editor] Opening editor window')
-    const sourceSelectorWin = getSourceSelectorWindow()
-    if (sourceSelectorWin && !sourceSelectorWin.isDestroyed()) {
-      sourceSelectorWin.close()
-    }
-    createEditorWindow()
-  })
-
+	ipcMain.handle("open-source-selector", () => {
+		const sourceSelectorWin = getSourceSelectorWindow();
+		if (sourceSelectorWin) {
+			sourceSelectorWin.focus();
+			return;
+		}
+		createSourceSelectorWindow();
+	});
+	ipcMain.handle("switch-to-editor", () => {
+		console.log("[switch-to-editor] Opening editor window");
+		const sourceSelectorWin = getSourceSelectorWindow();
+		if (sourceSelectorWin && !sourceSelectorWin.isDestroyed()) {
+			sourceSelectorWin.close();
+		}
+		createEditorWindow();
+	});
 }

@@ -2,7 +2,7 @@
  * Extension Marketplace — Main Process
  *
  * Handles fetching, downloading, and installing extensions from the
- * Recordly marketplace API. Also provides admin review endpoints.
+ * Screendance App marketplace API. Also provides admin review endpoints.
  */
 
 import { createWriteStream, existsSync } from "node:fs";
@@ -25,7 +25,7 @@ import type {
 // Configuration
 // ---------------------------------------------------------------------------
 
-const MARKETPLACE_API_BASE = "https://marketplace.recordly.dev/extensions/api/v1";
+const MARKETPLACE_API_BASE = process.env.SCREENDANCE_MARKETPLACE_URL?.trim() ?? "";
 const REQUEST_TIMEOUT_MS = 15_000;
 
 // ---------------------------------------------------------------------------
@@ -54,12 +54,21 @@ async function assertNoEscapedFiles(dir: string, root: string): Promise<void> {
 
 function getMarketplaceUrl(): string {
 	// Allow explicit override for local marketplace development.
-	if (process.env.RECORDLY_MARKETPLACE_URL) return process.env.RECORDLY_MARKETPLACE_URL;
+	if (process.env.SCREENDANCE_MARKETPLACE_URL) return process.env.SCREENDANCE_MARKETPLACE_URL;
+	if (!MARKETPLACE_API_BASE) {
+		throw new Error(
+			"Screendance App extension marketplace is not configured. Set SCREENDANCE_MARKETPLACE_URL to enable marketplace browsing.",
+		);
+	}
 	return MARKETPLACE_API_BASE;
 }
 
 function getAdminKey(): string | undefined {
-	return process.env.RECORDLY_ADMIN_KEY;
+	return process.env.SCREENDANCE_ADMIN_KEY;
+}
+
+function getMarketplaceOrigin(): string {
+	return new URL(getMarketplaceUrl()).origin;
 }
 
 // ---------------------------------------------------------------------------
@@ -77,14 +86,15 @@ async function marketplaceFetch<T>(
 	try {
 		const headers: Record<string, string> = {
 			"Content-Type": "application/json",
-			"X-Recordly-Version": app.getVersion(),
-			"X-Recordly-Platform": process.platform,
+			"X-Screendance-Version": app.getVersion(),
+			"X-Screendance-Platform": process.platform,
 		};
 
 		// Attach admin key for privileged endpoints
 		if (options.admin) {
 			const key = getAdminKey();
-			if (!key) throw new Error("Admin key not configured (set RECORDLY_ADMIN_KEY env var)");
+			if (!key)
+				throw new Error("Admin key not configured (set SCREENDANCE_ADMIN_KEY env var)");
 			headers["X-Admin-Key"] = key;
 		}
 
@@ -166,19 +176,18 @@ export async function downloadAndInstallExtension(
 	extensionId: string,
 	downloadUrl: string,
 ): Promise<{ success: boolean; error?: string }> {
-	// Validate download URL against allowed marketplace origins
-	const allowedOrigins = [
-		"https://marketplace.recordly.dev",
-		"https://recordly.dev",
-		...(app.isPackaged ? [] : ["http://localhost:3001"]),
-	];
 	try {
+		// Validate download URL against allowed marketplace origins
+		const allowedOrigins = [
+			getMarketplaceOrigin(),
+			...(app.isPackaged ? [] : ["http://localhost:3001"]),
+		];
 		const url = new URL(downloadUrl);
 		if (!allowedOrigins.some((o) => url.origin === o)) {
 			return { success: false, error: `Untrusted download origin: ${url.origin}` };
 		}
-	} catch {
-		return { success: false, error: "Invalid download URL" };
+	} catch (error) {
+		return { success: false, error: getErrorMessage(error) || "Invalid download URL" };
 	}
 
 	const tempDir = path.join(app.getPath("temp"), `recordly-ext-${extensionId}-${Date.now()}`);
@@ -197,7 +206,7 @@ export async function downloadAndInstallExtension(
 			response = await fetch(downloadUrl, {
 				signal: controller.signal,
 				headers: {
-					"X-Recordly-Version": app.getVersion(),
+					"X-Screendance-Version": app.getVersion(),
 				},
 			});
 		} finally {
@@ -285,7 +294,7 @@ export async function downloadAndInstallExtension(
 		// Track download count (fire-and-forget — CDN may cache the GET, so POST separately)
 		fetch(`${getMarketplaceUrl()}/extensions/${encodeURIComponent(extensionId)}/download`, {
 			method: "POST",
-			headers: { "X-Recordly-Version": app.getVersion() },
+			headers: { "X-Screendance-Version": app.getVersion() },
 		}).catch(() => undefined);
 
 		return { success: true };

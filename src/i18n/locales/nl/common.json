@@ -1,7 +1,7 @@
 {
 	"app": {
-		"name": "Recordly",
-		"editorTitle": "Recordly Editor",
+		"name": "Screendance App",
+		"editorTitle": "Screendance App Editor",
 		"subtitle": "Schermopname en bewerking",
 		"language": "Taal",
 		"manageRecordings": "Opnamemap openen"
