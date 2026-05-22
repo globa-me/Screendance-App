@@ -65,8 +65,11 @@ export function registerSourceHandlers({
 			...(includeScreens ? ["screen" as const] : []),
 			...(includeWindows ? ["window" as const] : []),
 		];
+		const shouldUseElectronDesktopCapturer =
+			process.platform !== "darwin" ||
+			process.env.SCREENDANCE_USE_ELECTRON_DESKTOP_CAPTURER === "1";
 		const electronSources =
-			electronTypes.length > 0
+			shouldUseElectronDesktopCapturer && electronTypes.length > 0
 				? await desktopCapturer
 						.getSources({
 							...opts,

@@ -3,15 +3,7 @@ import { execFile, spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import {
-	app,
-	BrowserWindow,
-	desktopCapturer,
-	dialog,
-	ipcMain,
-	shell,
-	systemPreferences,
-} from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell, systemPreferences } from "electron";
 import { showCursor } from "../../cursorHider";
 import { ALLOW_RECORDLY_WINDOW_CAPTURE } from "../constants";
 import { startWindowBoundsCapture, stopWindowBoundsCapture } from "../cursor/bounds";
@@ -663,18 +655,6 @@ export function registerRecordingHandlers(
 			let captProc: ChildProcessWithoutNullStreams | null = null;
 			try {
 				const recordingsDir = await getRecordingsDir();
-
-				// Warm up TCC: trigger an Electron-level screen capture API call so macOS
-				// activates the screen-recording grant for this process tree before the
-				// native helper binary spawns and calls SCStream.startCapture().
-				try {
-					await desktopCapturer.getSources({
-						types: ["screen"],
-						thumbnailSize: { width: 1, height: 1 },
-					});
-				} catch {
-					// non-fatal – the helper will report its own TCC status
-				}
 
 				// Ensure microphone TCC is granted for this process tree when mic capture
 				// is requested, so the child helper inherits the grant.

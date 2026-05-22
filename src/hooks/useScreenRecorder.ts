@@ -433,17 +433,6 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 			return true;
 		}
 
-		const screenPermission = await window.electronAPI.getScreenRecordingPermissionStatus();
-		if (!screenPermission.success || screenPermission.status !== "granted") {
-			await window.electronAPI.openScreenRecordingPreferences();
-			alert(
-				options.startup
-					? "Screendance App needs Screen Recording permission before you start. System Settings has been opened. After enabling it, quit and reopen Screendance App."
-					: "Screen Recording permission is still missing. System Settings has been opened again. Enable it, then quit and reopen Screendance App before recording.",
-			);
-			return false;
-		}
-
 		const accessibilityPermission = await window.electronAPI.getAccessibilityPermissionStatus();
 		if (!accessibilityPermission.success) {
 			return false;
