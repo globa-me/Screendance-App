@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Screendance App — запись экрана и монтаж скринкастов на Apple Silicon Mac." />
+    <title>Screendance App</title>
+    <style>
+      :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background:#080b12; color:#edf2ff; }
+      * { box-sizing:border-box; } body { margin:0; line-height:1.55; background:radial-gradient(circle at 10% 0,#1d376a 0,transparent 35rem),#080b12; }
+      main { max-width:1020px; margin:auto; padding:64px 24px 48px; } h1 { font-size:clamp(2.7rem,8vw,5.5rem); letter-spacing:-.065em; line-height:.96; max-width:800px; margin:10px 0 24px; }
+      h2 { font-size:1.35rem; margin-top:0; } p { color:#c5d1e7; } a { color:#b9d5ff; } .eyebrow { color:#91b7ff; font-size:.78rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+      .lead { font-size:1.18rem; max-width:700px; } .actions { display:flex; flex-wrap:wrap; gap:12px; margin:30px 0 42px; } .button { text-decoration:none; background:#b9d5ff; color:#07101d; border-radius:999px; font-weight:700; padding:11px 17px; } .button.alt { background:#172337; color:#dce8fc; border:1px solid #334863; }
+      .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:16px 0; } section { background:#101925df; border:1px solid #273a57; border-radius:18px; padding:24px; } .wide { margin:16px 0; } .notice { border-left:4px solid #e7c571; } ol { padding-left:1.3rem; } li+li { margin-top:.5rem; } code { background:#07101d; border:1px solid #263752; border-radius:5px; padding:.08rem .3rem; } pre { overflow:auto; background:#07101d; border:1px solid #263752; border-radius:10px; padding:14px; } pre code { border:0; padding:0; } footer { color:#8fa3c4; font-size:.9rem; padding-top:25px; }
+      @media (max-width:680px) { main{padding-top:42px}.grid{grid-template-columns:1fr}section{padding:20px} }
+    </style>
+  </head>
+  <body><main>
+    <div class="eyebrow">Apple Silicon · macOS 14+</div>
+    <h1>Скринкасты, которые выглядят собранно.</h1>
+    <p class="lead">Screendance App — macOS-форк Recordly для записи экрана и быстрого монтажа: ScreenCaptureKit, зумы, курсор, веб-камера, оформление кадра и экспорт.</p>
+    <div class="actions"><a class="button" href="https://github.com/globa-me/Screendance-App">Открыть GitHub</a><a class="button alt" href="https://github.com/globa-me/Screendance-App/releases">Готовые сборки</a></div>
+    <div class="grid"><section><h2>Запись и звук</h2><p>Дисплей или окно, системный звук, микрофон, веб-камера и нативный захват ScreenCaptureKit. Во время записи видны активные источники и уровни звука.</p></section><section><h2>Монтаж и экспорт</h2><p>Таймлайн, обрезка, зумы, аннотации, курсор, фоны и веб-камера. Экспортируйте MP4, GIF, прозрачный WebM или ProRes 4444.</p></section></div>
+    <section class="wide notice"><strong>Пока нет опубликованного релиза.</strong> Когда сборка появится, скачивайте её только из <a href="https://github.com/globa-me/Screendance-App/releases">GitHub Releases</a>. Не отключайте защиту macOS ради файлов из неизвестных источников.</section>
+    <div class="grid"><section><h2>Установка готового приложения</h2><ol><li>Скачайте <code>.dmg</code> для <code>arm64</code> из Releases.</li><li>Перетащите приложение в <code>Applications</code>.</li><li>При блокировке: <strong>System Settings → Privacy &amp; Security → Open Anyway</strong>, затем Open.</li><li>Разрешите Screen &amp; System Audio Recording и Accessibility; для камеры и микрофона — соответствующие разрешения.</li></ol></section><section><h2>Сборка на своём Mac</h2><p>Установите Xcode Command Line Tools и Node.js 22 LTS, затем:</p><pre><code>git clone https://github.com/globa-me/Screendance-App.git
+cd Screendance-App
+git switch screendance/macos-apple-silicon
+npm ci
+npm run build:mac</code></pre><p>Результат: <code>release/Screendance App-arm64.dmg</code>.</p></section></div>
+    <section class="wide"><h2>История и оригинал</h2><p>Проект создан от <a href="https://github.com/webadderallorg/Recordly">Recordly</a>, коммит <code>67a83ca</code>. История форка и текущей разработки собрана в <a href="https://github.com/globa-me/Screendance-App/blob/screendance/macos-apple-silicon/CHANGELOG.md">CHANGELOG</a>; ранняя история — в <a href="https://github.com/webadderallorg/Recordly/commits/main">upstream Recordly</a>.</p></section>
+    <footer>© Screendance App contributors · Original project: Recordly · AGPL-3.0</footer>
+  </main></body>
+</html>
