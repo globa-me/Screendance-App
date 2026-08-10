@@ -24,6 +24,10 @@ presented as a downloadable build.
   render consistently in exports.
 - Global source-selection and recording shortcuts; fewer duplicate macOS
   permission requests; refreshed UI translations and help.
+- New projects are saved as `.scrdance`; `.recordly` projects continue to open,
+  save, appear in the project library and protect their recordings from cleanup.
+- The Extensions manager and extension-contributed sidebar pages are hidden
+  pending a redesigned experience; extension implementation code is retained.
 
 ## May 22, 2026 — Screendance macOS fork
 

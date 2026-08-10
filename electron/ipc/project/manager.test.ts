@@ -47,6 +47,15 @@ describe("local media path policy", () => {
 		}
 	});
 
+	it("recognizes both Screendance and Recordly project files", async () => {
+		const { hasProjectFileExtension } = await import("./manager");
+
+		expect(hasProjectFileExtension("/Projects/demo.scrdance")).toBe(true);
+		expect(hasProjectFileExtension("/Projects/demo.recordly")).toBe(true);
+		expect(hasProjectFileExtension("/Projects/demo.openscreen")).toBe(true);
+		expect(hasProjectFileExtension("/Projects/demo.mp4")).toBe(false);
+	});
+
 	it("rejects existing media files outside allowed directories until they are approved", async () => {
 		const downloadsPath = path.join(tempRoot, "Downloads");
 		const exportPath = path.join(downloadsPath, "export-test.mp4");

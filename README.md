@@ -112,7 +112,10 @@ handling for portrait output, post-transcode alpha validation, resilient
 external-microphone selection and audio-level indicators, diagnostic logs,
 configurable zoom defaults and smoother editor previews. It also adds global
 source-selection/recording shortcuts and reduces repeat macOS permission
-prompts. See [CHANGELOG.md](CHANGELOG.md) for the release-ready history.
+prompts. New projects use the `.scrdance` extension, while existing `.recordly`
+projects remain fully supported. The Extensions section is intentionally hidden
+until it is redesigned. See [CHANGELOG.md](CHANGELOG.md) for the release-ready
+history.
 
 ## Current Investigation Notes
 
@@ -175,6 +178,16 @@ Relevant code:
 - `electron/ipc/register/export.ts`: ProRes alpha FFmpeg binary selection,
   temp-file finalization, and forced `.mov` output
 - `src/lib/exporter/modernVideoExporter.ts`: direct alpha ProRes export path
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/media/editor-background.png" alt="Screendance App editor with background, frame, and timeline controls" width="900" />
+</p>
+
+<p align="center">
+  <img src="docs/media/editor-captions.png" alt="Screendance App editor with caption controls and timeline" width="900" />
+</p>
 
 ## Project history and original project
 

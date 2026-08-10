@@ -1,7 +1,10 @@
 import path from "node:path";
 import { USER_DATA_PATH } from "../appPaths";
 
-export const PROJECT_FILE_EXTENSION = "recordly";
+// New projects use the Screendance extension. Existing Recordly projects stay
+// first-class citizens, rather than requiring users to rename or migrate them.
+export const PROJECT_FILE_EXTENSION = "scrdance";
+export const PROJECT_FILE_EXTENSIONS = [PROJECT_FILE_EXTENSION, "recordly"];
 export const LEGACY_PROJECT_FILE_EXTENSIONS = ["openscreen"];
 export const PROJECTS_DIRECTORY_NAME = "Projects";
 export const PROJECT_THUMBNAIL_SUFFIX = ".preview.png";

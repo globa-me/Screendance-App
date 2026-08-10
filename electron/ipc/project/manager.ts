@@ -7,7 +7,7 @@ import { isSupportedLocalMediaPath } from "../../mediaTypes";
 import {
 	LEGACY_PROJECT_FILE_EXTENSIONS,
 	MAX_RECENT_PROJECTS,
-	PROJECT_FILE_EXTENSION,
+	PROJECT_FILE_EXTENSIONS,
 	PROJECT_THUMBNAIL_SUFFIX,
 	PROJECTS_DIRECTORY_NAME,
 	RECENT_PROJECTS_FILE,
@@ -256,7 +256,7 @@ export async function persistRecordingsDirectorySetting(nextDir: string) {
 
 export function hasProjectFileExtension(filePath: string) {
 	const extension = path.extname(filePath).replace(/^\./, "").toLowerCase();
-	return [PROJECT_FILE_EXTENSION, ...LEGACY_PROJECT_FILE_EXTENSIONS].includes(extension);
+	return [...PROJECT_FILE_EXTENSIONS, ...LEGACY_PROJECT_FILE_EXTENSIONS].includes(extension);
 }
 
 export function getProjectThumbnailPath(projectPath: string) {
@@ -346,7 +346,7 @@ export async function buildProjectLibraryEntry(
 				.basename(normalizedPath)
 				.replace(
 					new RegExp(
-						`\\.(${[PROJECT_FILE_EXTENSION, ...LEGACY_PROJECT_FILE_EXTENSIONS].join("|")})$`,
+						`\\.(${[...PROJECT_FILE_EXTENSIONS, ...LEGACY_PROJECT_FILE_EXTENSIONS].join("|")})$`,
 						"i",
 					),
 					"",

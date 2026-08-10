@@ -5,7 +5,11 @@ import path from "node:path";
 import { BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { RECORDINGS_DIR } from "../../appPaths";
 import { buildMediaUrl, getMediaServerBaseUrl } from "../../mediaServer";
-import { LEGACY_PROJECT_FILE_EXTENSIONS, PROJECT_FILE_EXTENSION } from "../constants";
+import {
+	LEGACY_PROJECT_FILE_EXTENSIONS,
+	PROJECT_FILE_EXTENSION,
+	PROJECT_FILE_EXTENSIONS,
+} from "../constants";
 import {
 	getProjectsDir,
 	getProjectThumbnailPath,
@@ -62,7 +66,10 @@ function normalizeProjectSaveName(projectName?: string | null) {
 	}
 
 	const withoutExtension = trimmedName.replace(
-		new RegExp(`\\.${PROJECT_FILE_EXTENSION}$`, "i"),
+		new RegExp(
+			`\\.(${[...PROJECT_FILE_EXTENSIONS, ...LEGACY_PROJECT_FILE_EXTENSIONS].join("|")})$`,
+			"i",
+		),
 		"",
 	);
 	const withoutInvalidFilesystemChars = withoutExtension.replace(/[<>:"/\\|?*]/g, "");
@@ -341,7 +348,10 @@ export function registerProjectHandlers() {
 					title: "Save Screendance App Project",
 					defaultPath: path.join(projectsDir, defaultName),
 					filters: [
-						{ name: "Screendance App Project", extensions: [PROJECT_FILE_EXTENSION] },
+						{
+							name: "Screendance App Project (.scrdance or .recordly)",
+							extensions: PROJECT_FILE_EXTENSIONS,
+						},
 						{ name: "JSON", extensions: ["json"] },
 					],
 					properties: ["createDirectory", "showOverwriteConfirmation"],
@@ -479,7 +489,7 @@ export function registerProjectHandlers() {
 				filters: [
 					{
 						name: "Screendance App Project",
-						extensions: [PROJECT_FILE_EXTENSION, ...LEGACY_PROJECT_FILE_EXTENSIONS],
+						extensions: [...PROJECT_FILE_EXTENSIONS, ...LEGACY_PROJECT_FILE_EXTENSIONS],
 					},
 					{ name: "JSON", extensions: ["json"] },
 					{ name: "All Files", extensions: ["*"] },
