@@ -5,7 +5,7 @@ import {
 	AUTO_RECORDING_RETENTION_COUNT,
 	COMPANION_AUDIO_LAYOUTS,
 	LEGACY_PROJECT_FILE_EXTENSIONS,
-	PROJECT_FILE_EXTENSION,
+	PROJECT_FILE_EXTENSIONS,
 	PROJECTS_DIRECTORY_NAME,
 } from "../constants";
 import { currentVideoPath } from "../state";
@@ -20,7 +20,7 @@ import {
 
 export async function hasSiblingProjectFile(videoPath: string) {
 	const baseName = path.basename(videoPath, path.extname(videoPath));
-	const candidateExtensions = [PROJECT_FILE_EXTENSION, ...LEGACY_PROJECT_FILE_EXTENSIONS];
+	const candidateExtensions = [...PROJECT_FILE_EXTENSIONS, ...LEGACY_PROJECT_FILE_EXTENSIONS];
 
 	for (const extension of candidateExtensions) {
 		const projectPath = path.join(path.dirname(videoPath), `${baseName}.${extension}`);
@@ -43,7 +43,7 @@ async function loadSavedProjectMediaPaths() {
 	const projectsDir = path.join(recordingsDir, PROJECTS_DIRECTORY_NAME);
 	const protectedPaths = new Set<string>();
 	const candidateExtensions = new Set([
-		PROJECT_FILE_EXTENSION,
+		...PROJECT_FILE_EXTENSIONS,
 		...LEGACY_PROJECT_FILE_EXTENSIONS,
 	]);
 
