@@ -1,9 +1,9 @@
 {
 	"name": "screendance-app",
 	"productName": "Screendance App",
-	"description": "A macOS Apple Silicon-focused fork of Recordly for optimized screen recording workflows.",
+	"description": "A macOS fork of Recordly for optimized screen recording workflows on Apple Silicon and Intel Macs.",
 	"author": "globa-me",
-	"homepage": "https://github.com/globa-me/Screendance-App",
+	"homepage": "https://zakharov.asia",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/globa-me/Screendance-App.git"
@@ -12,7 +12,7 @@
 		"url": "https://github.com/globa-me/Screendance-App/issues"
 	},
 	"private": true,
-	"version": "1.3.0-beta.3",
+	"version": "1.1.0",
 	"type": "module",
 	"scripts": {
 		"dev": "vite --config vite.config.ts",
@@ -25,9 +25,13 @@
 		"rebuild:native": "node ./node_modules/@electron/rebuild/lib/cli.js --force --only uiohook-napi",
 		"build:native-helpers": "node scripts/build-native-helpers.mjs",
 		"build:whisper-runtime": "node scripts/build-whisper-runtime.mjs",
-		"build:mac-native-helpers": "npm run build:native-helpers && npm run build:whisper-runtime",
+		"stage:mac-ffprobe": "node scripts/stage-macos-ffprobe.mjs",
+		"stage:mac-ffmpeg": "node scripts/stage-macos-ffmpeg.mjs",
+		"build:mac-native-helpers": "MACOS_NATIVE_ARCHS=all WHISPER_RUNTIME_ARCHS=all npm run build:native-helpers && MACOS_NATIVE_ARCHS=all WHISPER_RUNTIME_ARCHS=all npm run build:whisper-runtime",
 		"build:platform-native-helpers": "npm run build:mac-native-helpers",
-		"build:mac": "npm run build:mac-native-helpers && tsc && vite build --config vite.config.ts && npm run normalize:electron-main-cjs && npm run smoke:electron-main-cjs && electron-builder --mac",
+		"build:mac": "npm run build:mac-native-helpers && npm run stage:mac-ffmpeg && npm run stage:mac-ffprobe && tsc && vite build --config vite.config.ts && npm run normalize:electron-main-cjs && npm run smoke:electron-main-cjs && electron-builder --mac",
+		"build:mac:arm64": "npm run build:mac-native-helpers && npm run stage:mac-ffmpeg && npm run stage:mac-ffprobe && tsc && vite build --config vite.config.ts && npm run normalize:electron-main-cjs && npm run smoke:electron-main-cjs && electron-builder --mac --arm64",
+		"build:mac:x64": "npm run build:mac-native-helpers && npm run stage:mac-ffmpeg && npm run stage:mac-ffprobe && tsc && vite build --config vite.config.ts && npm run normalize:electron-main-cjs && npm run smoke:electron-main-cjs && electron-builder --mac --x64",
 		"i18n:check": "node scripts/i18n-check.mjs",
 		"benchmark:export-queues": "node scripts/benchmark-export-queues.mjs",
 		"normalize:electron-main-cjs": "node scripts/normalize-electron-main-cjs.mjs",

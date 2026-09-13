@@ -34,9 +34,14 @@ import {
 	sendNativeVideoExportWriteFrameResult,
 	settleNativeVideoExportWriteFrameRequest,
 } from "../export/native-video";
-import { getFfmpegBinaryPath } from "../ffmpeg/binary";
+import {
+	getFfmpegBinaryPath,
+	getFfprobeBinaryPath,
+	resolveSystemFfmpegBinaryPath,
+} from "../ffmpeg/binary";
 import {
 	buildNativeH264StreamExportArgs,
+	buildNativeProresAlphaExportArgs,
 	buildNativeVideoExportArgs,
 	getNativeVideoInputByteSize,
 	type NativeExportEncodingMode,
@@ -53,6 +58,15 @@ function getPartialExportDestinationPath(destinationPath: string) {
 
 const MAX_IN_MEMORY_EXPORT_BYTES = 0x7fffffff;
 
+function ensureFileExtension(filePath: string, extension: string): string {
+	const normalizedExtension = extension.startsWith(".") ? extension : `.${extension}`;
+	const parsed = path.parse(filePath);
+	if (parsed.ext.toLowerCase() === normalizedExtension.toLowerCase()) {
+		return filePath;
+	}
+	return path.join(parsed.dir, `${parsed.name}${normalizedExtension}`);
+}
+
 function getInMemoryExportTooLargeMessage(byteLength: number) {
 	if (byteLength <= MAX_IN_MEMORY_EXPORT_BYTES) {
 		return null;
@@ -68,12 +82,7 @@ export async function moveExportedTempFile(tempPath: string, destinationPath: st
 		return;
 	} catch (error) {
 		const code = (error as NodeJS.ErrnoException).code;
-		if (
-			code !== "EXDEV" &&
-			code !== "EPERM" &&
-			code !== "ENOTEMPTY" &&
-			code !== "EEXIST"
-		) {
+		if (code !== "EXDEV" && code !== "EPERM" && code !== "ENOTEMPTY" && code !== "EEXIST") {
 			throw error;
 		}
 		// Cross-device or Windows permission quirks — fall back to copy + unlink so
@@ -106,9 +115,7 @@ export async function moveExportedTempFile(tempPath: string, destinationPath: st
 				await fs.rename(partialDestinationPath, destinationPath);
 			} catch (replaceError) {
 				if (movedExistingDestination) {
-					await fs
-						.rename(backupDestinationPath, destinationPath)
-						.catch(() => undefined);
+					await fs.rename(backupDestinationPath, destinationPath).catch(() => undefined);
 				}
 				throw replaceError;
 			}
@@ -133,6 +140,243 @@ export async function moveExportedTempFile(tempPath: string, destinationPath: st
 				unlinkError,
 			);
 		}
+	} catch (error) {
+		await fs.rm(partialDestinationPath, { force: true }).catch(() => undefined);
+		throw error;
+	}
+}
+
+type ProcessOutput = {
+	stdout: string;
+	stderr: string;
+};
+
+type ProResAlphaProbeStream = {
+	codec_type?: string;
+	codec_name?: string;
+	profile?: string;
+	codec_tag_string?: string;
+	pix_fmt?: string;
+	tags?: Record<string, string>;
+};
+
+type ProResAlphaProbeOutput = {
+	streams?: ProResAlphaProbeStream[];
+};
+
+export type AlphaSignalStats = {
+	frameCount: number;
+	min: number | null;
+	max: number | null;
+	avg: number | null;
+};
+
+export function buildWebmToProResArgs(tempPath: string, destinationPath: string): string[] {
+	return [
+		"-y",
+		"-c:v",
+		"libvpx-vp9",
+		"-i",
+		tempPath,
+		"-map",
+		"0:v:0",
+		"-map",
+		"0:a?",
+		"-c:v",
+		"prores_ks",
+		"-profile:v",
+		"4",
+		"-pix_fmt",
+		"yuva444p10le",
+		"-metadata:s:v:0",
+		"alpha_mode=1",
+		"-alpha_bits",
+		"16",
+		"-c:a",
+		"pcm_s16le",
+		destinationPath,
+	];
+}
+
+function runProcess(
+	binaryPath: string,
+	args: string[],
+	logPrefix: string,
+	options: { stdout?: "ignore" | "pipe" } = {},
+): Promise<ProcessOutput> {
+	return new Promise((resolve, reject) => {
+		const proc = spawn(binaryPath, args, {
+			stdio: ["ignore", options.stdout ?? "ignore", "pipe"],
+		});
+
+		let stdout = "";
+		let stderr = "";
+		proc.stdout?.on("data", (data) => {
+			stdout += data.toString();
+		});
+		proc.stderr?.on("data", (data) => {
+			stderr += data.toString();
+		});
+
+		proc.on("close", (code) => {
+			console.log(`${logPrefix} process closed with code ${code}`);
+			if (stderr.trim()) {
+				console.log(`${logPrefix} STDERR:\n${stderr.trim()}`);
+			}
+			if (code === 0) {
+				resolve({ stdout, stderr });
+			} else {
+				const errorMsg = `${logPrefix} failed with code ${code}. Stderr: ${stderr}`;
+				console.error(logPrefix, errorMsg);
+				reject(new Error(errorMsg));
+			}
+		});
+
+		proc.on("error", (err) => {
+			console.error(`${logPrefix} process error:`, err);
+			reject(err);
+		});
+	});
+}
+
+function hasAlphaPixelFormat(pixelFormat: string | undefined): boolean {
+	return /^(yuva|rgba|bgra|argb|abgr|gbrap|ya)/.test(pixelFormat ?? "");
+}
+
+export function getProResAlphaValidationError(probe: ProResAlphaProbeOutput): string | null {
+	const videoStream =
+		probe.streams?.find((stream) => stream.codec_type === "video") ?? probe.streams?.[0];
+	if (!videoStream) {
+		return "FFprobe did not find a video stream in the ProRes export";
+	}
+
+	if (videoStream.codec_name !== "prores") {
+		return `Expected ProRes video, got ${videoStream.codec_name || "unknown codec"}`;
+	}
+
+	const isProRes4444 =
+		videoStream.codec_tag_string === "ap4h" ||
+		videoStream.profile?.toLowerCase().includes("4444") === true;
+	if (!isProRes4444) {
+		return `Expected ProRes 4444/ap4h, got ${videoStream.profile || "unknown profile"} ${
+			videoStream.codec_tag_string || ""
+		}`.trim();
+	}
+
+	if (!hasAlphaPixelFormat(videoStream.pix_fmt)) {
+		return `Expected an alpha-capable pixel format, got ${
+			videoStream.pix_fmt || "unknown pix_fmt"
+		}`;
+	}
+
+	return null;
+}
+
+export function parseAlphaSignalStats(output: string): AlphaSignalStats {
+	const mins = [...output.matchAll(/lavfi\.signalstats\.YMIN=([0-9.]+)/g)].map((match) =>
+		Number(match[1]),
+	);
+	const maxes = [...output.matchAll(/lavfi\.signalstats\.YMAX=([0-9.]+)/g)].map((match) =>
+		Number(match[1]),
+	);
+	const avgs = [...output.matchAll(/lavfi\.signalstats\.YAVG=([0-9.]+)/g)].map((match) =>
+		Number(match[1]),
+	);
+
+	return {
+		frameCount: Math.max(mins.length, maxes.length, avgs.length),
+		min: mins.length > 0 ? Math.min(...mins) : null,
+		max: maxes.length > 0 ? Math.max(...maxes) : null,
+		avg: avgs.length > 0 ? avgs.reduce((sum, value) => sum + value, 0) / avgs.length : null,
+	};
+}
+
+async function verifyProResAlphaChannel(destinationPath: string): Promise<void> {
+	const ffprobePath = getFfprobeBinaryPath();
+	const ffprobeArgs = [
+		"-v",
+		"error",
+		"-select_streams",
+		"v:0",
+		"-show_entries",
+		"stream=codec_type,codec_name,profile,codec_tag_string,pix_fmt:stream_tags=vendor_id,handler_name",
+		"-of",
+		"json",
+		destinationPath,
+	];
+
+	console.log("[transcode] Validating ProRes alpha metadata...");
+	console.log("[transcode] FFprobe Path:", ffprobePath);
+	console.log("[transcode] FFprobe Args:", ffprobeArgs.join(" "));
+	const ffprobeOutput = await runProcess(ffprobePath, ffprobeArgs, "[transcode:ffprobe]", {
+		stdout: "pipe",
+	});
+	const probe = JSON.parse(ffprobeOutput.stdout) as ProResAlphaProbeOutput;
+	const validationError = getProResAlphaValidationError(probe);
+	if (validationError) {
+		throw new Error(`ProRes alpha validation failed: ${validationError}`);
+	}
+
+	const stream = probe.streams?.[0];
+	console.log(
+		`[transcode] ProRes alpha metadata ok: codec=${stream?.codec_name} profile=${stream?.profile} tag=${stream?.codec_tag_string} pix_fmt=${stream?.pix_fmt} vendor=${stream?.tags?.vendor_id ?? "unknown"}`,
+	);
+
+	const ffmpegPath = getFfmpegBinaryPath();
+	const alphaArgs = [
+		"-hide_banner",
+		"-v",
+		"error",
+		"-i",
+		destinationPath,
+		"-vf",
+		"alphaextract,signalstats,metadata=print:file=-",
+		"-frames:v",
+		"10",
+		"-f",
+		"null",
+		"-",
+	];
+	console.log("[transcode] Validating decoded alpha plane...");
+	console.log("[transcode] Alpha Validation Args:", alphaArgs.join(" "));
+	const alphaOutput = await runProcess(ffmpegPath, alphaArgs, "[transcode:alpha]", {
+		stdout: "pipe",
+	});
+	const stats = parseAlphaSignalStats(`${alphaOutput.stdout}\n${alphaOutput.stderr}`);
+	console.log(
+		`[transcode] Alpha plane sample: frames=${stats.frameCount} min=${stats.min ?? "n/a"} max=${stats.max ?? "n/a"} avg=${stats.avg === null ? "n/a" : stats.avg.toFixed(2)}`,
+	);
+}
+
+function getProResTranscodeFfmpegPath(): string {
+	if (process.platform === "darwin") {
+		const systemFfmpeg = resolveSystemFfmpegBinaryPath();
+		if (systemFfmpeg) {
+			return systemFfmpeg;
+		}
+	}
+
+	return getFfmpegBinaryPath();
+}
+
+export async function transcodeWebmToProRes(
+	tempPath: string,
+	destinationPath: string,
+): Promise<void> {
+	const ffmpegPath = getProResTranscodeFfmpegPath();
+	const partialDestinationPath = getPartialExportDestinationPath(destinationPath);
+	const ffmpegArgs = buildWebmToProResArgs(tempPath, partialDestinationPath);
+
+	console.log("[transcode] Starting WebM to ProRes transcoding...");
+	console.log("[transcode] FFmpeg Path:", ffmpegPath);
+	console.log("[transcode] FFmpeg Args:", ffmpegArgs.join(" "));
+
+	try {
+		await fs.mkdir(path.dirname(destinationPath), { recursive: true });
+		await runProcess(ffmpegPath, ffmpegArgs, "[transcode]");
+		await verifyProResAlphaChannel(partialDestinationPath);
+		await moveExportedTempFile(partialDestinationPath, destinationPath);
+		console.log("[transcode] Transcoding completed successfully with verified alpha.");
 	} catch (error) {
 		await fs.rm(partialDestinationPath, { force: true }).catch(() => undefined);
 		throw error;
@@ -257,6 +501,7 @@ export function registerExportHandlers() {
 				bitrate: number;
 				encodingMode: NativeExportEncodingMode;
 				inputMode?: "rawvideo" | "h264-stream";
+				outputProfile?: "mp4-h264" | "mov-prores-4444";
 			},
 		) => {
 			try {
@@ -264,15 +509,26 @@ export function registerExportHandlers() {
 					throw new Error("Native export requires even output dimensions");
 				}
 
-				const ffmpegPath = getFfmpegBinaryPath();
 				const inputMode = options.inputMode ?? "rawvideo";
+				const outputProfile = options.outputProfile ?? "mp4-h264";
+				const ffmpegPath =
+					outputProfile === "mov-prores-4444" ? getProResTranscodeFfmpegPath() : getFfmpegBinaryPath();
 				const sessionId = `recordly-export-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-				const outputPath = path.join(app.getPath("temp"), `${sessionId}.mp4`);
+				const outputPath = path.join(
+					app.getPath("temp"),
+					`${sessionId}${outputProfile === "mov-prores-4444" ? ".mov" : ".mp4"}`,
+				);
 
 				let encoderName: string;
 				let ffmpegArgs: string[];
 
-				if (inputMode === "h264-stream") {
+				if (outputProfile === "mov-prores-4444") {
+					if (inputMode !== "rawvideo") {
+						throw new Error("ProRes alpha export requires rawvideo input");
+					}
+					encoderName = "prores_ks-4444-alpha";
+					ffmpegArgs = buildNativeProresAlphaExportArgs(options, outputPath);
+				} else if (inputMode === "h264-stream") {
 					// Pre-encoded H.264 Annex B from browser VideoEncoder — just stream-copy into MP4
 					encoderName = "h264-stream-copy";
 					ffmpegArgs = buildNativeH264StreamExportArgs({
@@ -284,6 +540,9 @@ export function registerExportHandlers() {
 					ffmpegArgs = buildNativeVideoExportArgs(encoderName, options, outputPath);
 				}
 
+				console.log(
+					`[native-export] Spawning FFmpeg process: ${ffmpegPath} ${ffmpegArgs.join(" ")}`,
+				);
 				const ffmpegProcess = spawn(ffmpegPath, ffmpegArgs, {
 					stdio: ["pipe", "ignore", "pipe"],
 				}) as ChildProcessByStdio<Writable, null, Readable>;
@@ -824,15 +1083,40 @@ export function registerExportHandlers() {
 					};
 				}
 
+				const isWebmData =
+					videoData.byteLength >= 4 &&
+					new Uint8Array(videoData, 0, 4)[0] === 0x1a &&
+					new Uint8Array(videoData, 0, 4)[1] === 0x45 &&
+					new Uint8Array(videoData, 0, 4)[2] === 0xdf &&
+					new Uint8Array(videoData, 0, 4)[3] === 0xa3;
+
 				// Determine file type from extension
-				const isGif = fileName.toLowerCase().endsWith(".gif");
+				const lowerFileName = fileName.toLowerCase();
+				const isGif = lowerFileName.endsWith(".gif");
+				const isAlphaQuickTime = isWebmData || lowerFileName.endsWith(".mov");
+				const defaultFileName =
+					isAlphaQuickTime && !lowerFileName.endsWith(".webm")
+						? ensureFileExtension(fileName, ".mov")
+						: fileName;
 				const filters = isGif
 					? [{ name: "GIF Image", extensions: ["gif"] }]
-					: [{ name: "MP4 Video", extensions: ["mp4"] }];
+					: isAlphaQuickTime
+						? [
+								{
+									name: "QuickTime Alpha Video (ProRes 4444)",
+									extensions: ["mov"],
+								},
+								{ name: "WebM Video", extensions: ["webm"] },
+							]
+						: [{ name: "MP4 Video", extensions: ["mp4"] }];
 				const parentWindow = BrowserWindow.fromWebContents(event.sender);
 				const saveDialogOptions: SaveDialogOptions = {
-					title: isGif ? "Save Exported GIF" : "Save Exported Video",
-					defaultPath: path.join(app.getPath("downloads"), fileName),
+					title: isGif
+						? "Save Exported GIF"
+						: isAlphaQuickTime
+							? "Save Exported Alpha Video"
+							: "Save Exported Video",
+					defaultPath: path.join(app.getPath("downloads"), defaultFileName),
 					filters,
 					properties: ["createDirectory", "showOverwriteConfirmation"],
 				};
@@ -849,12 +1133,30 @@ export function registerExportHandlers() {
 					};
 				}
 
-				await fs.writeFile(result.filePath, Buffer.from(videoData));
-				approveUserPath(result.filePath);
+				const destinationPath =
+					isAlphaQuickTime && !result.filePath.toLowerCase().endsWith(".webm")
+						? ensureFileExtension(result.filePath, ".mov")
+						: result.filePath;
+
+				if (isWebmData && destinationPath.toLowerCase().endsWith(".mov")) {
+					const tempPath = path.join(
+						app.getPath("temp"),
+						`recordly-export-temp-${Date.now()}.webm`,
+					);
+					await fs.writeFile(tempPath, Buffer.from(videoData));
+					try {
+						await transcodeWebmToProRes(tempPath, destinationPath);
+					} finally {
+						await fs.rm(tempPath, { force: true }).catch(() => undefined);
+					}
+				} else {
+					await fs.writeFile(destinationPath, Buffer.from(videoData));
+				}
+				approveUserPath(destinationPath);
 
 				return {
 					success: true,
-					path: result.filePath,
+					path: destinationPath,
 					message: "Video exported successfully",
 				};
 			} catch (error) {
@@ -938,9 +1240,25 @@ export function registerExportHandlers() {
 			}
 
 			try {
+				const lowerTempPath = tempPath.toLowerCase();
+				const lowerFileName = fileName.toLowerCase();
+				const isWebm = lowerTempPath.endsWith(".webm");
+				const isProResAlphaMov = lowerTempPath.endsWith(".mov");
+				const isAlphaQuickTime =
+					isWebm || isProResAlphaMov || lowerFileName.endsWith(".mov");
+
 				if (payload.outputPath) {
-					const resolvedPath = path.resolve(payload.outputPath);
-					await moveExportedTempFile(tempPath, resolvedPath);
+					const requestedPath = path.resolve(payload.outputPath);
+					const resolvedPath =
+						isAlphaQuickTime && !requestedPath.toLowerCase().endsWith(".webm")
+							? ensureFileExtension(requestedPath, ".mov")
+							: requestedPath;
+					if (isWebm && resolvedPath.toLowerCase().endsWith(".mov")) {
+						await transcodeWebmToProRes(tempPath, resolvedPath);
+						await fs.rm(tempPath, { force: true }).catch(() => undefined);
+					} else {
+						await moveExportedTempFile(tempPath, resolvedPath);
+					}
 					releaseOwnedExportPath(tempPath);
 					approveUserPath(resolvedPath);
 					return {
@@ -951,14 +1269,30 @@ export function registerExportHandlers() {
 					};
 				}
 
-				const isGif = fileName.toLowerCase().endsWith(".gif");
+				const isGif = lowerFileName.endsWith(".gif");
+				const defaultFileName =
+					isAlphaQuickTime && !lowerFileName.endsWith(".webm")
+						? ensureFileExtension(fileName, ".mov")
+						: fileName;
 				const filters = isGif
 					? [{ name: "GIF Image", extensions: ["gif"] }]
-					: [{ name: "MP4 Video", extensions: ["mp4"] }];
+					: isAlphaQuickTime
+						? [
+								{
+									name: "QuickTime Alpha Video (ProRes 4444)",
+									extensions: ["mov"],
+								},
+								{ name: "WebM Video", extensions: ["webm"] },
+							]
+						: [{ name: "MP4 Video", extensions: ["mp4"] }];
 				const parentWindow = BrowserWindow.fromWebContents(event.sender);
 				const saveDialogOptions: SaveDialogOptions = {
-					title: isGif ? "Save Exported GIF" : "Save Exported Video",
-					defaultPath: path.join(app.getPath("downloads"), fileName),
+					title: isGif
+						? "Save Exported GIF"
+						: isAlphaQuickTime
+							? "Save Exported Alpha Video"
+							: "Save Exported Video",
+					defaultPath: path.join(app.getPath("downloads"), defaultFileName),
 					filters,
 					properties: ["createDirectory", "showOverwriteConfirmation"],
 				};
@@ -977,13 +1311,23 @@ export function registerExportHandlers() {
 					};
 				}
 
-				await moveExportedTempFile(tempPath, result.filePath);
+				const destinationPath =
+					isAlphaQuickTime && !result.filePath.toLowerCase().endsWith(".webm")
+						? ensureFileExtension(result.filePath, ".mov")
+						: result.filePath;
+
+				if (isWebm && destinationPath.toLowerCase().endsWith(".mov")) {
+					await transcodeWebmToProRes(tempPath, destinationPath);
+					await fs.rm(tempPath, { force: true }).catch(() => undefined);
+				} else {
+					await moveExportedTempFile(tempPath, destinationPath);
+				}
 				releaseOwnedExportPath(tempPath);
-				approveUserPath(result.filePath);
+				approveUserPath(destinationPath);
 
 				return {
 					success: true,
-					path: result.filePath,
+					path: destinationPath,
 					canceled: false,
 					message: "Video exported successfully",
 				};

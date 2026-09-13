@@ -95,7 +95,81 @@
 	color: #4eeeb0;
 }
 
+.recordingAudioMonitor {
+	display: inline-flex;
+	flex-direction: column;
+	gap: 4px;
+	width: 188px;
+	min-width: 188px;
+	padding: 4px 7px;
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--launch-hover) 72%, transparent);
+	border: 1px solid var(--launch-border);
+}
 
+.recordingAudioSource {
+	display: grid;
+	grid-template-columns: minmax(72px, 1fr) 76px;
+	align-items: center;
+	gap: 8px;
+	min-height: 17px;
+}
+
+.recordingAudioSourceLabel {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	min-width: 0;
+	color: var(--launch-text);
+	font-size: 10px;
+	font-weight: 700;
+	line-height: 1;
+}
+
+.recordingAudioSourceLabel span {
+	display: block;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.recordingAudioHistogram {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 2px;
+	width: 76px;
+	height: 17px;
+}
+
+.recordingAudioHistogram span {
+	width: 3px;
+	min-height: 2px;
+	border-radius: 999px;
+	transform-origin: center bottom;
+	background: color-mix(in srgb, var(--launch-text-muted) 34%, transparent);
+	transition:
+		height 70ms ease,
+		background-color 90ms ease,
+		opacity 90ms ease;
+	opacity: 0.48;
+}
+
+.recordingAudioBarActive {
+	background: #34d399 !important;
+	opacity: 1 !important;
+	animation: recordingAudioPulse 520ms ease-in-out infinite alternate;
+}
+
+@keyframes recordingAudioPulse {
+	from {
+		transform: scaleY(0.72);
+	}
+	to {
+		transform: scaleY(1.08);
+	}
+}
 
 .menuCard {
 	width: 300px;

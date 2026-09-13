@@ -23,6 +23,7 @@ export interface NativeVideoExportStartOptions {
 	bitrate: number;
 	encodingMode: NativeExportEncodingMode;
 	inputMode?: "rawvideo" | "h264-stream";
+	outputProfile?: "mp4-h264" | "mov-prores-4444";
 }
 
 export interface NativeVideoExportAudioSegment {
@@ -311,6 +312,44 @@ export function buildNativeVideoExportArgs(
 
 	args.push("-pix_fmt", "yuv420p", "-movflags", "+faststart", outputPath);
 	return args;
+}
+
+export function buildNativeProresAlphaExportArgs(
+	options: NativeVideoExportStartOptions,
+	outputPath: string,
+): string[] {
+	return [
+		"-y",
+		"-hide_banner",
+		"-loglevel",
+		"error",
+		"-f",
+		"rawvideo",
+		"-pix_fmt",
+		"rgba",
+		"-s:v",
+		`${options.width}x${options.height}`,
+		"-framerate",
+		String(options.frameRate),
+		"-i",
+		"pipe:0",
+		"-an",
+		"-c:v",
+		"prores_ks",
+		"-profile:v",
+		"4444",
+		"-pix_fmt",
+		"yuva444p10le",
+		"-alpha_bits",
+		"16",
+		"-color_primaries",
+		"bt709",
+		"-color_trc",
+		"bt709",
+		"-colorspace",
+		"bt709",
+		outputPath,
+	];
 }
 
 export function buildNativeCudaOverlayStaticLayoutArgs(

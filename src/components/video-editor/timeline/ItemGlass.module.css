@@ -157,17 +157,17 @@
 	position: absolute;
 	top: 50%;
 	bottom: auto;
-	height: 70%;
-	width: 4px;
+	height: calc(100% + 6px);
+	width: 18px;
 	pointer-events: auto;
-	z-index: 2;
-	opacity: 0;
+	z-index: 8;
+	opacity: 0.65;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	transform: translateY(-50%);
-	border-radius: 2px;
-	background: rgba(255, 255, 255, 0.88);
+	border-radius: 7px;
+	background: transparent;
 	transition:
 		opacity 0.15s ease,
 		background 0.15s ease;
@@ -273,14 +273,14 @@
 }
 
 :global(:root:not(.dark)) .zoomEndCap {
-	background: rgba(0, 0, 0, 0.5);
+	background: transparent;
 }
 :global(:root:not(.dark)) .zoomEndCap:hover {
-	background: rgba(0, 0, 0, 0.7);
+	background: rgba(0, 0, 0, 0.14);
 }
 
 .zoomEndCap:hover {
-	background: rgba(255, 255, 255, 1);
+	background: rgba(255, 255, 255, 0.16);
 }
 
 .glassGreen:hover .zoomEndCap,
@@ -294,17 +294,25 @@
 }
 
 .zoomEndCap.left {
-	left: 6px;
+	left: -8px;
 	cursor: col-resize;
 }
 
 .zoomEndCap.right {
-	right: 6px;
+	right: -8px;
 	cursor: col-resize;
 }
 
-/* Grip lines removed */
-.zoomEndCap::before,
-.zoomEndCap::after {
-	content: none;
+.zoomEndCap::before {
+	content: "";
+	display: block;
+	width: 4px;
+	height: 70%;
+	border-radius: 3px;
+	background: rgba(255, 255, 255, 0.88);
+	box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+:global(:root:not(.dark)) .zoomEndCap::before {
+	background: rgba(0, 0, 0, 0.55);
 }

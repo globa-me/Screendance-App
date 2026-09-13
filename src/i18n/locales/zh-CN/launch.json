@@ -53,7 +53,11 @@
 			"upToDateTitle": "Screendance App {{version}} 已是最新版本。",
 			"availableTitle": "Screendance App {{version}} 可更新。",
 			"availableGenericTitle": "有可用更新。"
-		}
+		},
+		"audioMonitor": "Recording audio",
+		"systemAudioSource": "System",
+		"microphoneSource": "Microphone",
+		"noAudioSource": "No audio"
 	},
 	"sourceSelector": {
 		"loadingSources": "正在加载源...",

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { calculateMp4ExportDimensions, calculateMp4SourceDimensions } from "./exportDimensions";
+import {
+	calculateAlphaSafeCanvasDimensions,
+	calculateMp4ExportDimensions,
+	calculateMp4SourceDimensions,
+	normalizeAlphaSafeCanvasScale,
+} from "./exportDimensions";
 
 describe("calculateMp4SourceDimensions", () => {
 	it("keeps native exports at the source dimensions", () => {
@@ -68,5 +73,34 @@ describe("calculateMp4ExportDimensions", () => {
 			width: 972,
 			height: 1728,
 		});
+	});
+});
+
+describe("calculateAlphaSafeCanvasDimensions", () => {
+	it("adds an even transparent overscan canvas around the selected export frame", () => {
+		expect(calculateAlphaSafeCanvasDimensions(1080, 1920)).toEqual({
+			width: 1620,
+			height: 2880,
+		});
+	});
+
+	it("keeps odd scaled dimensions even for video encoders", () => {
+		expect(calculateAlphaSafeCanvasDimensions(1918, 1078)).toEqual({
+			width: 2878,
+			height: 1618,
+		});
+	});
+
+	it("uses the requested safe canvas scale", () => {
+		expect(calculateAlphaSafeCanvasDimensions(1080, 1920, 1.75)).toEqual({
+			width: 1890,
+			height: 3360,
+		});
+	});
+
+	it("clamps unsafe scale values", () => {
+		expect(normalizeAlphaSafeCanvasScale(Number.NaN)).toBe(1.5);
+		expect(normalizeAlphaSafeCanvasScale(1)).toBe(1.25);
+		expect(normalizeAlphaSafeCanvasScale(3)).toBe(2.5);
 	});
 });

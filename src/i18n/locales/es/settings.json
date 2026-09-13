@@ -45,8 +45,16 @@
 		},
 		"backgroundBlur": "Desenfoque de fondo",
 		"zoomMotionBlur": "Desenfoque de movimiento del zoom",
+		"temporalZoomMotionBlur": "Temporal Zoom Blur",
+		"temporalZoomMotionBlurDescription": "Control the shutter window and frame samples used by the newer zoom blur pass.",
+		"zoomMotionBlurSamples": "Blur Samples",
+		"zoomMotionBlurShutter": "Shutter",
+		"auto": "Auto",
 		"connectZooms": "Conectar zooms",
 		"connectZoomsDescription": "Suaviza regiones de zoom consecutivas convirtiéndolas en un movimiento continuo de cámara.",
+		"defaultZoomMode": "Modo de zoom nuevo",
+		"defaultZoomModeDescription": "Se usa cuando agregas un zoom desde la línea de tiempo.",
+		"defaultZoomDuration": "Duración del zoom nuevo",
 		"autoApplyFreshRecordingZooms": "Aplicar automáticamente zooms a nuevas grabaciones",
 		"autoApplyFreshRecordingZoomsDescription": "Sugiere automáticamente zooms de seguimiento del cursor al abrir una nueva grabación.",
 		"zoomGeneralTitle": "General",
@@ -57,6 +65,20 @@
 		"zoomOutDescription": "Controla cómo sale la cámara de una región de zoom.",
 		"connectedZoomTitle": "Entre zooms",
 		"connectedZoomDescription": "Ajusta el deslizamiento entre regiones de zoom consecutivas cuando la conexión está activada.",
+		"motionPresetsTitle": "Motion Presets",
+		"motionPresetsZoomHint": "Zoom motion presets are available in Settings.",
+		"animationPresets": "Animation Presets",
+		"cursorMotionPresets": "Cursor Motion Presets",
+		"motionPresets": {
+			"focused": {
+				"label": "Focused",
+				"description": "Snappier motion for demos, walkthroughs, and everyday recordings."
+			},
+			"smooth": {
+				"label": "Smooth",
+				"description": "Gentler motion for presentations, keynote-style videos, and polished reveals."
+			}
+		},
 		"zoomInDuration": "Duración de entrada",
 		"zoomInOverlap": "Solapamiento de entrada",
 		"zoomOutDuration": "Duración de salida",
@@ -74,6 +96,9 @@
 		},
 		"cursorSize": "Tamaño del cursor",
 		"cursorSmoothing": "Suavizado del cursor",
+		"cursorSpringStiffness": "Cursor Spring Stiffness",
+		"cursorSpringDamping": "Cursor Spring Damping",
+		"cursorSpringMass": "Cursor Spring Mass",
 		"off": "Desactivado",
 		"cursorMotionBlur": "Desenfoque de movimiento del cursor",
 		"cursorClickBounce": "Rebote de clic del cursor",
@@ -125,8 +150,6 @@
 		"generateFull": "Generar subtítulos",
 		"regenerateFull": "Regenerar subtítulos",
 		"clearFull": "Borrar subtítulos",
-		"editCurrent": "Editar subtítulo actual",
-		"editSaved": "Subtítulo actualizado",
 		"fontSettings": "Tipografía",
 		"defaultFont": "Predeterminado",
 		"fontFamily": "Fuente",
@@ -181,6 +204,16 @@
 		"sizePresetLargeShort": "Gra",
 		"loadProject": "Cargar proyecto",
 		"saveProject": "Guardar proyecto",
+		"transparentBackground": "Alpha channel",
+		"transparentBackgroundHint": "Export WebM with transparent background.",
+		"advanced": "Advanced compatibility",
+		"pipelineTitle": "Export engine",
+		"pipeline": {
+			"legacy": "Compatibility",
+			"modern": "Automatic",
+			"legacyHint": "Compatibility mode uses the stable WebCodecs export path.",
+			"lightningHint": "Automatic mode selects the fastest compatible backend and falls back safely when needed."
+		},
 		"exportVideo": "Exportar {{format}}",
 		"reportBug": "Reportar error",
 		"starOnGithub": "Estrella en GitHub"

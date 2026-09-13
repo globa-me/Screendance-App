@@ -57,6 +57,7 @@ import {
 } from "@/components/video-editor/videoPlayback/zoomTransform";
 import {
 	getWebcamCropSourceRect,
+	getWebcamOverlayPixelScale,
 	getWebcamOverlayPosition,
 	getWebcamOverlaySizePx,
 	isWebcamCropRegionDefault,
@@ -85,6 +86,7 @@ import {
 	renderAnnotations,
 	renderAnnotationToCanvas,
 } from "./annotationRenderer";
+import { createCanvasGradientFromCss } from "./cssGradient";
 import { ForwardFrameSource } from "./forwardFrameSource";
 import { resolveMediaElementSource } from "./localMediaSource";
 import {
@@ -101,6 +103,12 @@ import type { ExportRenderBackend } from "./types";
 interface FrameRenderConfig {
 	width: number;
 	height: number;
+	layoutViewport?: {
+		x: number;
+		y: number;
+		width: number;
+		height: number;
+	};
 	preferredRenderBackend?: ExportRenderBackend;
 	wallpaper: string;
 	zoomRegions: ZoomRegion[];
@@ -153,6 +161,7 @@ interface FrameRenderConfig {
 	zoomClassicMode?: boolean;
 	frame?: string | null;
 	nativeReadbackMode?: "pixels" | "canvas";
+	transparentBackground?: boolean;
 }
 
 interface AnimationState {
@@ -177,6 +186,13 @@ interface LayoutCache {
 		height: number;
 		sourceCrop: CropRegion;
 	};
+}
+
+interface LayoutViewport {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
 }
 
 interface MutableVideoTextureSource {
@@ -435,6 +451,7 @@ export class FrameRenderer {
 	private webcamSeekPromise: Promise<void> | null = null;
 	private webcamFrameCacheCanvas: HTMLCanvasElement | null = null;
 	private webcamFrameCacheCtx: CanvasRenderingContext2D | null = null;
+	private lastWebcamCacheRefreshTime = Number.NEGATIVE_INFINITY;
 	private sceneVideoFrameStagingCanvas: HTMLCanvasElement | null = null;
 	private sceneVideoFrameStagingCtx: CanvasRenderingContext2D | null = null;
 	private backgroundVideoFrameStagingCanvas: HTMLCanvasElement | null = null;
@@ -508,6 +525,29 @@ export class FrameRenderer {
 
 	private shouldUseZoomMotionBlur(): boolean {
 		return (this.config.zoomMotionBlur ?? 0) > 0;
+	}
+
+	private getLayoutViewport(): LayoutViewport {
+		const viewport = this.config.layoutViewport;
+		const fallback = {
+			x: 0,
+			y: 0,
+			width: this.config.width,
+			height: this.config.height,
+		};
+
+		if (!viewport) {
+			return fallback;
+		}
+
+		const width = Math.max(1, Math.min(this.config.width, Math.round(viewport.width)));
+		const height = Math.max(1, Math.min(this.config.height, Math.round(viewport.height)));
+		const maxX = Math.max(0, this.config.width - width);
+		const maxY = Math.max(0, this.config.height - height);
+		const x = Math.min(maxX, Math.max(0, Math.round(viewport.x)));
+		const y = Math.min(maxY, Math.max(0, Math.round(viewport.y)));
+
+		return { x, y, width, height };
 	}
 
 	private updateVideoEffectsFilterState(): void {
@@ -625,7 +665,9 @@ export class FrameRenderer {
 			this.cursorContainer.addChild(this.cursorOverlay.container);
 		}
 
-		await this.setupBackground();
+		if (!this.config.transparentBackground) {
+			await this.setupBackground();
+		}
 		await this.setupFrame();
 		await this.setupWebcamSource();
 
@@ -1237,39 +1279,16 @@ export class FrameRenderer {
 				wallpaper.startsWith("linear-gradient") ||
 				wallpaper.startsWith("radial-gradient")
 			) {
-				const gradientMatch = wallpaper.match(/(linear|radial)-gradient\((.+)\)/);
-				if (!gradientMatch) {
+				const gradient = createCanvasGradientFromCss(
+					bgCtx,
+					wallpaper,
+					this.config.width,
+					this.config.height,
+				);
+				if (!gradient) {
 					bgCtx.fillStyle = "#000000";
 					bgCtx.fillRect(0, 0, this.config.width, this.config.height);
 				} else {
-					const [, type, params] = gradientMatch;
-					const parts = params.split(",").map((value) => value.trim());
-					const gradient =
-						type === "linear"
-							? bgCtx.createLinearGradient(0, 0, 0, this.config.height)
-							: bgCtx.createRadialGradient(
-									this.config.width / 2,
-									this.config.height / 2,
-									0,
-									this.config.width / 2,
-									this.config.height / 2,
-									Math.max(this.config.width, this.config.height) / 2,
-								);
-
-					parts.forEach((part, index) => {
-						if (type === "linear" && (part.startsWith("to ") || part.includes("deg"))) {
-							return;
-						}
-
-						const colorMatch = part.match(/^(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)|[a-z]+)/);
-						if (!colorMatch) {
-							return;
-						}
-
-						const position = index / Math.max(parts.length - 1, 1);
-						gradient.addColorStop(position, colorMatch[1]);
-					});
-
 					bgCtx.fillStyle = gradient;
 					bgCtx.fillRect(0, 0, this.config.width, this.config.height);
 				}
@@ -1450,8 +1469,9 @@ export class FrameRenderer {
 	private calculateAnnotationScaleFactor(): number {
 		const previewWidth = this.config.previewWidth || 1920;
 		const previewHeight = this.config.previewHeight || 1080;
-		const scaleX = this.config.width / previewWidth;
-		const scaleY = this.config.height / previewHeight;
+		const viewport = this.getLayoutViewport();
+		const scaleX = viewport.width / previewWidth;
+		const scaleY = viewport.height / previewHeight;
 		return (scaleX + scaleY) / 2;
 	}
 
@@ -1561,15 +1581,19 @@ export class FrameRenderer {
 		context.clearRect(0, 0, canvas.width, canvas.height);
 		context.drawImage(sourceCanvas ?? (this.app.canvas as HTMLCanvasElement), 0, 0);
 
+		const viewport = this.getLayoutViewport();
+		context.save();
+		context.translate(viewport.x, viewport.y);
 		await renderAnnotations(
 			context,
 			this.config.annotationRegions ?? [],
-			this.config.width,
-			this.config.height,
+			viewport.width,
+			viewport.height,
 			timeMs,
 			this.annotationScaleFactor,
 			this.annotationAssets ?? undefined,
 		);
+		context.restore();
 
 		this.drawCaptionOverlay(context);
 		this.outputCanvasOverride = canvas;
@@ -1590,12 +1614,13 @@ export class FrameRenderer {
 		const annotations = [...(this.config.annotationRegions ?? [])].sort(
 			(first, second) => first.zIndex - second.zIndex,
 		);
+		const viewport = this.getLayoutViewport();
 
 		for (const annotation of annotations) {
-			const x = (annotation.position.x / 100) * this.config.width;
-			const y = (annotation.position.y / 100) * this.config.height;
-			const width = (annotation.size.width / 100) * this.config.width;
-			const height = (annotation.size.height / 100) * this.config.height;
+			const x = viewport.x + (annotation.position.x / 100) * viewport.width;
+			const y = viewport.y + (annotation.position.y / 100) * viewport.height;
+			const width = (annotation.size.width / 100) * viewport.width;
+			const height = (annotation.size.height / 100) * viewport.height;
 
 			if (width <= 0 || height <= 0) {
 				continue;
@@ -1652,11 +1677,12 @@ export class FrameRenderer {
 		}
 
 		const fontFamily = settings.fontFamily || getDefaultCaptionFontFamily();
+		const viewport = this.getLayoutViewport();
 		const fontSize = getCaptionScaledFontSize(
 			settings.fontSize,
-			this.config.width,
+			viewport.width,
 			settings.maxWidth,
-			this.config.height,
+			viewport.height,
 		);
 		measureCtx.font = `${CAPTION_FONT_WEIGHT} ${fontSize}px ${fontFamily}`;
 
@@ -1664,7 +1690,7 @@ export class FrameRenderer {
 			cues,
 			timeMs,
 			settings,
-			maxWidthPx: getCaptionTextMaxWidth(this.config.width, settings.maxWidth, fontSize),
+			maxWidthPx: getCaptionTextMaxWidth(viewport.width, settings.maxWidth, fontSize),
 			measureText: (text) => measureCtx.measureText(text).width,
 		});
 		if (!layout) {
@@ -1680,12 +1706,15 @@ export class FrameRenderer {
 			0,
 		);
 		const boxWidth = Math.min(
-			this.config.width * (settings.maxWidth / 100) + padding.x * 2,
+			viewport.width * (settings.maxWidth / 100) + padding.x * 2,
 			maxMeasuredWidth + padding.x * 2,
 		);
-		const centerX = this.config.width / 2;
+		const centerX = viewport.x + viewport.width / 2;
 		const centerY =
-			this.config.height - (this.config.height * settings.bottomOffset) / 100 - boxHeight / 2;
+			viewport.y +
+			viewport.height -
+			(viewport.height * settings.bottomOffset) / 100 -
+			boxHeight / 2;
 
 		return {
 			key: `${layout.blockKey}:${layout.visiblePageIndex}:${layout.activeWordIndex}`,
@@ -2366,6 +2395,7 @@ export class FrameRenderer {
 			this.clearWebcamMediaElement();
 			this.webcamFrameCacheCanvas = null;
 			this.webcamFrameCacheCtx = null;
+			this.lastWebcamCacheRefreshTime = Number.NEGATIVE_INFINITY;
 			this.lastSyncedWebcamTime = null;
 			this.webcamLayoutCache = null;
 			this.webcamRenderMode = "hidden";
@@ -2379,6 +2409,7 @@ export class FrameRenderer {
 		this.clearWebcamMediaElement();
 		this.webcamFrameCacheCanvas = null;
 		this.webcamFrameCacheCtx = null;
+		this.lastWebcamCacheRefreshTime = Number.NEGATIVE_INFINITY;
 		this.webcamLayoutCache = null;
 		this.webcamRenderMode = "hidden";
 
@@ -2472,11 +2503,34 @@ export class FrameRenderer {
 		return !!this.webcamFrameCacheCtx;
 	}
 
+	private shouldRefreshWebcamFrameCache(width: number, height: number): boolean {
+		const targetRect = getWebcamCropSourceRect(this.config.webcam?.cropRegion, width, height);
+		const targetWidth = Math.max(1, Math.ceil(targetRect.sw));
+		const targetHeight = Math.max(1, Math.ceil(targetRect.sh));
+		if (
+			!this.webcamFrameCacheCanvas ||
+			this.webcamFrameCacheCanvas.width !== targetWidth ||
+			this.webcamFrameCacheCanvas.height !== targetHeight
+		) {
+			return true;
+		}
+
+		if (!isWebcamCropRegionDefault(this.config.webcam?.cropRegion)) {
+			return true;
+		}
+
+		return this.currentVideoTime - this.lastWebcamCacheRefreshTime >= 0.25;
+	}
+
 	private refreshWebcamFrameCache(
 		source: CanvasImageSource | VideoFrame,
 		width: number,
 		height: number,
 	): boolean {
+		if (!this.shouldRefreshWebcamFrameCache(width, height)) {
+			return true;
+		}
+
 		const sourceRect = getWebcamCropSourceRect(this.config.webcam?.cropRegion, width, height);
 		if (!this.ensureWebcamFrameCache(sourceRect.sw, sourceRect.sh)) {
 			return false;
@@ -2503,6 +2557,7 @@ export class FrameRenderer {
 			this.webcamFrameCacheCanvas.width,
 			this.webcamFrameCacheCanvas.height,
 		);
+		this.lastWebcamCacheRefreshTime = this.currentVideoTime;
 		return true;
 	}
 
@@ -2533,15 +2588,10 @@ export class FrameRenderer {
 			const usesDefaultCropRegion = isWebcamCropRegionDefault(this.config.webcam?.cropRegion);
 			const needsCacheBackedSource =
 				!usesDefaultCropRegion ||
-				(typeof HTMLVideoElement !== "undefined" &&
-					liveSource instanceof HTMLVideoElement);
+				(typeof HTMLVideoElement !== "undefined" && liveSource instanceof HTMLVideoElement);
 
 			if (needsCacheBackedSource) {
-				this.refreshWebcamFrameCache(
-					liveSource,
-					liveSourceWidth,
-					liveSourceHeight,
-				);
+				this.refreshWebcamFrameCache(liveSource, liveSourceWidth, liveSourceHeight);
 				const cachedSource = this.getCachedWebcamRenderSource();
 				if (cachedSource) {
 					this.setWebcamRenderMode("live");
@@ -2887,18 +2937,25 @@ export class FrameRenderer {
 			return;
 		}
 
-		const margin = webcam.margin ?? 24;
+		const viewport = this.getLayoutViewport();
+		const pixelScale = getWebcamOverlayPixelScale({
+			containerWidth: viewport.width,
+			containerHeight: viewport.height,
+			previewWidth: this.config.previewWidth,
+			previewHeight: this.config.previewHeight,
+		});
+		const margin = (webcam.margin ?? 24) * pixelScale;
 		const size = getWebcamOverlaySizePx({
-			containerWidth: this.config.width,
-			containerHeight: this.config.height,
+			containerWidth: viewport.width,
+			containerHeight: viewport.height,
 			sizePercent: webcam.size ?? 50,
 			margin,
 			zoomScale: this.animationState.appliedScale || 1,
 			reactToZoom: webcam.reactToZoom ?? true,
 		});
 		const position = getWebcamOverlayPosition({
-			containerWidth: this.config.width,
-			containerHeight: this.config.height,
+			containerWidth: viewport.width,
+			containerHeight: viewport.height,
 			size,
 			margin,
 			positionPreset: webcam.positionPreset ?? webcam.corner,
@@ -2906,7 +2963,7 @@ export class FrameRenderer {
 			positionY: webcam.positionY ?? 1,
 			legacyCorner: webcam.corner,
 		});
-		const radius = Math.max(0, webcam.cornerRadius ?? 18);
+		const radius = Math.max(0, (webcam.cornerRadius ?? 18) * pixelScale);
 		const shadowStrength = clampUnitInterval(webcam.shadow ?? 0);
 
 		this.webcamRootContainer.visible = true;
@@ -2915,8 +2972,8 @@ export class FrameRenderer {
 			sourceWidth: renderableWebcamSource.width,
 			sourceHeight: renderableWebcamSource.height,
 			size,
-			positionX: position.x,
-			positionY: position.y,
+			positionX: viewport.x + position.x,
+			positionY: viewport.y + position.y,
 			radius,
 			shadowStrength,
 			mirror: webcam.mirror,
@@ -3506,10 +3563,11 @@ export class FrameRenderer {
 			videoWidth,
 			videoHeight,
 		} = this.config;
+		const viewport = this.getLayoutViewport();
 
 		const layout = computePaddedLayout({
-			width,
-			height,
+			width: viewport.width,
+			height: viewport.height,
 			padding,
 			frameInsets: this.frameInsets,
 			cropRegion,
@@ -3517,18 +3575,26 @@ export class FrameRenderer {
 			videoHeight,
 		});
 
+		const centerOffsetX = layout.centerOffsetX + viewport.x;
+		const centerOffsetY = layout.centerOffsetY + viewport.y;
+		const spriteX = layout.spriteX + viewport.x;
+		const spriteY = layout.spriteY + viewport.y;
+
 		this.videoSprite.scale.set(layout.scale);
-		this.videoSprite.position.set(layout.spriteX, layout.spriteY);
+		this.videoSprite.position.set(spriteX, spriteY);
 
 		const previewWidth = this.config.previewWidth || 1920;
 		const previewHeight = this.config.previewHeight || 1080;
-		const canvasScaleFactor = Math.min(width / previewWidth, height / previewHeight);
+		const canvasScaleFactor = Math.min(
+			viewport.width / previewWidth,
+			viewport.height / previewHeight,
+		);
 		const scaledBorderRadius = borderRadius * canvasScaleFactor;
 
 		this.videoMaskGraphics.clear();
 		drawSquircleOnGraphics(this.videoMaskGraphics, {
-			x: layout.centerOffsetX,
-			y: layout.centerOffsetY,
+			x: centerOffsetX,
+			y: centerOffsetY,
 			width: layout.croppedDisplayWidth,
 			height: layout.croppedDisplayHeight,
 			radius: scaledBorderRadius,
@@ -3536,8 +3602,8 @@ export class FrameRenderer {
 		this.videoMaskGraphics.fill({ color: 0xffffff });
 
 		this.updateVideoShadowLayout({
-			maskX: layout.centerOffsetX,
-			maskY: layout.centerOffsetY,
+			maskX: centerOffsetX,
+			maskY: centerOffsetY,
 			maskWidth: layout.croppedDisplayWidth,
 			maskHeight: layout.croppedDisplayHeight,
 			maskRadius: scaledBorderRadius,
@@ -3550,10 +3616,10 @@ export class FrameRenderer {
 				height: videoHeight * cropRegion.height,
 			},
 			baseScale: layout.scale,
-			baseOffset: { x: layout.spriteX, y: layout.spriteY },
+			baseOffset: { x: spriteX, y: spriteY },
 			maskRect: {
-				x: layout.centerOffsetX,
-				y: layout.centerOffsetY,
+				x: centerOffsetX,
+				y: centerOffsetY,
 				width: layout.croppedDisplayWidth,
 				height: layout.croppedDisplayHeight,
 				sourceCrop: cropRegion,
@@ -3980,6 +4046,7 @@ export class FrameRenderer {
 		this.cleanupWebcamSource = null;
 		this.webcamFrameCacheCanvas = null;
 		this.webcamFrameCacheCtx = null;
+		this.lastWebcamCacheRefreshTime = Number.NEGATIVE_INFINITY;
 		this.sceneVideoFrameStagingCanvas = null;
 		this.sceneVideoFrameStagingCtx = null;
 		this.webcamVideoFrameStagingCanvas = null;

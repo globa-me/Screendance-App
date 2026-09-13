@@ -32,10 +32,6 @@ function getNativeArchTag(platform, arch) {
 }
 
 function getRequestedArchitectures(platform) {
-	if (platform === "darwin") {
-		return ["arm64"];
-	}
-
 	const hostArch = getHostArch();
 	const configured = process.env.WHISPER_RUNTIME_ARCHS?.trim();
 
@@ -69,15 +65,11 @@ function getRequestedArchitectures(platform) {
 
 function createDarwinTarget(arch) {
 	const targetArch = arch === "arm64" ? "arm64" : "x64";
-	const isCrossCompile = targetArch !== getHostArch();
 	const configureArgs = [
 		"-DCMAKE_BUILD_TYPE=Release",
 		`-DCMAKE_OSX_ARCHITECTURES=${targetArch === "arm64" ? "arm64" : "x86_64"}`,
+		"-DGGML_NATIVE=OFF",
 	];
-
-	if (isCrossCompile) {
-		configureArgs.push("-DGGML_NATIVE=OFF");
-	}
 
 	return {
 		platform: "darwin",

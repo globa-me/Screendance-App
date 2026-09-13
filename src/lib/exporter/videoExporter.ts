@@ -8,8 +8,8 @@ import type {
 	CursorStyle,
 	CursorTelemetryPoint,
 	Padding,
-	SpeedRegion,
 	SourceAudioTrackSettings,
+	SpeedRegion,
 	TrimRegion,
 	WebcamOverlaySettings,
 	ZoomMotionBlurTuning,
@@ -413,6 +413,7 @@ export class VideoExporter {
 								this.config.sourceAudioFallbackPaths,
 								this.config.sourceAudioFallbackStartDelayMsByPath,
 								this.config.sourceAudioTrackSettings,
+								this.config.clipRegions,
 							),
 							"audio processing",
 							"audio",
@@ -1107,9 +1108,14 @@ export class VideoExporter {
 	private trackNativeWritePromise(writePromise: Promise<void>): void {
 		this.nativeWritePromises.add(writePromise);
 
-		void writePromise.finally(() => {
-			this.nativeWritePromises.delete(writePromise);
-		});
+		writePromise.then(
+			() => {
+				this.nativeWritePromises.delete(writePromise);
+			},
+			() => {
+				this.nativeWritePromises.delete(writePromise);
+			},
+		);
 	}
 
 	private async awaitOldestNativeWrite(): Promise<void> {

@@ -613,6 +613,8 @@ export function registerProjectHandlers() {
 
 			const nextSession = {
 				...resolvedSession,
+				assetStatus: "ready" as const,
+				assetMessage: null,
 				hideOverlayCursorByDefault:
 					normalizeBoolean(options?.hideOverlayCursorByDefault) ||
 					normalizeBoolean(resolvedSession.hideOverlayCursorByDefault),
@@ -651,6 +653,8 @@ export function registerProjectHandlers() {
 				webcamPath?: string | null;
 				timeOffsetMs?: number;
 				hideOverlayCursorByDefault?: boolean;
+				assetStatus?: "assembling" | "ready" | "degraded";
+				assetMessage?: string | null;
 			},
 			options?: { preserveProjectPath?: boolean },
 		) => {
@@ -662,6 +666,14 @@ export function registerProjectHandlers() {
 				webcamPath: normalizeVideoSourcePath(session.webcamPath ?? null),
 				timeOffsetMs: normalizeRecordingTimeOffsetMs(session.timeOffsetMs),
 				hideOverlayCursorByDefault: normalizeBoolean(session.hideOverlayCursorByDefault),
+				assetStatus:
+					session.assetStatus === "assembling" || session.assetStatus === "degraded"
+						? session.assetStatus
+						: "ready",
+				assetMessage:
+					typeof session.assetMessage === "string" && session.assetMessage.trim()
+						? session.assetMessage.trim()
+						: null,
 			});
 			await rememberApprovedLocalReadPath(currentRecordingSession!.videoPath);
 			await rememberApprovedLocalReadPath(currentRecordingSession!.webcamPath);

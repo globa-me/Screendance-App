@@ -117,6 +117,7 @@ function createMockContext() {
 		drawImage: vi.fn(),
 		fillRect: vi.fn(),
 		save: vi.fn(),
+		translate: vi.fn(),
 		restore: vi.fn(),
 		getImageData: vi.fn(() => ({ data: new Uint8ClampedArray(0) })),
 		globalAlpha: 1,

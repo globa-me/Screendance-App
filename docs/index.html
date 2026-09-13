@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Screendance App — запись экрана и монтаж скринкастов на Apple Silicon Mac." />
+    <meta name="description" content="Screendance App — запись экрана и монтаж скринкастов на Apple Silicon и Intel Mac." />
     <title>Screendance App</title>
     <style>
       :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background:#080b12; color:#edf2ff; }
@@ -16,18 +16,18 @@
     </style>
   </head>
   <body><main>
-    <div class="eyebrow">Apple Silicon · macOS 14+</div>
+    <div class="eyebrow">Apple Silicon + Intel · macOS 14+</div>
     <h1>Скринкасты, которые выглядят собранно.</h1>
     <p class="lead">Screendance App — macOS-форк Recordly для записи экрана и быстрого монтажа: ScreenCaptureKit, зумы, курсор, веб-камера, оформление кадра и экспорт.</p>
     <div class="actions"><a class="button" href="https://github.com/globa-me/Screendance-App">Открыть GitHub</a><a class="button alt" href="https://github.com/globa-me/Screendance-App/releases">Готовые сборки</a></div>
     <div class="grid"><section><h2>Запись и звук</h2><p>Дисплей или окно, системный звук, микрофон, веб-камера и нативный захват ScreenCaptureKit. Во время записи видны активные источники и уровни звука.</p></section><section><h2>Монтаж и экспорт</h2><p>Таймлайн, обрезка, зумы, аннотации, курсор, фоны и веб-камера. Экспортируйте MP4, GIF, прозрачный WebM или ProRes 4444.</p></section></div>
     <section class="wide"><h2>Редактор</h2><div class="shots"><figure><img src="media/editor-background.png" alt="Панель фона, рамки и таймлайн Screendance App" /><figcaption>Оформление кадра: фон, рамка, тень и таймлайн.</figcaption></figure><figure><img src="media/editor-captions.png" alt="Панель субтитров и таймлайн Screendance App" /><figcaption>Автоматические субтитры и монтаж на таймлайне.</figcaption></figure></div></section>
     <section class="wide notice"><strong>Пока нет опубликованного релиза.</strong> Когда сборка появится, скачивайте её только из <a href="https://github.com/globa-me/Screendance-App/releases">GitHub Releases</a>. Не отключайте защиту macOS ради файлов из неизвестных источников.</section>
-    <div class="grid"><section><h2>Установка готового приложения</h2><ol><li>Скачайте <code>.dmg</code> для <code>arm64</code> из Releases.</li><li>Перетащите приложение в <code>Applications</code>.</li><li>При блокировке: <strong>System Settings → Privacy &amp; Security → Open Anyway</strong>, затем Open.</li><li>Разрешите Screen &amp; System Audio Recording и Accessibility; для камеры и микрофона — соответствующие разрешения.</li></ol></section><section><h2>Сборка на своём Mac</h2><p>Установите Xcode Command Line Tools и Node.js 22 LTS, затем:</p><pre><code>git clone https://github.com/globa-me/Screendance-App.git
+    <div class="grid"><section><h2>Установка готового приложения</h2><ol><li>Скачайте <code>arm64</code> DMG для M-процессора или <code>x64</code> DMG для Intel.</li><li>Перетащите приложение в <code>Applications</code>.</li><li>При блокировке: <strong>System Settings → Privacy &amp; Security → Open Anyway</strong>, затем Open.</li><li>Разрешите Screen &amp; System Audio Recording и Accessibility; для камеры и микрофона — соответствующие разрешения.</li></ol></section><section><h2>Сборка на своём Mac</h2><p>Установите Xcode Command Line Tools, CMake и Node.js 22 LTS, затем:</p><pre><code>git clone https://github.com/globa-me/Screendance-App.git
 cd Screendance-App
 git switch screendance/macos-apple-silicon
 npm ci
-npm run build:mac</code></pre><p>Результат: <code>release/Screendance App-arm64.dmg</code>.</p></section></div>
+npm run build:mac</code></pre><p>Результат: отдельные <code>arm64</code> и <code>x64</code> DMG.</p></section></div>
     <section class="wide"><h2>История и оригинал</h2><p>Проект создан от <a href="https://github.com/webadderallorg/Recordly">Recordly</a>, коммит <code>67a83ca</code>. История форка и текущей разработки собрана в <a href="https://github.com/globa-me/Screendance-App/blob/screendance/macos-apple-silicon/CHANGELOG.md">CHANGELOG</a>; ранняя история — в <a href="https://github.com/webadderallorg/Recordly/commits/main">upstream Recordly</a>.</p></section>
     <footer>© Screendance App contributors · Original project: Recordly · AGPL-3.0</footer>
   </main></body>

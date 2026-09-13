@@ -53,6 +53,9 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	private var capturesMicrophone = false
 	private var writesSystemAudioToSeparateTrack = false
 	private var writesMicrophoneToSeparateTrack = false
+	private var latestSystemAudioLevel = 0.0
+	private var latestMicrophoneAudioLevel = 0.0
+	private var lastAudioLevelEmitTime = CFAbsoluteTimeGetCurrent()
 
 	private let microphoneOutputTypeRawValue = 2
 
@@ -75,6 +78,20 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 			fflush(stderr)
 			capturesMicrophone = false
 		}
+		let requestedSpecificMicrophone =
+			!(config.microphoneDeviceId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) ||
+			!(config.microphoneLabel?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+		let resolvedMicrophoneDeviceId: String?
+		if capturesMicrophone {
+			resolvedMicrophoneDeviceId = Self.resolveMicrophoneCaptureDeviceID(config: config)
+		} else {
+			resolvedMicrophoneDeviceId = nil
+		}
+		if capturesMicrophone && requestedSpecificMicrophone && resolvedMicrophoneDeviceId == nil {
+			fputs("MICROPHONE_CAPTURE_DEVICE_NOT_FOUND\n", stderr)
+			fflush(stderr)
+			capturesMicrophone = false
+		}
 		writesSystemAudioToSeparateTrack = capturesSystemAudio
 		writesMicrophoneToSeparateTrack = capturesSystemAudio && capturesMicrophone
 		if capturesMicrophone && !capturesSystemAudio {
@@ -92,7 +109,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
 		if capturesMicrophone {
 			streamConfig.setValue(true, forKey: "captureMicrophone")
-			if let microphoneDeviceId = Self.resolveMicrophoneCaptureDeviceID(config: config) {
+			if let microphoneDeviceId = resolvedMicrophoneDeviceId {
 				streamConfig.setValue(microphoneDeviceId, forKey: "microphoneCaptureDeviceID")
 			}
 		}
@@ -178,9 +195,10 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		assetWriter.add(videoInput)
 		self.videoInput = videoInput
 
-		// Add inline audio track directly to the video so the .mp4 always contains audio.
-		// This eliminates the dependency on the post-recording ffmpeg mux step.
-		if capturesSystemAudio || capturesMicrophone {
+		// Keep microphone-only captures out of the inline video track when the
+		// same microphone is already written as a dedicated companion track.
+		let writesInlineAudio = capturesSystemAudio || (capturesMicrophone && !writesMicrophoneToSeparateTrack)
+		if writesInlineAudio {
 			let inlineAudio = AVAssetWriterInput(mediaType: .audio, outputSettings: Self.audioOutputSettings(bitRate: 192_000))
 			inlineAudio.expectsMediaDataInRealTime = true
 			if assetWriter.canAdd(inlineAudio) {
@@ -330,6 +348,8 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		}
 
 		if outputType == .audio {
+			latestSystemAudioLevel = Self.normalizedAudioLevel(for: sampleBuffer)
+			emitAudioLevelsIfNeeded()
 			guard let systemAudioInput else { return }
 			appendAudioSampleBuffer(sampleBuffer, to: systemAudioInput, firstSampleTime: &firstSystemAudioSampleTime, presentationTime: presentationTime)
 			// Also write system audio to the inline video track
@@ -340,11 +360,12 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		}
 
 		if outputType.rawValue == microphoneOutputTypeRawValue {
+			latestMicrophoneAudioLevel = Self.normalizedAudioLevel(for: sampleBuffer)
+			emitAudioLevelsIfNeeded()
 			if let microphoneOnlyInput {
 				appendAudioSampleBuffer(sampleBuffer, to: microphoneOnlyInput, firstSampleTime: &firstMicrophoneSampleTime, presentationTime: presentationTime)
 			}
-			// Write mic to inline video track only if there's no system audio (avoids double-writing)
-			if !capturesSystemAudio, let inlineAudioInput, inlineAudioInput.isReadyForMoreMediaData {
+			if !writesMicrophoneToSeparateTrack, let inlineAudioInput, inlineAudioInput.isReadyForMoreMediaData {
 				appendAudioSampleBuffer(sampleBuffer, to: inlineAudioInput, firstSampleTime: &firstInlineAudioSampleTime, presentationTime: presentationTime)
 			}
 			return
@@ -423,7 +444,60 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		capturesMicrophone = false
 		writesSystemAudioToSeparateTrack = false
 		writesMicrophoneToSeparateTrack = false
+		latestSystemAudioLevel = 0
+		latestMicrophoneAudioLevel = 0
+		lastAudioLevelEmitTime = CFAbsoluteTimeGetCurrent()
 		return path
+	}
+
+	private func emitAudioLevelsIfNeeded() {
+		let now = CFAbsoluteTimeGetCurrent()
+		guard now - lastAudioLevelEmitTime >= 0.08 else { return }
+		lastAudioLevelEmitTime = now
+
+		let systemLevel = Int((min(max(latestSystemAudioLevel, 0), 1) * 100).rounded())
+		let microphoneLevel = Int((min(max(latestMicrophoneAudioLevel, 0), 1) * 100).rounded())
+		print("AUDIO_LEVEL {\"system\":\(systemLevel),\"microphone\":\(microphoneLevel)}")
+		fflush(stdout)
+	}
+
+	private static func normalizedAudioLevel(for sampleBuffer: CMSampleBuffer) -> Double {
+		guard let blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else {
+			return 0
+		}
+
+		let byteLength = CMBlockBufferGetDataLength(blockBuffer)
+		guard byteLength >= MemoryLayout<Float32>.size else {
+			return 0
+		}
+
+		var bytes = [UInt8](repeating: 0, count: byteLength)
+		let status = CMBlockBufferCopyDataBytes(blockBuffer, atOffset: 0, dataLength: byteLength, destination: &bytes)
+		guard status == kCMBlockBufferNoErr else {
+			return 0
+		}
+
+		let sumSquares = bytes.withUnsafeBytes { rawBuffer -> Double in
+			let samples = rawBuffer.bindMemory(to: Float32.self)
+			guard !samples.isEmpty else {
+				return 0
+			}
+
+			var total = 0.0
+			for sample in samples {
+				let value = Double(sample)
+				if value.isFinite {
+					total += value * value
+				}
+			}
+			return total / Double(samples.count)
+		}
+
+		guard sumSquares > 0 else {
+			return 0
+		}
+
+		return min(1, sqrt(sumSquares) * 8)
 	}
 
 	private func adjustedPresentationTime(for sampleBuffer: CMSampleBuffer, outputType: SCStreamOutputType) -> CMTime? {

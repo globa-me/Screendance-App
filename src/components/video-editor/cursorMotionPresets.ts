@@ -19,6 +19,7 @@ export interface CursorMotionPreset {
 }
 
 export interface CursorMotionPresetSelectionInput {
+	zoomSmoothness: number;
 	zoomInDurationMs: number;
 	zoomOutDurationMs: number;
 	cursorSize: number;
@@ -69,6 +70,7 @@ export function getMatchingCursorMotionPresetId(
 	for (const presetId of Object.keys(CURSOR_MOTION_PRESETS) as CursorMotionPresetId[]) {
 		const preset = CURSOR_MOTION_PRESETS[presetId];
 		if (
+			preset.zoomSmoothness === values.zoomSmoothness &&
 			preset.zoomInDurationMs === values.zoomInDurationMs &&
 			preset.zoomOutDurationMs === values.zoomOutDurationMs &&
 			preset.cursorSize === values.cursorSize &&

@@ -44,7 +44,6 @@
 		"solidColor": "纯色 (审查)",
 		"borderRadius": "边框半径"
 	},
-
 	"fontStyles": {
 		"classic": "经典",
 		"editor": "编辑器",
@@ -111,7 +110,28 @@
 		"showInFolder": "在文件夹中显示"
 	},
 	"project": {
-		"untitled": "未命名"
+		"untitled": "未命名",
+		"projects": "Projects",
+		"search": "Search projects",
+		"noPreview": "No preview yet",
+		"current": "Current",
+		"recordingFrom": "Recording · {{date}}",
+		"noSearchResults": "No matching projects",
+		"noProjects": "No saved projects yet",
+		"saving": "Saving…",
+		"saveFailed": "Save failed",
+		"unsaved": "Unsaved changes",
+		"saved": "Saved"
+	},
+	"recordingAssets": {
+		"assembling": "Finishing audio and camera…",
+		"degraded": "Recording ready with issues",
+		"waitForExport": "Finishing recording audio and camera. Export will be available when they are ready."
+	},
+	"nativeCaptureUnavailable": {
+		"title": "Nothing’s broken, but we won’t be able to render an animated cursor overlay.",
+		"description": "Your device does not support native capture. This could be for a variety of reasons we haven’t figured out yet. This doesn’t break Screendance App, but it does make cursor smoothing impossible.",
+		"confirm": "Okay"
 	},
 	"exportStatus": {
 		"exporting": "正在导出",

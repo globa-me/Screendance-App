@@ -3,7 +3,7 @@ import { accessSync, constants, existsSync, readdirSync, readFileSync, statSync 
 import path from "node:path";
 
 const projectRoot = process.cwd();
-const releaseRoot = path.join(projectRoot, "release");
+const releaseRoot = path.resolve(projectRoot, process.env.PACKAGED_SMOKE_ROOT || "release");
 const packageJson = JSON.parse(readFileSync(path.join(projectRoot, "package.json"), "utf8"));
 const productName = packageJson.productName ?? packageJson.name ?? "Recordly";
 const packageName = packageJson.name ?? "recordly";
@@ -230,7 +230,49 @@ function verifyFfmpeg(unpackedRoot) {
 		fail(`FFmpeg version smoke returned unexpected output from ${relativePath(ffmpegPath)}`);
 	}
 
+	if (process.platform === "darwin") {
+		const architecture = execFileSync("lipo", ["-archs", ffmpegPath], { encoding: "utf8" });
+		for (const archTag of getRequiredArchTags().filter((tag) => tag.startsWith("darwin-"))) {
+			const expected = archTag.endsWith("-x64") ? "x86_64" : "arm64";
+			if (!architecture.split(/\s+/).includes(expected)) {
+				fail(`packaged FFmpeg does not contain ${expected}: ${architecture.trim()}`);
+			}
+		}
+	}
+
 	console.log(output.split(/\r?\n/, 1)[0]);
+}
+
+function verifyFfprobe(unpackedRoot) {
+	if (process.platform !== "darwin") {
+		return;
+	}
+
+	for (const archTag of getRequiredArchTags().filter((tag) => tag.startsWith("darwin-"))) {
+		const arch = archTag.slice("darwin-".length);
+		const ffprobePath = path.join(
+			unpackedRoot,
+			"node_modules",
+			"ffprobe-static",
+			"bin",
+			"darwin",
+			arch,
+			"ffprobe",
+		);
+		assertFile(ffprobePath, `packaged FFprobe binary (${archTag})`, { executable: true });
+		const architecture = execFileSync("/usr/bin/file", [ffprobePath], { encoding: "utf8" });
+		const expected = arch === "x64" ? "x86_64" : "arm64";
+		if (!architecture.includes(expected)) {
+			fail(`FFprobe architecture for ${archTag} is not ${expected}: ${architecture.trim()}`);
+		}
+		const output = execFileSync(ffprobePath, ["-version"], {
+			encoding: "utf8",
+			timeout: 15000,
+		});
+		if (!output.startsWith("ffprobe version")) {
+			fail(`FFprobe version smoke returned unexpected output for ${archTag}`);
+		}
+	}
 }
 
 function verifyNativeHelpers(unpackedRoot) {
@@ -251,14 +293,46 @@ function verifyNativeHelpers(unpackedRoot) {
 		}
 
 		for (const expectedFile of expectedFiles) {
-			assertFile(
-				path.join(archDir, expectedFile.name),
-				`${expectedFile.label} (${archTag})`,
-				{
-					executable: expectedFile.executable,
-				},
-			);
+			const helperPath = path.join(archDir, expectedFile.name);
+			assertFile(helperPath, `${expectedFile.label} (${archTag})`, {
+				executable: expectedFile.executable,
+			});
+			if (process.platform === "darwin" && expectedFile.executable) {
+				const architecture = execFileSync("/usr/bin/file", [helperPath], {
+					encoding: "utf8",
+				});
+				const expected = archTag === "darwin-x64" ? "x86_64" : "arm64";
+				if (!architecture.includes(expected)) {
+					fail(`${expectedFile.label} architecture for ${archTag} is not ${expected}`);
+				}
+			}
 		}
+	}
+}
+
+function verifyUiohook(unpackedRoot) {
+	if (process.platform !== "darwin") {
+		return;
+	}
+
+	const archTags = getRequiredArchTags().filter((tag) => tag.startsWith("darwin-"));
+	if (archTags.length !== 1) {
+		return;
+	}
+
+	const binaryPath = path.join(
+		unpackedRoot,
+		"node_modules",
+		"uiohook-napi",
+		"build",
+		"Release",
+		"uiohook_napi.node",
+	);
+	assertFile(binaryPath, `packaged uiohook binary (${archTags[0]})`);
+	const architecture = execFileSync("/usr/bin/file", [binaryPath], { encoding: "utf8" });
+	const expected = archTags[0] === "darwin-x64" ? "x86_64" : "arm64";
+	if (!architecture.includes(expected)) {
+		fail(`packaged uiohook architecture for ${archTags[0]} is not ${expected}`);
 	}
 }
 
@@ -276,7 +350,9 @@ for (const unpackedRoot of unpackedRoots) {
 	console.log(`[packaged-smoke] root: ${relativePath(unpackedRoot)}`);
 	assertPackagedAppExecutable(unpackedRoot);
 	verifyFfmpeg(unpackedRoot);
+	verifyFfprobe(unpackedRoot);
 	verifyNativeHelpers(unpackedRoot);
+	verifyUiohook(unpackedRoot);
 }
 
 console.log("[packaged-smoke] packaged binary path smoke passed");

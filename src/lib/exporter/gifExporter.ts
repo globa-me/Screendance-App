@@ -27,6 +27,7 @@ import type {
 const GIF_WORKER_URL = new URL("gif.js/dist/gif.worker.js", import.meta.url).toString();
 
 const PROGRESS_SAMPLE_WINDOW_MS = 1_000;
+const GIF_FINALIZATION_TIMEOUT_MS = 120_000;
 
 interface GifExporterConfig {
 	videoUrl: string;
@@ -298,9 +299,30 @@ export class GifExporter {
 			}
 
 			// Render the GIF
-			const blob = await new Promise<Blob>((resolve, _reject) => {
+			const blob = await new Promise<Blob>((resolve, reject) => {
+				const timeoutId = window.setTimeout(() => {
+					try {
+						this.gif?.abort();
+					} catch {
+						// Ignore abort failures; the timeout error is clearer for the caller.
+					}
+					reject(new Error("GIF finalization timed out"));
+				}, GIF_FINALIZATION_TIMEOUT_MS);
+
 				this.gif!.on("finished", (blob: Blob) => {
+					window.clearTimeout(timeoutId);
 					resolve(blob);
+				});
+				this.gif!.on("abort", () => {
+					window.clearTimeout(timeoutId);
+					reject(new Error("GIF export was aborted"));
+				});
+				const gifWithErrorEvents = this.gif as GIF & {
+					on(event: "error", listener: (error: unknown) => void): GIF;
+				};
+				gifWithErrorEvents.on("error", (error: unknown) => {
+					window.clearTimeout(timeoutId);
+					reject(error instanceof Error ? error : new Error(String(error)));
 				});
 
 				// Track rendering progress

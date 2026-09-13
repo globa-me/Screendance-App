@@ -45,8 +45,16 @@
 		},
 		"backgroundBlur": "Achtergrondvervaging",
 		"zoomMotionBlur": "Zoom-bewegingsonscherpte",
+		"temporalZoomMotionBlur": "Temporal Zoom Blur",
+		"temporalZoomMotionBlurDescription": "Control the shutter window and frame samples used by the newer zoom blur pass.",
+		"zoomMotionBlurSamples": "Blur Samples",
+		"zoomMotionBlurShutter": "Shutter",
+		"auto": "Auto",
 		"connectZooms": "Zooms verbinden",
 		"connectZoomsDescription": "Maak opeenvolgende zoomgebieden vloeiend tot een doorlopende camerabeweging.",
+		"defaultZoomMode": "Nieuwe zoommodus",
+		"defaultZoomModeDescription": "Gebruikt wanneer je een zoom toevoegt vanaf de tijdlijn.",
+		"defaultZoomDuration": "Nieuwe zoomduur",
 		"autoApplyFreshRecordingZooms": "Zooms voor nieuwe opnames automatisch toepassen",
 		"autoApplyFreshRecordingZoomsDescription": "Stel automatisch cursor-volgende zooms voor wanneer je een nieuwe opname opent.",
 		"zoomGeneralTitle": "Algemeen",
@@ -57,6 +65,20 @@
 		"zoomOutDescription": "Bepaal hoe de camera een zoomgebied verlaat.",
 		"connectedZoomTitle": "Tussen zooms",
 		"connectedZoomDescription": "Stel de overgang af tussen opeenvolgende zoomgebieden wanneer verbinding is ingeschakeld.",
+		"motionPresetsTitle": "Motion Presets",
+		"motionPresetsZoomHint": "Zoom motion presets are available in Settings.",
+		"animationPresets": "Animation Presets",
+		"cursorMotionPresets": "Cursor Motion Presets",
+		"motionPresets": {
+			"focused": {
+				"label": "Focused",
+				"description": "Snappier motion for demos, walkthroughs, and everyday recordings."
+			},
+			"smooth": {
+				"label": "Smooth",
+				"description": "Gentler motion for presentations, keynote-style videos, and polished reveals."
+			}
+		},
 		"zoomInDuration": "Inzoomduur",
 		"zoomInOverlap": "Inzoomoverlap",
 		"zoomOutDuration": "Uitzoomduur",
@@ -74,6 +96,9 @@
 		},
 		"cursorSize": "Cursorgrootte",
 		"cursorSmoothing": "Cursorverzachting",
+		"cursorSpringStiffness": "Cursor Spring Stiffness",
+		"cursorSpringDamping": "Cursor Spring Damping",
+		"cursorSpringMass": "Cursor Spring Mass",
 		"off": "Uit",
 		"cursorMotionBlur": "Cursor-bewegingsonscherpte",
 		"cursorClickBounce": "Cursorklikstuit",
@@ -125,8 +150,6 @@
 		"generateFull": "Ondertiteling genereren",
 		"regenerateFull": "Ondertiteling opnieuw genereren",
 		"clearFull": "Ondertiteling wissen",
-		"editCurrent": "Huidige ondertiteling bewerken",
-		"editSaved": "Ondertiteling bijgewerkt",
 		"fontSettings": "Lettertype-instellingen",
 		"defaultFont": "Standaard",
 		"fontFamily": "Lettertype",
@@ -181,6 +204,16 @@
 		"sizePresetLargeShort": "Grt",
 		"loadProject": "Project laden",
 		"saveProject": "Project opslaan",
+		"transparentBackground": "Alpha channel",
+		"transparentBackgroundHint": "Export WebM with transparent background.",
+		"advanced": "Advanced compatibility",
+		"pipelineTitle": "Export engine",
+		"pipeline": {
+			"legacy": "Compatibility",
+			"modern": "Automatic",
+			"legacyHint": "Compatibility mode uses the stable WebCodecs export path.",
+			"lightningHint": "Automatic mode selects the fastest compatible backend and falls back safely when needed."
+		},
 		"exportVideo": "{{format}} exporteren",
 		"reportBug": "Bug melden",
 		"starOnGithub": "Ster op GitHub"

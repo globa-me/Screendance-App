@@ -52,6 +52,9 @@
 		"auto": "Авто",
 		"connectZooms": "Связать зумы",
 		"connectZoomsDescription": "Плавный переход между зумами.",
+		"defaultZoomMode": "Режим нового зума",
+		"defaultZoomModeDescription": "Используется при добавлении зума с таймлайна.",
+		"defaultZoomDuration": "Длительность нового зума",
 		"autoApplyFreshRecordingZooms": "Автозум для новых записей",
 		"autoApplyFreshRecordingZoomsDescription": "Автоматически предлагает зум при открытии записи.",
 		"zoomGeneralTitle": "Общее",
@@ -201,6 +204,16 @@
 		"sizePresetLargeShort": "Бол",
 		"loadProject": "Загрузить проект",
 		"saveProject": "Сохранить проект",
+		"transparentBackground": "Альфа-канал",
+		"transparentBackgroundHint": "Экспорт WebM с прозрачным фоном.",
+		"advanced": "Расширенная совместимость",
+		"pipelineTitle": "Движок экспорта",
+		"pipeline": {
+			"legacy": "Совместимость",
+			"modern": "Автоматически",
+			"legacyHint": "Режим совместимости использует стабильный путь WebCodecs.",
+			"lightningHint": "Автоматический режим выбирает самый быстрый совместимый движок и безопасно переключается при необходимости."
+		},
 		"exportVideo": "Экспортировать {{format}}",
 		"reportBug": "Сообщить об ошибке",
 		"starOnGithub": "Оценить на GitHub"

@@ -53,7 +53,11 @@
 			"upToDateTitle": "У вас актуальная версия Screendance App {{version}}.",
 			"availableTitle": "Доступна новая версия Screendance App {{version}}.",
 			"availableGenericTitle": "Доступно обновление."
-		}
+		},
+		"audioMonitor": "Записываемый звук",
+		"systemAudioSource": "Система",
+		"microphoneSource": "Микрофон",
+		"noAudioSource": "Без звука"
 	},
 	"sourceSelector": {
 		"loadingSources": "Загрузка источников...",

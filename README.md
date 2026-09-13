@@ -1,19 +1,19 @@
 # Screendance App
 
-Screendance App is a macOS Apple Silicon-focused fork of
+Screendance App is a modern macOS fork of
 [Recordly](https://github.com/webadderallorg/Recordly).
 
 The fork keeps Recordly's screen recording and editor workflow, but narrows the
-target to modern macOS on Apple Silicon. The current priority is better native
+target to macOS 14 and newer on Apple Silicon and Intel. The current priority is better native
 ScreenCaptureKit capture, reliable external microphone selection, lower system
 load during recording, and higher quality portrait exports.
 
 ## Scope
 
 - macOS only
-- Apple Silicon only (`arm64`)
-- local unsigned builds, because this fork does not currently use a paid Apple
-  Developer ID certificate
+- separate Apple Silicon (`arm64`) and Intel (`x64`) builds
+- Developer ID signing and notarized distribution ready (see
+  [macOS distribution](docs/releasing/macos-signing.md))
 - upstream attribution remains with Recordly and its contributors
 
 ## What It Contains
@@ -36,8 +36,8 @@ Screendance App is an Electron desktop app:
 - `src/lib/exporter/` contains the modern renderer/export pipeline.
 - `scripts/` contains build and smoke-test helpers for native tools, Electron
   packaging, FFmpeg, and release checks.
-- `electron-builder.json5` defines the packaged app. In this fork it is limited
-  to unsigned macOS `arm64` DMG/ZIP builds.
+- `electron-builder.json5` defines separate macOS `arm64` and `x64` DMG/ZIP
+  builds with required Developer ID signing and a macOS 14 minimum.
 
 ## Current version and download status
 
@@ -52,34 +52,29 @@ The project page is available at
 
 ## Install a compiled macOS build
 
-Published builds target Apple Silicon (M1/M2/M3/M4 and newer) and are not yet
-signed with an Apple Developer ID. After a release is available:
+Distribution targets Apple Silicon and Intel and requires Developer ID signing
+and Apple notarization. The dual notarized local build (1.1.0) is ready in
+`release/notarized-dual/` as of September 11, 2026.
+Existing unsigned builds are not release candidates. See the current
+[signing status and release checks](docs/releasing/macos-signing.md).
 
-1. Download the `arm64` `.dmg` from the official
-   [Releases](https://github.com/globa-me/Screendance-App/releases) page.
+For a verified notarized release:
+
+1. Download the `arm64` DMG for M-series Macs or the `x64` DMG for Intel Macs.
 2. Open it and drag **Screendance App** to `Applications`.
-3. Open the app once. If Gatekeeper blocks it, confirm that the file came from
-   the official release, then open **System Settings → Privacy & Security**.
-4. Scroll to the Screendance App warning, choose **Open Anyway**, then confirm
-   **Open**. macOS shows this button only after the first blocked launch.
-5. In **Privacy & Security**, allow **Screen & System Audio Recording** and
-   **Accessibility**. Allow **Microphone** and **Camera** when using those
-   features. Quit and reopen the app after enabling Screen Recording or
-   Accessibility.
-
-Do not disable macOS security globally. An unsigned-app warning is expected for
-this project; the safe response is to verify the source and allow this specific
-app in Privacy & Security.
+3. Open the app and grant Screen & System Audio Recording and Accessibility
+   permissions, plus Microphone and Camera when using those features.
 
 ## Build on your own Mac
 
-Building locally is the most reliable way for a newcomer to avoid Gatekeeper
-issues with an unsigned downloaded app.
+Local development runs through `npm run dev`. Packaged builds require the
+configured Developer ID certificate.
 
 Prerequisites:
 
-- macOS 14+ on Apple Silicon
+- macOS 14+ on Apple Silicon or Intel
 - Xcode Command Line Tools: `xcode-select --install`
+- CMake (required to stage both Whisper runtimes on a clean checkout)
 - Node.js 22 LTS and npm (`node --version` should report v22)
 
 ```bash
@@ -96,13 +91,9 @@ For a packaged build, stop the development server and run:
 npm run build:mac
 ```
 
-The app is written to `release/mac-arm64/Screendance App.app`; the installable
-disk image is `release/Screendance App-arm64.dmg`. If a locally built app still
-has a quarantine attribute, use this command only for that known local app:
-
-```bash
-xattr -dr com.apple.quarantine "/Applications/Screendance App.app"
-```
+The command produces separate `Screendance App-arm64.dmg` and
+`Screendance App-x64.dmg` artifacts. Signing alone is insufficient for
+distribution: follow the [notarization checklist](docs/releasing/macos-signing.md).
 
 ## Latest development updates
 

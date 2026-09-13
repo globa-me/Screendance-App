@@ -128,7 +128,12 @@ import {
 	windowsPendingVideoPath,
 	windowsSystemAudioPath,
 } from "../state";
-import type { CursorTelemetryPoint, NativeMacRecordingOptions, SelectedSource } from "../types";
+import type {
+	CursorTelemetryPoint,
+	NativeMacRecordingOptions,
+	RecordingAudioLevels,
+	SelectedSource,
+} from "../types";
 import {
 	getMacPrivacySettingsUrl,
 	getRecordingsDir,
@@ -382,6 +387,64 @@ async function resolveExistingPath(...candidates: Array<string | null | undefine
 	return null;
 }
 
+function normalizeAudioLevel(value: unknown) {
+	if (typeof value !== "number" || !Number.isFinite(value)) {
+		return undefined;
+	}
+
+	return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function emitRecordingAudioLevels(levels: RecordingAudioLevels) {
+	const payload: RecordingAudioLevels = {
+		...(normalizeAudioLevel(levels.system) !== undefined
+			? { system: normalizeAudioLevel(levels.system) }
+			: {}),
+		...(normalizeAudioLevel(levels.microphone) !== undefined
+			? { microphone: normalizeAudioLevel(levels.microphone) }
+			: {}),
+		...(normalizeAudioLevel(levels.mixed) !== undefined
+			? { mixed: normalizeAudioLevel(levels.mixed) }
+			: {}),
+	};
+
+	if (Object.keys(payload).length === 0) {
+		return;
+	}
+
+	BrowserWindow.getAllWindows().forEach((window) => {
+		if (!window.isDestroyed()) {
+			window.webContents.send("recording-audio-levels", payload);
+		}
+	});
+}
+
+function processNativeCaptureOutputLines(
+	chunk: Buffer,
+	lineBuffer: { value: string },
+	onText: (text: string) => void,
+) {
+	const text = chunk.toString();
+	onText(text);
+	lineBuffer.value += text;
+
+	let newlineIndex = lineBuffer.value.indexOf("\n");
+	while (newlineIndex >= 0) {
+		const line = lineBuffer.value.slice(0, newlineIndex).trim();
+		lineBuffer.value = lineBuffer.value.slice(newlineIndex + 1);
+
+		if (line.startsWith("AUDIO_LEVEL ")) {
+			try {
+				emitRecordingAudioLevels(JSON.parse(line.slice("AUDIO_LEVEL ".length)));
+			} catch {
+				// Audio level telemetry should never interrupt capture.
+			}
+		}
+
+		newlineIndex = lineBuffer.value.indexOf("\n");
+	}
+}
+
 export function registerRecordingHandlers(
 	onRecordingStateChange?: (recording: boolean, sourceName: string) => void,
 ) {
@@ -431,6 +494,7 @@ export function registerRecordingHandlers(
 					);
 
 					let captureOutput = "";
+					const captureLineBuffer = { value: "" };
 					let systemAudioPath: string | null = null;
 					let microphonePath: string | null = null;
 					let orphanedMicAudioPath: string | null = null;
@@ -545,14 +609,16 @@ export function registerRecordingHandlers(
 					attachWindowsCaptureLifecycle(wcProc);
 
 					wcProc.stdout.on("data", (chunk: Buffer) => {
-						const msg = chunk.toString();
-						captureOutput += msg;
-						setWindowsCaptureOutputBuffer(captureOutput);
+						processNativeCaptureOutputLines(chunk, captureLineBuffer, (msg) => {
+							captureOutput += msg;
+							setWindowsCaptureOutputBuffer(captureOutput);
+						});
 					});
 					wcProc.stderr.on("data", (chunk: Buffer) => {
-						const msg = chunk.toString();
-						captureOutput += msg;
-						setWindowsCaptureOutputBuffer(captureOutput);
+						processNativeCaptureOutputLines(chunk, captureLineBuffer, (msg) => {
+							captureOutput += msg;
+							setWindowsCaptureOutputBuffer(captureOutput);
+						});
 					});
 
 					await waitForWindowsCaptureStart(wcProc);
@@ -731,18 +797,26 @@ export function registerRecordingHandlers(
 				setNativeCaptureMicrophonePath(microphoneOutputPath);
 				setNativeCaptureStopRequested(false);
 				setNativeCapturePaused(false);
+				let captureOutput = "";
 				captProc = spawn(helperPath, [JSON.stringify(config)], {
 					cwd: recordingsDir,
 					stdio: ["pipe", "pipe", "pipe"],
 				});
 				setNativeCaptureProcess(captProc);
 				attachNativeCaptureLifecycle(captProc);
+				const nativeLineBuffer = { value: "" };
 
 				captProc.stdout.on("data", (chunk: Buffer) => {
-					setNativeCaptureOutputBuffer(nativeCaptureOutputBuffer + chunk.toString());
+					processNativeCaptureOutputLines(chunk, nativeLineBuffer, (msg) => {
+						captureOutput += msg;
+						setNativeCaptureOutputBuffer(captureOutput);
+					});
 				});
 				captProc.stderr.on("data", (chunk: Buffer) => {
-					setNativeCaptureOutputBuffer(nativeCaptureOutputBuffer + chunk.toString());
+					processNativeCaptureOutputLines(chunk, nativeLineBuffer, (msg) => {
+						captureOutput += msg;
+						setNativeCaptureOutputBuffer(captureOutput);
+					});
 				});
 
 				await waitForNativeCaptureStart(captProc);
@@ -751,9 +825,9 @@ export function registerRecordingHandlers(
 				// If the native helper reported MICROPHONE_CAPTURE_UNAVAILABLE, it started
 				// capture without microphone.  Clear the mic path so the renderer can fall
 				// back to a browser-side sidecar recording for the microphone track.
-				const micUnavailableNatively = nativeCaptureOutputBuffer.includes(
-					"MICROPHONE_CAPTURE_UNAVAILABLE",
-				);
+				const micUnavailableNatively =
+					captureOutput.includes("MICROPHONE_CAPTURE_UNAVAILABLE") ||
+					captureOutput.includes("MICROPHONE_CAPTURE_DEVICE_NOT_FOUND");
 				if (micUnavailableNatively) {
 					setNativeCaptureMicrophonePath(null);
 				}
@@ -768,7 +842,7 @@ export function registerRecordingHandlers(
 					outputPath,
 					systemAudioPath: systemAudioOutputPath,
 					microphonePath: nativeCaptureMicrophonePath,
-					processOutput: nativeCaptureOutputBuffer.trim() || undefined,
+					processOutput: captureOutput.trim() || undefined,
 				});
 				return { success: true, microphoneFallbackRequired: micUnavailableNatively };
 			} catch (error) {

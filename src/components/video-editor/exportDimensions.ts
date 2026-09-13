@@ -5,6 +5,10 @@ function normalizeEvenDimension(value: number): number {
 	return Math.max(2, Math.floor(value / 2) * 2);
 }
 
+function normalizeEvenDimensionUp(value: number): number {
+	return Math.max(2, Math.ceil(value / 2) * 2);
+}
+
 function fitAspectRatioWithinBounds(
 	maxWidth: number,
 	maxHeight: number,
@@ -64,5 +68,29 @@ export function calculateMp4ExportDimensions(
 	return {
 		width: normalizeEvenDimension(baseWidth * qualityScale),
 		height: normalizeEvenDimension(baseHeight * qualityScale),
+	};
+}
+
+export const DEFAULT_ALPHA_SAFE_CANVAS_SCALE = 1.5;
+export const MIN_ALPHA_SAFE_CANVAS_SCALE = 1.25;
+export const MAX_ALPHA_SAFE_CANVAS_SCALE = 2.5;
+
+export function normalizeAlphaSafeCanvasScale(scale: number): number {
+	if (!Number.isFinite(scale)) {
+		return DEFAULT_ALPHA_SAFE_CANVAS_SCALE;
+	}
+
+	return Math.min(MAX_ALPHA_SAFE_CANVAS_SCALE, Math.max(MIN_ALPHA_SAFE_CANVAS_SCALE, scale));
+}
+
+export function calculateAlphaSafeCanvasDimensions(
+	baseWidth: number,
+	baseHeight: number,
+	scale = DEFAULT_ALPHA_SAFE_CANVAS_SCALE,
+): { width: number; height: number } {
+	const safeScale = normalizeAlphaSafeCanvasScale(scale);
+	return {
+		width: normalizeEvenDimensionUp(baseWidth * safeScale),
+		height: normalizeEvenDimensionUp(baseHeight * safeScale),
 	};
 }

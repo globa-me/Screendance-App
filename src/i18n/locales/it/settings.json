@@ -52,6 +52,9 @@
 		"auto": "Auto",
 		"connectZooms": "Connetti zoom",
 		"connectZoomsDescription": "Unisce regioni di zoom consecutive in un movimento di camera continuo.",
+		"defaultZoomMode": "Modalita nuovo zoom",
+		"defaultZoomModeDescription": "Usato quando aggiungi uno zoom dalla timeline.",
+		"defaultZoomDuration": "Durata nuovo zoom",
 		"autoApplyFreshRecordingZooms": "Applica automaticamente zoom alle nuove registrazioni",
 		"autoApplyFreshRecordingZoomsDescription": "Suggerisci automaticamente zoom con ricentratura ai bordi quando apri una nuova registrazione.",
 		"zoomGeneralTitle": "Generale",
@@ -201,6 +204,16 @@
 		"sizePresetLargeShort": "Gr",
 		"loadProject": "Carica progetto",
 		"saveProject": "Salva progetto",
+		"transparentBackground": "Alpha channel",
+		"transparentBackgroundHint": "Export WebM with transparent background.",
+		"advanced": "Advanced compatibility",
+		"pipelineTitle": "Export engine",
+		"pipeline": {
+			"legacy": "Compatibility",
+			"modern": "Automatic",
+			"legacyHint": "Compatibility mode uses the stable WebCodecs export path.",
+			"lightningHint": "Automatic mode selects the fastest compatible backend and falls back safely when needed."
+		},
 		"exportVideo": "Esporta {{format}}",
 		"reportBug": "Segnala bug",
 		"starOnGithub": "Metti una stella su GitHub"

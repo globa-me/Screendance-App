@@ -53,7 +53,11 @@
 			"upToDateTitle": "Screendance App {{version}}은(는) 최신 버전입니다.",
 			"availableTitle": "Screendance App {{version}}을(를) 사용할 수 있습니다.",
 			"availableGenericTitle": "업데이트를 사용할 수 있습니다."
-		}
+		},
+		"audioMonitor": "Recording audio",
+		"systemAudioSource": "System",
+		"microphoneSource": "Microphone",
+		"noAudioSource": "No audio"
 	},
 	"sourceSelector": {
 		"loadingSources": "소스를 불러오는 중...",

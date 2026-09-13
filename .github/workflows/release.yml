@@ -138,6 +138,9 @@ jobs:
         run: |
           node -e "const fs=require('node:fs'); const ffmpeg=require('ffmpeg-static'); if (typeof ffmpeg !== 'string' || !fs.existsSync(ffmpeg)) { throw new Error('Bundled ffmpeg-static binary is missing: ' + ffmpeg); } console.log('Using bundled ffmpeg binary: ' + ffmpeg);"
 
+      - name: Stage macOS FFprobe binaries
+        run: npm run stage:mac-ffprobe
+
       - name: Install app dependencies
         run: npx electron-builder install-app-deps
 
@@ -149,6 +152,14 @@ jobs:
           npx tsc
           npx vite build
           npx electron-builder --mac dir dmg zip --x64 --publish never
+
+      - name: Notarize, staple, and finalize macOS x64 DMG
+        run: |
+          xcrun notarytool submit 'release/Screendance App-x64.dmg' \
+            --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" --wait
+          xcrun stapler staple 'release/Screendance App-x64.dmg'
+          node scripts/finalize-macos-release.mjs release x64
 
       - name: Smoke test packaged macOS x64 paths
         env:
@@ -239,6 +250,9 @@ jobs:
         run: |
           node -e "const fs=require('node:fs'); const ffmpeg=require('ffmpeg-static'); if (typeof ffmpeg !== 'string' || !fs.existsSync(ffmpeg)) { throw new Error('Bundled ffmpeg-static binary is missing: ' + ffmpeg); } console.log('Using bundled ffmpeg binary: ' + ffmpeg);"
 
+      - name: Stage macOS FFprobe binaries
+        run: npm run stage:mac-ffprobe
+
       - name: Install app dependencies
         run: npx electron-builder install-app-deps
 
@@ -250,6 +264,14 @@ jobs:
           npx tsc
           npx vite build
           npx electron-builder --mac dir dmg zip --arm64 --publish never
+
+      - name: Notarize, staple, and finalize macOS arm64 DMG
+        run: |
+          xcrun notarytool submit 'release/Screendance App-arm64.dmg' \
+            --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" --wait
+          xcrun stapler staple 'release/Screendance App-arm64.dmg'
+          node scripts/finalize-macos-release.mjs release arm64
 
       - name: Smoke test packaged macOS arm64 paths
         env:

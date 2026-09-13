@@ -54,7 +54,7 @@
 		"refreshed": "확장 프로그램 새로고침 완료",
 		"refreshFailed": "확장 프로그램 새로고침 실패",
 		"marketplaceInstalled": "{{name}} 설치 및 활성화됨",
-		"enableFailed": "확장 프로그램 활성화 실패",
-		"marketplaceInstallFailed": "{{name}} 설치 실패"
+		"marketplaceInstallFailed": "{{name}} 설치 실패",
+		"enableFailed": "확장 프로그램 활성화 실패"
 	}
 }

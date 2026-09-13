@@ -43,6 +43,7 @@ export interface TimelineEditorProps {
 	onAutoSuggestZoomsConsumed?: () => void;
 	disableSuggestedZooms?: boolean;
 	zoomRegions: ZoomRegion[];
+	defaultZoomDurationMs: number;
 	onZoomAdded: (span: Span) => void;
 	onZoomSuggested?: (span: Span, focus: ZoomFocus) => void;
 	onZoomSpanChange: (id: string, span: Span) => void;
@@ -130,6 +131,7 @@ const TimelineEditor = forwardRef<TimelineEditorHandle, TimelineEditorProps>(
 			onAutoSuggestZoomsConsumed,
 			disableSuggestedZooms = false,
 			zoomRegions,
+			defaultZoomDurationMs,
 			onZoomAdded,
 			onZoomSuggested,
 			onZoomSpanChange,
@@ -341,6 +343,7 @@ const TimelineEditor = forwardRef<TimelineEditorHandle, TimelineEditorProps>(
 			onAutoSuggestZoomsConsumed,
 			disableSuggestedZooms,
 			zoomRegions,
+			defaultZoomDurationMs,
 			onZoomAdded,
 			onZoomSuggested,
 			onZoomSpanChange,

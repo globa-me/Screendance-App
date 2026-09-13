@@ -6,9 +6,10 @@ import {
 	ChatDots as MessageSquareMore,
 	Scissors,
 	GearSix as Settings2,
+	Terminal,
 	XLogo as Twitter,
 } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +26,6 @@ import { formatBinding, SHORTCUT_ACTIONS, SHORTCUT_LABELS } from "@/lib/shortcut
 import { formatShortcut } from "@/utils/platformUtils";
 
 export const SCREENDANCE_ISSUES_URL = "https://github.com/globa-me/Screendance-App/issues";
-const RECORDLY_DISCORD_URL = "https://discord.gg/sdv2FBVNgE";
 const RECORDLY_X_URL = "https://x.com/webadderall";
 const CONTACT_EMAIL = "youngchen3442@gmail.com";
 export const APP_HEADER_ACTION_BUTTON_CLASS =
@@ -36,14 +36,6 @@ export const APP_HEADER_ICON_BUTTON_CLASS =
 interface KeyboardShortcutsDialogProps {
 	triggerLabel?: string;
 	triggerClassName?: string;
-}
-
-function DiscordIcon(props: React.SVGProps<SVGSVGElement>) {
-	return (
-		<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
-			<path d="M20.317 4.369A19.791 19.791 0 0 0 15.418 3a13.255 13.255 0 0 0-.615 1.263 18.27 18.27 0 0 0-5.606 0A13.25 13.25 0 0 0 8.582 3a19.736 19.736 0 0 0-4.9 1.369C.533 9.091-.32 13.697.099 18.237a19.917 19.917 0 0 0 5.993 3.024 14.32 14.32 0 0 0 1.284-2.108 12.804 12.804 0 0 1-2.021-.972c.17-.126.335-.258.495-.395a14.135 14.135 0 0 0 12.3 0c.16.137.325.269.495.395a12.736 12.736 0 0 1-2.026.974 14.103 14.103 0 0 0 1.284 2.106 19.883 19.883 0 0 0 5.996-3.024c.489-5.258-.836-9.822-3.682-13.868ZM8.02 15.331c-1.182 0-2.154-1.085-2.154-2.419 0-1.334.953-2.419 2.154-2.419 1.211 0 2.173 1.095 2.154 2.419 0 1.334-.953 2.419-2.154 2.419Zm7.96 0c-1.182 0-2.154-1.085-2.154-2.419 0-1.334.953-2.419 2.154-2.419 1.211 0 2.173 1.095 2.154 2.419 0 1.334-.943 2.419-2.154 2.419Z" />
-		</svg>
-	);
 }
 
 export async function openExternalLink(url: string, errorMessage: string) {
@@ -57,26 +49,129 @@ export async function openExternalLink(url: string, errorMessage: string) {
 	}
 }
 
-export function DiscordLinkButton() {
+export function DebugLogsDialog() {
 	const t = useScopedT("editor");
+	const [logs, setLogs] = useState<string>("");
+	const [loading, setLoading] = useState(false);
+	const [open, setOpen] = useState(false);
+	const preRef = useRef<HTMLPreElement>(null);
+
+	const fetchLogs = async () => {
+		setLoading(true);
+		try {
+			const fetchedLogs = await window.electronAPI.getAppLogs();
+			setLogs(fetchedLogs || "No logs available.");
+		} catch (error) {
+			setLogs(`Failed to fetch logs: ${String(error)}`);
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	useEffect(() => {
+		if (open) {
+			void fetchLogs();
+		}
+	}, [open]);
+
+	useEffect(() => {
+		if (preRef.current) {
+			preRef.current.scrollTop = preRef.current.scrollHeight;
+		}
+	}, [logs]);
+
+	const handleCopy = async () => {
+		try {
+			await window.electronAPI.writeClipboardText(logs);
+			toast.success(t("debug.copied", "Logs copied to clipboard!"));
+		} catch (error) {
+			toast.error(`Failed to copy logs: ${String(error)}`);
+		}
+	};
+
+	const handleClear = async () => {
+		if (!confirm(t("debug.clearConfirm", "Are you sure you want to clear the logs?"))) {
+			return;
+		}
+		try {
+			const res = await window.electronAPI.clearAppLogs();
+			if (res.success) {
+				toast.success(t("debug.cleared", "Logs cleared successfully."));
+				void fetchLogs();
+			} else {
+				toast.error(res.error || "Failed to clear logs.");
+			}
+		} catch (error) {
+			toast.error(`Failed to clear logs: ${String(error)}`);
+		}
+	};
 
 	return (
-		<Button
-			type="button"
-			variant="ghost"
-			size="sm"
-			onClick={() =>
-				void openExternalLink(
-					RECORDLY_DISCORD_URL,
-					t("feedback.openFailed", "Failed to open link."),
-				)
-			}
-			className={APP_HEADER_ICON_BUTTON_CLASS}
-			title={t("common.app.discord", "Join Discord")}
-			aria-label={t("common.app.discord", "Join Discord")}
-		>
-			<DiscordIcon className="h-3.5 w-3.5" />
-		</Button>
+		<Dialog open={open} onOpenChange={setOpen}>
+			<DialogTrigger asChild>
+				<Button
+					variant="ghost"
+					size="sm"
+					className={APP_HEADER_ICON_BUTTON_CLASS}
+					title={t("debug.trigger", "Debug Logs")}
+					aria-label={t("debug.trigger", "Debug Logs")}
+				>
+					<Terminal className="h-3.5 w-3.5" />
+				</Button>
+			</DialogTrigger>
+			<DialogContent className="max-w-3xl w-[90vw] bg-editor-dialog border-foreground/10 [&>button]:text-muted-foreground [&>button:hover]:text-foreground flex flex-col max-h-[85vh]">
+				<DialogHeader>
+					<DialogTitle className="text-xl font-semibold text-foreground flex items-center gap-2">
+						<Terminal className="h-5 w-5 text-blue-500" />
+						{t("debug.title", "Debug Logs")}
+					</DialogTitle>
+					<DialogDescription className="text-muted-foreground">
+						{t("debug.description", "Main process logs from the current session. Helpful for troubleshooting export and recording issues.")}
+					</DialogDescription>
+				</DialogHeader>
+
+				<div className="flex-1 min-h-0 my-4 flex flex-col">
+					<pre
+						ref={preRef}
+						className="flex-1 bg-black/40 text-xs font-mono p-4 rounded-md overflow-y-auto whitespace-pre-wrap select-text border border-foreground/10 max-h-[50vh] text-foreground"
+					>
+						{loading ? t("debug.loading", "Loading logs...") : logs}
+					</pre>
+				</div>
+
+				<div className="flex justify-between items-center gap-3">
+					<div className="flex gap-2">
+						<Button
+							type="button"
+							variant="outline"
+							onClick={fetchLogs}
+							disabled={loading}
+							className="border-foreground/10 bg-foreground/5 text-foreground hover:bg-foreground/10 hover:text-foreground"
+						>
+							{t("debug.refresh", "Refresh")}
+						</Button>
+						<Button
+							type="button"
+							variant="outline"
+							onClick={handleCopy}
+							disabled={loading || !logs}
+							className="border-foreground/10 bg-foreground/5 text-foreground hover:bg-foreground/10 hover:text-foreground"
+						>
+							{t("debug.copy", "Copy to Clipboard")}
+						</Button>
+					</div>
+					<Button
+						type="button"
+						variant="destructive"
+						onClick={handleClear}
+						disabled={loading}
+						className="bg-red-600 hover:bg-red-700 text-white"
+					>
+						{t("debug.clear", "Clear Logs")}
+					</Button>
+				</div>
+			</DialogContent>
+		</Dialog>
 	);
 }
 

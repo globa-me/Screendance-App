@@ -8,8 +8,8 @@ import type {
 	CursorStyle,
 	CursorTelemetryPoint,
 	Padding,
-	SpeedRegion,
 	SourceAudioTrackSettings,
+	SpeedRegion,
 	TrimRegion,
 	WebcamOverlaySettings,
 	ZoomMotionBlurTuning,
@@ -38,6 +38,7 @@ import {
 	computeZoomTransform,
 } from "@/components/video-editor/videoPlayback/zoomTransform";
 import {
+	getWebcamOverlayPixelScale,
 	getWebcamOverlayPosition,
 	getWebcamOverlaySizePx,
 } from "@/components/video-editor/webcamOverlay";
@@ -48,8 +49,10 @@ import {
 	DEFAULT_WALLPAPER_RELATIVE_PATH,
 	isVideoWallpaperSource,
 } from "@/lib/wallpapers";
+import { AlphaWebmMuxer } from "./alphaWebmMuxer";
 import { AudioProcessor, isAacAudioEncodingSupported } from "./audioEncoder";
 import { normalizeLightningRuntimePlatform, shouldPreferNativeAutoBackend } from "./backendPolicy";
+import { createCanvasGradientFromCss } from "./cssGradient";
 import { buildEditedTrackSourceSegments, classifyEditedTrackStrategy } from "./editedTrackStrategy";
 import {
 	type ExportBackpressureProfile,
@@ -298,6 +301,7 @@ export class ModernVideoExporter {
 	private renderer: ModernFrameRenderer | null = null;
 	private encoder: VideoEncoder | null = null;
 	private muxer: VideoMuxer | null = null;
+	private alphaWebmMuxer: AlphaWebmMuxer | null = null;
 	private audioProcessor: AudioProcessor | null = null;
 	private cancelled = false;
 	private encodeQueue = 0;
@@ -372,6 +376,12 @@ export class ModernVideoExporter {
 				this.nativeStaticLayoutSkipReasons = [];
 				this.nativeStaticLayoutBackgroundSkipReason = null;
 				this.totalExportStartTimeMs = this.getNowMs();
+				if (this.config.transparentBackground) {
+					if (this.config.alphaFormat === "mov") {
+						return await this.exportAlphaProresMov(preferReadableFileSource);
+					}
+					return await this.exportAlphaWebm(preferReadableFileSource);
+				}
 				const backendPreference = this.config.backendPreference ?? "auto";
 				const runtimePlatform = this.getRuntimePlatform();
 				let useNativeEncoder = false;
@@ -568,6 +578,7 @@ export class ModernVideoExporter {
 				this.renderer = new ModernFrameRenderer({
 					width: this.config.width,
 					height: this.config.height,
+					layoutViewport: this.config.layoutViewport,
 					preferredRenderBackend: undefined,
 					wallpaper: this.config.wallpaper,
 					zoomRegions: this.config.zoomRegions,
@@ -920,6 +931,445 @@ export class ModernVideoExporter {
 		return READABLE_SOURCE_RETRY_ERROR_TOKENS.some((token) =>
 			normalizedMessage.includes(token),
 		);
+	}
+
+	private async exportAlphaProresMov(forceReadableFileSource: boolean): Promise<ExportResult> {
+		if (typeof window === "undefined" || !window.electronAPI?.nativeVideoExportStart) {
+			throw new Error("ProRes alpha export requires native FFmpeg export support.");
+		}
+
+		this.encodeBackend = "ffmpeg";
+		this.encoderName = "prores_ks-4444-alpha";
+		this.backpressureProfile = getExportBackpressureProfile({
+			encodeBackend: "ffmpeg",
+			width: this.config.width,
+			height: this.config.height,
+			frameRate: this.config.frameRate,
+			encodingMode: this.config.encodingMode,
+		});
+		this.maxNativeWriteInFlight = 1;
+
+		this.streamingDecoder = new StreamingVideoDecoder({
+			maxDecodeQueue: this.config.maxDecodeQueue ?? this.backpressureProfile.maxDecodeQueue,
+			maxPendingFrames:
+				this.config.maxPendingFrames ?? this.backpressureProfile.maxPendingFrames,
+		});
+
+		let stageStartedAt = this.getNowMs();
+		const videoInfo = await this.streamingDecoder.loadMetadata(this.config.videoUrl, {
+			forceReadableFileSource,
+		});
+		this.metadataLoadTimeMs = this.getNowMs() - stageStartedAt;
+		const effectiveDuration = this.streamingDecoder.getEffectiveDuration(
+			this.config.trimRegions,
+			this.config.speedRegions,
+		);
+		this.effectiveDurationSec = effectiveDuration;
+		const totalFrames = Math.ceil(effectiveDuration * this.config.frameRate);
+
+		stageStartedAt = this.getNowMs();
+		this.renderer = new ModernFrameRenderer({
+			width: this.config.width,
+			height: this.config.height,
+			layoutViewport: this.config.layoutViewport,
+			preferredRenderBackend: this.config.preferredRenderBackend,
+			wallpaper: this.config.wallpaper,
+			transparentBackground: true,
+			zoomRegions: this.config.zoomRegions,
+			showShadow: this.config.showShadow,
+			shadowIntensity: this.config.shadowIntensity,
+			backgroundBlur: this.config.backgroundBlur,
+			zoomMotionBlur: this.config.zoomMotionBlur,
+			zoomMotionBlurTuning: this.config.zoomMotionBlurTuning,
+			zoomTemporalMotionBlur: this.config.zoomTemporalMotionBlur,
+			zoomMotionBlurSampleCount: this.config.zoomMotionBlurSampleCount,
+			zoomMotionBlurShutterFraction: this.config.zoomMotionBlurShutterFraction,
+			connectZooms: this.config.connectZooms,
+			zoomInDurationMs: this.config.zoomInDurationMs,
+			zoomInOverlapMs: this.config.zoomInOverlapMs,
+			zoomOutDurationMs: this.config.zoomOutDurationMs,
+			connectedZoomGapMs: this.config.connectedZoomGapMs,
+			connectedZoomDurationMs: this.config.connectedZoomDurationMs,
+			zoomInEasing: this.config.zoomInEasing,
+			zoomOutEasing: this.config.zoomOutEasing,
+			connectedZoomEasing: this.config.connectedZoomEasing,
+			borderRadius: this.config.borderRadius,
+			padding: this.config.padding,
+			cropRegion: this.config.cropRegion,
+			webcam: this.config.webcam,
+			webcamUrl: this.config.webcamUrl,
+			videoWidth: videoInfo.width,
+			videoHeight: videoInfo.height,
+			annotationRegions: this.config.annotationRegions,
+			autoCaptions: this.config.autoCaptions,
+			autoCaptionSettings: this.config.autoCaptionSettings,
+			speedRegions: this.config.speedRegions,
+			previewWidth: this.config.previewWidth,
+			previewHeight: this.config.previewHeight,
+			cursorTelemetry: this.config.cursorTelemetry,
+			showCursor: this.config.showCursor,
+			cursorStyle: this.config.cursorStyle,
+			cursorSize: this.config.cursorSize,
+			cursorSmoothing: this.config.cursorSmoothing,
+			cursorSpringStiffnessMultiplier: this.config.cursorSpringStiffnessMultiplier,
+			cursorSpringDampingMultiplier: this.config.cursorSpringDampingMultiplier,
+			cursorSpringMassMultiplier: this.config.cursorSpringMassMultiplier,
+			cameraSpringStiffnessMultiplier: this.config.cameraSpringStiffnessMultiplier,
+			cameraSpringDampingMultiplier: this.config.cameraSpringDampingMultiplier,
+			cameraSpringMassMultiplier: this.config.cameraSpringMassMultiplier,
+			cursorMotionBlur: this.config.cursorMotionBlur,
+			cursorClickBounce: this.config.cursorClickBounce,
+			cursorClickBounceDuration: this.config.cursorClickBounceDuration,
+			cursorSway: this.config.cursorSway,
+			zoomSmoothness: this.config.zoomSmoothness,
+			zoomClassicMode: this.config.zoomClassicMode,
+			frame: this.config.frame,
+		});
+		await this.renderer.initialize();
+		this.rendererInitTimeMs = this.getNowMs() - stageStartedAt;
+		this.renderBackend = this.renderer.getRendererBackend();
+
+		const result = await window.electronAPI.nativeVideoExportStart({
+			width: this.config.width,
+			height: this.config.height,
+			frameRate: this.config.frameRate,
+			bitrate: this.config.bitrate,
+			encodingMode: this.config.encodingMode ?? "balanced",
+			inputMode: "rawvideo",
+			outputProfile: "mov-prores-4444",
+		});
+		if (!result.success || !result.sessionId) {
+			throw new Error(result.error || "Failed to start ProRes alpha export.");
+		}
+		this.nativeExportSessionId = result.sessionId;
+		this.encoderName = result.encoderName ?? this.encoderName;
+
+		const captureCanvas = document.createElement("canvas");
+		captureCanvas.width = this.config.width;
+		captureCanvas.height = this.config.height;
+		const captureCtx = captureCanvas.getContext("2d", {
+			alpha: true,
+			willReadFrequently: true,
+		});
+		if (!captureCtx) {
+			throw new Error("Failed to create ProRes alpha capture canvas");
+		}
+
+		const frameDuration = 1_000_000 / this.config.frameRate;
+		let frameIndex = 0;
+		this.exportStartTimeMs = this.getNowMs();
+		this.lastThroughputLogTimeMs = this.exportStartTimeMs;
+		this.lastProgressSampleTimeMs = this.exportStartTimeMs;
+		this.lastProgressSampleFrame = 0;
+		this.displayedRenderFps = 0;
+		const decodeLoopStartedAt = this.getNowMs();
+
+		try {
+			await this.streamingDecoder.decodeAll(
+				this.config.frameRate,
+				this.config.trimRegions,
+				this.config.speedRegions,
+				async (videoFrame, _exportTimestampUs, sourceTimestampMs, cursorTimestampMs) => {
+					const callbackStartedAt = this.getNowMs();
+					if (this.cancelled) {
+						return;
+					}
+
+					const timestamp = frameIndex * frameDuration;
+					const sourceTimestampUs = sourceTimestampMs * 1000;
+					const cursorTimestampUs = cursorTimestampMs * 1000;
+					const renderStartedAt = this.getNowMs();
+					await this.renderer!.renderFrame(
+						videoFrame,
+						sourceTimestampUs,
+						cursorTimestampUs,
+						frameDuration,
+						timestamp,
+					);
+					this.renderFrameTimeMs += this.getNowMs() - renderStartedAt;
+
+					if (this.cancelled) {
+						return;
+					}
+
+					const captureStartedAt = this.getNowMs();
+					captureCtx.clearRect(0, 0, this.config.width, this.config.height);
+					captureCtx.drawImage(this.renderer!.getCanvas(), 0, 0);
+					const imageData = captureCtx.getImageData(
+						0,
+						0,
+						this.config.width,
+						this.config.height,
+					);
+					const frameBytes = new Uint8Array(imageData.data.buffer);
+					this.nativeCaptureTimeMs += this.getNowMs() - captureStartedAt;
+
+					const writeStartedAt = this.getNowMs();
+					const writeResult = await window.electronAPI.nativeVideoExportWriteFrame(
+						result.sessionId!,
+						frameBytes,
+					);
+					this.nativeWriteTimeMs += this.getNowMs() - writeStartedAt;
+					if (!writeResult.success) {
+						throw new Error(writeResult.error || "Failed to write ProRes alpha frame");
+					}
+
+					this.frameCallbackTimeMs += this.getNowMs() - callbackStartedAt;
+					frameIndex++;
+					this.processedFrameCount = frameIndex;
+					this.reportProgress(frameIndex, totalFrames, "extracting");
+					extensionHost.emitEvent({
+						type: "export:frame",
+						data: { frameIndex, totalFrames },
+					});
+				},
+			);
+			this.decodeLoopTimeMs = this.getNowMs() - decodeLoopStartedAt;
+
+			if (this.cancelled) {
+				await window.electronAPI.nativeVideoExportCancel?.(result.sessionId);
+				this.nativeExportSessionId = null;
+				return {
+					success: false,
+					error: "Export cancelled",
+					metrics: this.buildExportMetrics(),
+				};
+			}
+
+			stageStartedAt = this.getNowMs();
+			this.reportFinalizingProgress(totalFrames, 99);
+			const finishResult = await this.measureFinalizationStage(
+				"nativeExportFinalizeMs",
+				async () =>
+					this.awaitWithFinalizationTimeout(
+						window.electronAPI.nativeVideoExportFinish(result.sessionId!, {
+							audioMode: "none",
+							outputDurationSec: this.effectiveDurationSec,
+						}),
+						"ProRes alpha export finalization",
+					),
+			);
+			this.nativeExportSessionId = null;
+			this.finalizationTimeMs = this.getNowMs() - stageStartedAt;
+			this.encoderName = finishResult.encoderName ?? this.encoderName;
+
+			if (!finishResult.success || !finishResult.tempPath) {
+				return {
+					success: false,
+					error: finishResult.error || "Failed to finalize ProRes alpha export",
+					metrics: this.buildExportMetrics(),
+				};
+			}
+
+			return {
+				success: true,
+				tempFilePath: finishResult.tempPath,
+				metrics: this.buildExportMetrics(),
+			};
+		} catch (error) {
+			const sessionId = this.nativeExportSessionId;
+			this.nativeExportSessionId = null;
+			if (sessionId) {
+				await window.electronAPI.nativeVideoExportCancel?.(sessionId);
+			}
+			throw error;
+		}
+	}
+
+	private async exportAlphaWebm(forceReadableFileSource: boolean): Promise<ExportResult> {
+		this.encodeBackend = "webcodecs";
+		this.encoderName = "vp9-alpha/webm";
+		this.backpressureProfile = getExportBackpressureProfile({
+			encodeBackend: "webcodecs",
+			width: this.config.width,
+			height: this.config.height,
+			frameRate: this.config.frameRate,
+			encodingMode: this.config.encodingMode,
+		});
+
+		this.streamingDecoder = new StreamingVideoDecoder({
+			maxDecodeQueue: this.config.maxDecodeQueue ?? this.backpressureProfile.maxDecodeQueue,
+			maxPendingFrames:
+				this.config.maxPendingFrames ?? this.backpressureProfile.maxPendingFrames,
+		});
+
+		let stageStartedAt = this.getNowMs();
+		const videoInfo = await this.streamingDecoder.loadMetadata(this.config.videoUrl, {
+			forceReadableFileSource,
+		});
+		this.metadataLoadTimeMs = this.getNowMs() - stageStartedAt;
+		const effectiveDuration = this.streamingDecoder.getEffectiveDuration(
+			this.config.trimRegions,
+			this.config.speedRegions,
+		);
+		this.effectiveDurationSec = effectiveDuration;
+		const totalFrames = Math.ceil(effectiveDuration * this.config.frameRate);
+
+		stageStartedAt = this.getNowMs();
+		this.renderer = new ModernFrameRenderer({
+			width: this.config.width,
+			height: this.config.height,
+			layoutViewport: this.config.layoutViewport,
+			preferredRenderBackend: this.config.preferredRenderBackend,
+			wallpaper: this.config.wallpaper,
+			transparentBackground: true,
+			zoomRegions: this.config.zoomRegions,
+			showShadow: this.config.showShadow,
+			shadowIntensity: this.config.shadowIntensity,
+			backgroundBlur: this.config.backgroundBlur,
+			zoomMotionBlur: this.config.zoomMotionBlur,
+			zoomMotionBlurTuning: this.config.zoomMotionBlurTuning,
+			zoomTemporalMotionBlur: this.config.zoomTemporalMotionBlur,
+			zoomMotionBlurSampleCount: this.config.zoomMotionBlurSampleCount,
+			zoomMotionBlurShutterFraction: this.config.zoomMotionBlurShutterFraction,
+			connectZooms: this.config.connectZooms,
+			zoomInDurationMs: this.config.zoomInDurationMs,
+			zoomInOverlapMs: this.config.zoomInOverlapMs,
+			zoomOutDurationMs: this.config.zoomOutDurationMs,
+			connectedZoomGapMs: this.config.connectedZoomGapMs,
+			connectedZoomDurationMs: this.config.connectedZoomDurationMs,
+			zoomInEasing: this.config.zoomInEasing,
+			zoomOutEasing: this.config.zoomOutEasing,
+			connectedZoomEasing: this.config.connectedZoomEasing,
+			borderRadius: this.config.borderRadius,
+			padding: this.config.padding,
+			cropRegion: this.config.cropRegion,
+			webcam: this.config.webcam,
+			webcamUrl: this.config.webcamUrl,
+			videoWidth: videoInfo.width,
+			videoHeight: videoInfo.height,
+			annotationRegions: this.config.annotationRegions,
+			autoCaptions: this.config.autoCaptions,
+			autoCaptionSettings: this.config.autoCaptionSettings,
+			speedRegions: this.config.speedRegions,
+			previewWidth: this.config.previewWidth,
+			previewHeight: this.config.previewHeight,
+			cursorTelemetry: this.config.cursorTelemetry,
+			showCursor: this.config.showCursor,
+			cursorStyle: this.config.cursorStyle,
+			cursorSize: this.config.cursorSize,
+			cursorSmoothing: this.config.cursorSmoothing,
+			cursorSpringStiffnessMultiplier: this.config.cursorSpringStiffnessMultiplier,
+			cursorSpringDampingMultiplier: this.config.cursorSpringDampingMultiplier,
+			cursorSpringMassMultiplier: this.config.cursorSpringMassMultiplier,
+			cameraSpringStiffnessMultiplier: this.config.cameraSpringStiffnessMultiplier,
+			cameraSpringDampingMultiplier: this.config.cameraSpringDampingMultiplier,
+			cameraSpringMassMultiplier: this.config.cameraSpringMassMultiplier,
+			cursorMotionBlur: this.config.cursorMotionBlur,
+			cursorClickBounce: this.config.cursorClickBounce,
+			cursorClickBounceDuration: this.config.cursorClickBounceDuration,
+			cursorSway: this.config.cursorSway,
+			zoomSmoothness: this.config.zoomSmoothness,
+			zoomClassicMode: this.config.zoomClassicMode,
+			frame: this.config.frame,
+		});
+		await this.renderer.initialize();
+		this.rendererInitTimeMs = this.getNowMs() - stageStartedAt;
+		this.renderBackend = this.renderer.getRendererBackend();
+
+		const captureCanvas = document.createElement("canvas");
+		captureCanvas.width = this.config.width;
+		captureCanvas.height = this.config.height;
+		const captureCtx = captureCanvas.getContext("2d", {
+			alpha: true,
+			willReadFrequently: false,
+		});
+		if (!captureCtx) {
+			throw new Error("Failed to create alpha export canvas");
+		}
+
+		this.alphaWebmMuxer = new AlphaWebmMuxer({
+			width: this.config.width,
+			height: this.config.height,
+			frameRate: this.config.frameRate,
+			bitrate: this.config.bitrate,
+		});
+		await this.alphaWebmMuxer.initialize(captureCanvas);
+
+		const frameDuration = 1_000_000 / this.config.frameRate;
+		let frameIndex = 0;
+		this.exportStartTimeMs = this.getNowMs();
+		this.lastThroughputLogTimeMs = this.exportStartTimeMs;
+		this.lastProgressSampleTimeMs = this.exportStartTimeMs;
+		this.lastProgressSampleFrame = 0;
+		this.displayedRenderFps = 0;
+		const decodeLoopStartedAt = this.getNowMs();
+
+		await this.streamingDecoder.decodeAll(
+			this.config.frameRate,
+			this.config.trimRegions,
+			this.config.speedRegions,
+			async (videoFrame, _exportTimestampUs, sourceTimestampMs, cursorTimestampMs) => {
+				const callbackStartedAt = this.getNowMs();
+				if (this.cancelled) {
+					return;
+				}
+
+				const timestamp = frameIndex * frameDuration;
+				const sourceTimestampUs = sourceTimestampMs * 1000;
+				const cursorTimestampUs = cursorTimestampMs * 1000;
+				const renderStartedAt = this.getNowMs();
+				await this.renderer!.renderFrame(
+					videoFrame,
+					sourceTimestampUs,
+					cursorTimestampUs,
+					frameDuration,
+					timestamp,
+				);
+				this.renderFrameTimeMs += this.getNowMs() - renderStartedAt;
+
+				if (this.cancelled) {
+					return;
+				}
+
+				captureCtx.clearRect(0, 0, this.config.width, this.config.height);
+				captureCtx.drawImage(this.renderer!.getCanvas(), 0, 0);
+				await this.alphaWebmMuxer!.addFrame(timestamp, frameDuration, frameIndex);
+
+				this.frameCallbackTimeMs += this.getNowMs() - callbackStartedAt;
+				frameIndex++;
+				this.processedFrameCount = frameIndex;
+				this.reportProgress(frameIndex, totalFrames, "extracting");
+				extensionHost.emitEvent({
+					type: "export:frame",
+					data: { frameIndex, totalFrames },
+				});
+			},
+		);
+		this.decodeLoopTimeMs = this.getNowMs() - decodeLoopStartedAt;
+
+		if (this.cancelled) {
+			await this.alphaWebmMuxer.abortStream();
+			return {
+				success: false,
+				error: "Export cancelled",
+				metrics: this.buildExportMetrics(),
+			};
+		}
+
+		stageStartedAt = this.getNowMs();
+		this.reportFinalizingProgress(totalFrames, 99);
+		const muxerResult = await this.measureFinalizationStage("muxerFinalizeMs", async () =>
+			this.awaitWithFinalizationTimeout(
+				this.alphaWebmMuxer!.finalize(),
+				"alpha WebM finalization",
+			),
+		);
+		this.finalizationTimeMs = this.getNowMs() - stageStartedAt;
+
+		if (muxerResult.mode === "stream") {
+			return {
+				success: true,
+				tempFilePath: muxerResult.tempFilePath,
+				metrics: this.buildExportMetrics(),
+			};
+		}
+
+		return {
+			success: true,
+			blob: muxerResult.blob,
+			metrics: this.buildExportMetrics(),
+		};
 	}
 
 	private getPlatformLabel(): string {
@@ -1708,79 +2158,7 @@ export class ModernVideoExporter {
 		ctx: CanvasRenderingContext2D,
 		wallpaper: string,
 	): CanvasGradient | null {
-		const gradientMatch = wallpaper.match(/(linear|radial)-gradient\((.+)\)/);
-		if (!gradientMatch) {
-			return null;
-		}
-
-		const [, type, params] = gradientMatch;
-		const parts = this.splitCssGradientArguments(params).map((part) => part.trim());
-		const colorStops = parts
-			.map(
-				(part) =>
-					part.match(/^(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)|hsla?\([^)]+\)|[a-z]+)/i)?.[1],
-			)
-			.filter((color): color is string => Boolean(color));
-		if (colorStops.length === 0) {
-			return null;
-		}
-
-		const gradient =
-			type === "linear"
-				? ctx.createLinearGradient(0, 0, 0, this.config.height)
-				: ctx.createRadialGradient(
-						this.config.width / 2,
-						this.config.height / 2,
-						0,
-						this.config.width / 2,
-						this.config.height / 2,
-						Math.max(this.config.width, this.config.height) / 2,
-					);
-
-		if (colorStops.length === 1) {
-			gradient.addColorStop(0, colorStops[0]);
-			gradient.addColorStop(1, colorStops[0]);
-			return gradient;
-		}
-
-		colorStops.forEach((color, index) => {
-			gradient.addColorStop(index / (colorStops.length - 1), color);
-		});
-		return gradient;
-	}
-
-	private splitCssGradientArguments(params: string): string[] {
-		const parts: string[] = [];
-		let current = "";
-		let depth = 0;
-
-		for (const char of params) {
-			if (char === "(") {
-				depth++;
-				current += char;
-				continue;
-			}
-			if (char === ")") {
-				depth = Math.max(0, depth - 1);
-				current += char;
-				continue;
-			}
-			if (char === "," && depth === 0) {
-				if (current.trim()) {
-					parts.push(current.trim());
-				}
-				current = "";
-				continue;
-			}
-
-			current += char;
-		}
-
-		if (current.trim()) {
-			parts.push(current.trim());
-		}
-
-		return parts;
+		return createCanvasGradientFromCss(ctx, wallpaper, this.config.width, this.config.height);
 	}
 
 	private async writeNativeStaticLayoutTempAsset(
@@ -1967,7 +2345,13 @@ export class ModernVideoExporter {
 			return null;
 		}
 
-		const margin = webcam.margin ?? 24;
+		const pixelScale = getWebcamOverlayPixelScale({
+			containerWidth: this.config.width,
+			containerHeight: this.config.height,
+			previewWidth: this.config.previewWidth,
+			previewHeight: this.config.previewHeight,
+		});
+		const margin = (webcam.margin ?? 24) * pixelScale;
 		const rawSize = getWebcamOverlaySizePx({
 			containerWidth: this.config.width,
 			containerHeight: this.config.height,
@@ -1993,7 +2377,7 @@ export class ModernVideoExporter {
 			left: Math.round(position.x),
 			top: Math.round(position.y),
 			size,
-			radius: Math.max(0, webcam.cornerRadius ?? 18),
+			radius: Math.max(0, (webcam.cornerRadius ?? 18) * pixelScale),
 			shadowIntensity: Math.min(1, Math.max(0, webcam.shadow ?? 0)),
 			mirror: webcam.mirror !== false,
 			timeOffsetMs: Number.isFinite(webcam.timeOffsetMs) ? webcam.timeOffsetMs : 0,
@@ -3245,9 +3629,14 @@ export class ModernVideoExporter {
 			this.nativeWritePromises.size,
 		);
 
-		void writePromise.finally(() => {
-			this.nativeWritePromises.delete(writePromise);
-		});
+		writePromise.then(
+			() => {
+				this.nativeWritePromises.delete(writePromise);
+			},
+			() => {
+				this.nativeWritePromises.delete(writePromise);
+			},
+		);
 	}
 
 	private async awaitOldestNativeWrite(): Promise<void> {
@@ -3488,6 +3877,9 @@ export class ModernVideoExporter {
 		if (this.audioProcessor) {
 			this.audioProcessor.cancel();
 		}
+		if (this.alphaWebmMuxer) {
+			void this.alphaWebmMuxer.abortStream();
+		}
 		this.disposeNativeH264Encoder();
 
 		const nativeExportSessionId = this.nativeExportSessionId;
@@ -3533,6 +3925,14 @@ export class ModernVideoExporter {
 		}
 
 		this.muxer = null;
+		if (this.alphaWebmMuxer) {
+			try {
+				this.alphaWebmMuxer.destroy();
+			} catch (e) {
+				console.warn("Error destroying alpha WebM muxer:", e);
+			}
+		}
+		this.alphaWebmMuxer = null;
 		this.audioProcessor?.cancel();
 		this.audioProcessor = null;
 		this.disposeNativeH264Encoder();

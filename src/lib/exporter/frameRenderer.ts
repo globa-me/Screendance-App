@@ -51,6 +51,7 @@ import {
 } from "@/components/video-editor/videoPlayback/zoomTransform";
 import {
 	getWebcamCropSourceRect,
+	getWebcamOverlayPixelScale,
 	getWebcamOverlayPosition,
 	getWebcamOverlaySizePx,
 } from "@/components/video-editor/webcamOverlay";
@@ -74,6 +75,7 @@ import {
 import { isVideoWallpaperSource } from "@/lib/wallpapers";
 import { renderAnnotations } from "./annotationRenderer";
 import { renderCaptions } from "./captionRenderer";
+import { createCanvasGradientFromCss } from "./cssGradient";
 import { ForwardFrameSource } from "./forwardFrameSource";
 import { resolveMediaElementSource } from "./localMediaSource";
 import { buildTemporalSamplePlanUs, getTemporalMotionBlurConfig } from "./temporalMotionBlur";
@@ -648,45 +650,13 @@ export class FrameRenderer {
 				wallpaper.startsWith("linear-gradient") ||
 				wallpaper.startsWith("radial-gradient")
 			) {
-				const gradientMatch = wallpaper.match(/(linear|radial)-gradient\((.+)\)/);
-				if (gradientMatch) {
-					const [, type, params] = gradientMatch;
-					const parts = params.split(",").map((s) => s.trim());
-
-					let gradient: CanvasGradient;
-
-					if (type === "linear") {
-						gradient = bgCtx.createLinearGradient(0, 0, 0, this.config.height);
-						parts.forEach((part, index) => {
-							if (part.startsWith("to ") || part.includes("deg")) return;
-
-							const colorMatch = part.match(
-								/^(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)|[a-z]+)/,
-							);
-							if (colorMatch) {
-								const color = colorMatch[1];
-								const position = index / (parts.length - 1);
-								gradient.addColorStop(position, color);
-							}
-						});
-					} else {
-						const cx = this.config.width / 2;
-						const cy = this.config.height / 2;
-						const radius = Math.max(this.config.width, this.config.height) / 2;
-						gradient = bgCtx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-
-						parts.forEach((part, index) => {
-							const colorMatch = part.match(
-								/^(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)|[a-z]+)/,
-							);
-							if (colorMatch) {
-								const color = colorMatch[1];
-								const position = index / (parts.length - 1);
-								gradient.addColorStop(position, color);
-							}
-						});
-					}
-
+				const gradient = createCanvasGradientFromCss(
+					bgCtx,
+					wallpaper,
+					this.config.width,
+					this.config.height,
+				);
+				if (gradient) {
 					bgCtx.fillStyle = gradient;
 					bgCtx.fillRect(0, 0, this.config.width, this.config.height);
 				} else {
@@ -2388,7 +2358,13 @@ export class FrameRenderer {
 			return;
 		}
 
-		const margin = webcam.margin ?? 24;
+		const pixelScale = getWebcamOverlayPixelScale({
+			containerWidth: width,
+			containerHeight: height,
+			previewWidth: this.config.previewWidth,
+			previewHeight: this.config.previewHeight,
+		});
+		const margin = (webcam.margin ?? 24) * pixelScale;
 		const size = getWebcamOverlaySizePx({
 			containerWidth: width,
 			containerHeight: height,
@@ -2407,7 +2383,7 @@ export class FrameRenderer {
 			positionY: webcam.positionY ?? 1,
 			legacyCorner: webcam.corner,
 		});
-		const radius = Math.max(0, webcam.cornerRadius ?? 18);
+		const radius = Math.max(0, (webcam.cornerRadius ?? 18) * pixelScale);
 
 		const bubbleCanvas = this.webcamBubbleCanvas ?? document.createElement("canvas");
 		const bubbleSize = Math.max(1, Math.ceil(size));

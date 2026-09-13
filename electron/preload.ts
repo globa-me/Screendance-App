@@ -296,6 +296,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		bitrate: number;
 		encodingMode: "fast" | "balanced" | "quality";
 		inputMode?: "rawvideo" | "h264-stream";
+		outputProfile?: "mp4-h264" | "mov-prores-4444";
 	}) => {
 		return ipcRenderer.invoke("native-video-export-start", options);
 	},
@@ -468,6 +469,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		ipcRenderer.on("selected-source-changed", listener);
 		return () => ipcRenderer.removeListener("selected-source-changed", listener);
 	},
+	onGlobalShortcutSelectSource: (callback: () => void) => {
+		const listener = () => callback();
+		ipcRenderer.on("global-shortcut-select-source", listener);
+		return () => ipcRenderer.removeListener("global-shortcut-select-source", listener);
+	},
+	onGlobalShortcutToggleRecording: (callback: () => void) => {
+		const listener = () => callback();
+		ipcRenderer.on("global-shortcut-toggle-recording", listener);
+		return () => ipcRenderer.removeListener("global-shortcut-toggle-recording", listener);
+	},
 	startNativeScreenRecording: (
 		source: ProcessedDesktopSource,
 		options?: {
@@ -571,6 +582,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		ipcRenderer.on("recording-state-changed", listener);
 		return () => ipcRenderer.removeListener("recording-state-changed", listener);
 	},
+	onRecordingAudioLevels: (
+		callback: (levels: { system?: number; microphone?: number; mixed?: number }) => void,
+	) => {
+		const listener = (
+			_event: Electron.IpcRendererEvent,
+			payload: { system?: number; microphone?: number; mixed?: number },
+		) => callback(payload);
+		ipcRenderer.on("recording-audio-levels", listener);
+		return () => ipcRenderer.removeListener("recording-audio-levels", listener);
+	},
 	onRecordingInterrupted: (callback: (state: { reason: string; message: string }) => void) => {
 		const listener = (
 			_event: Electron.IpcRendererEvent,
@@ -609,6 +630,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	},
 	saveExportedVideo: (videoData: ArrayBuffer, fileName: string) => {
 		return ipcRenderer.invoke("save-exported-video", videoData, fileName);
+	},
+	getAppLogs: () => {
+		return ipcRenderer.invoke("get-app-logs");
+	},
+	clearAppLogs: () => {
+		return ipcRenderer.invoke("clear-app-logs");
+	},
+	writeClipboardText: (text: string) => {
+		return ipcRenderer.invoke("write-clipboard-text", text);
 	},
 	writeExportedVideoToPath: (videoData: ArrayBuffer, outputPath: string) => {
 		return ipcRenderer.invoke("write-exported-video-to-path", videoData, outputPath);
@@ -677,14 +707,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
 			webcamPath?: string | null;
 			timeOffsetMs?: number;
 			hideOverlayCursorByDefault?: boolean;
+			assetStatus?: "assembling" | "ready" | "degraded";
+			assetMessage?: string | null;
 		},
 		options?: { preserveProjectPath?: boolean },
 	) => {
 		return ipcRenderer.invoke("set-current-recording-session", session, options);
 	},
 	onRecordingSessionChanged: (callback: (session: RecordingSessionData | null) => void) => {
-		const listener = (_event: Electron.IpcRendererEvent, payload: RecordingSessionData | null) =>
-			callback(payload);
+		const listener = (
+			_event: Electron.IpcRendererEvent,
+			payload: RecordingSessionData | null,
+		) => callback(payload);
 		ipcRenderer.on("recording-session-changed", listener);
 		return () => ipcRenderer.removeListener("recording-session-changed", listener);
 	},
@@ -871,7 +905,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 			success?: boolean;
 			value?: unknown;
 		};
-		return result?.success ? result.value ?? null : null;
+		return result?.success ? (result.value ?? null) : null;
 	},
 	setAppSetting: (key: string, value: unknown) => {
 		const result = ipcRenderer.sendSync("app-settings:set", key, value) as {

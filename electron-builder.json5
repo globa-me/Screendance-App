@@ -21,7 +21,6 @@
     "dist",
     "dist-electron",
     "electron/native",
-    "!node_modules/ffprobe-static/bin/darwin/**",
     "!node_modules/ffprobe-static/bin/linux/**",
     "!node_modules/ffprobe-static/bin/win32/ia32/**",
     "!electron/native/**/build/**",
@@ -38,19 +37,24 @@
       "to": "assets/wallpapers"
     }
   ],
+  "dmg": {
+    "sign": true
+  },
   "mac": {
-    "identity": null,
+    "identity": "Gennadiy Zakharov (BN3D9H4C7J)",
+    "forceCodeSigning": true,
     "hardenedRuntime": true,
     "entitlements": "build/entitlements.mac.plist",
     "entitlementsInherit": "build/entitlements.mac.inherit.plist",
+	"minimumSystemVersion": "14.0",
     "target": [
       {
         "target": "dmg",
-        "arch": ["arm64"]
+		"arch": ["arm64", "x64"]
       },
       {
         "target": "zip",
-        "arch": ["arm64"]
+		"arch": ["arm64", "x64"]
       }
     ],
     "icon": "icons/icons/mac/icon.icns",

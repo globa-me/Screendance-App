@@ -44,7 +44,6 @@
 		"solidColor": "Color Sólido (Censura)",
 		"borderRadius": "Radio del Borde"
 	},
-
 	"fontStyles": {
 		"classic": "Clásico",
 		"editor": "Editor",
@@ -111,7 +110,23 @@
 		"showInFolder": "Mostrar en carpeta"
 	},
 	"project": {
-		"untitled": "Sin título"
+		"untitled": "Sin título",
+		"projects": "Projects",
+		"search": "Search projects",
+		"noPreview": "No preview yet",
+		"current": "Current",
+		"recordingFrom": "Recording · {{date}}",
+		"noSearchResults": "No matching projects",
+		"noProjects": "No saved projects yet",
+		"saving": "Saving…",
+		"saveFailed": "Save failed",
+		"unsaved": "Unsaved changes",
+		"saved": "Saved"
+	},
+	"recordingAssets": {
+		"assembling": "Finishing audio and camera…",
+		"degraded": "Recording ready with issues",
+		"waitForExport": "Finishing recording audio and camera. Export will be available when they are ready."
 	},
 	"nativeCaptureUnavailable": {
 		"title": "Nada está roto, pero no podremos renderizar una superposición de cursor animada.",

@@ -60,7 +60,6 @@ import {
 	DEFAULT_ZOOM_MOTION_BLUR,
 	DEFAULT_ZOOM_MOTION_BLUR_TUNING,
 	DEFAULT_ZOOM_OUT_EASING,
-	DEFAULT_ZOOM_SMOOTHNESS,
 	getDefaultCaptionFontFamily,
 	type Padding,
 	type SpeedRegion,
@@ -821,6 +820,9 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 				: editor.cursorStyle
 			: DEFAULT_CURSOR_STYLE;
 	const normalizedMotionValues = {
+		zoomSmoothness: isFiniteNumber(editor.zoomSmoothness)
+			? clamp(editor.zoomSmoothness, 0, 1)
+			: DEFAULT_MOTION_PRESET.zoomSmoothness,
 		zoomInDurationMs: normalizedZoomInDurationMs,
 		zoomOutDurationMs: normalizedZoomOutDurationMs,
 		cursorSize: isFiniteNumber(editor.cursorSize)
@@ -895,7 +897,7 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 		cameraSpringMassMultiplier: isFiniteNumber(editor.cameraSpringMassMultiplier)
 			? clamp(editor.cameraSpringMassMultiplier, 0.25, 3)
 			: 1.12,
-		zoomSmoothness: DEFAULT_ZOOM_SMOOTHNESS,
+		zoomSmoothness: normalizedMotionValues.zoomSmoothness,
 		zoomClassicMode:
 			typeof editor.zoomClassicMode === "boolean" ? editor.zoomClassicMode : false,
 		cursorMotionBlur: normalizedMotionPreset.cursorMotionBlur,

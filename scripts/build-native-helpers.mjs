@@ -11,12 +11,27 @@ if (process.platform !== "darwin") {
 }
 
 function getTargetConfigs() {
-	return [
-		{
-			archTag: "darwin-arm64",
-			swiftTarget: "arm64-apple-macos14.0",
-		},
-	];
+	const configured = process.env.MACOS_NATIVE_ARCHS?.trim() || process.arch;
+	const architectures =
+		configured === "all"
+			? ["arm64", "x64"]
+			: configured
+					.split(",")
+					.map((entry) => entry.trim())
+					.filter(Boolean);
+	const supported = new Set(["arm64", "x64"]);
+	const invalid = architectures.filter((arch) => !supported.has(arch));
+
+	if (invalid.length > 0) {
+		throw new Error(
+			`[build-native-helpers] Unsupported macOS architecture: ${invalid.join(", ")}`,
+		);
+	}
+
+	return [...new Set(architectures)].map((arch) => ({
+		archTag: `darwin-${arch}`,
+		swiftTarget: `${arch === "x64" ? "x86_64" : "arm64"}-apple-macos14.0`,
+	}));
 }
 
 const helpers = [

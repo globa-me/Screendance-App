@@ -31,6 +31,7 @@ interface UseTimelineEditorRuntimeParams {
 	onAutoSuggestZoomsConsumed?: () => void;
 	disableSuggestedZooms: boolean;
 	zoomRegions: ZoomRegion[];
+	defaultZoomDurationMs: number;
 	onZoomAdded: (span: Span) => void;
 	onZoomSuggested?: (span: Span, focus: ZoomFocus) => void;
 	onZoomSpanChange: (id: string, span: Span) => void;
@@ -75,6 +76,7 @@ export function useTimelineEditorRuntime({
 	onAutoSuggestZoomsConsumed,
 	disableSuggestedZooms,
 	zoomRegions,
+	defaultZoomDurationMs,
 	onZoomAdded,
 	onZoomSuggested,
 	onZoomSpanChange,
@@ -178,12 +180,12 @@ export function useTimelineEditorRuntime({
 			onAudioSpanChange,
 		});
 
-	const { defaultRegionDurationMs, canPlaceZoomAtMs, addZoomAtMs, handleAddZoom, handleSuggestZooms } =
+	const { canPlaceZoomAtMs, addZoomAtMs, handleAddZoom, handleSuggestZooms } =
 		useTimelineZoomActions({
 			timeline: { videoDuration, totalMs, currentTimeMs },
 			regions: { zoom: zoomRegions, clip: clipRegions },
 			cursorTelemetry,
-			options: { disableSuggestedZooms },
+			options: { disableSuggestedZooms, defaultZoomDurationMs },
 			autoSuggestZoomsTrigger,
 			onAutoSuggestZoomsConsumed,
 			onZoomAdded,
@@ -209,7 +211,7 @@ export function useTimelineEditorRuntime({
 				return;
 			}
 
-			const defaultDuration = Math.min(defaultRegionDurationMs, totalMs);
+			const defaultDuration = Math.min(1000, totalMs);
 			if (defaultDuration <= 0) {
 				return;
 			}
@@ -219,7 +221,7 @@ export function useTimelineEditorRuntime({
 			const endPos = Math.min(startPos + defaultDuration, totalMs);
 			onAnnotationAdded({ start: startPos, end: endPos }, trackIndex);
 		},
-		[videoDuration, totalMs, currentTimeMs, defaultRegionDurationMs, onAnnotationAdded],
+		[videoDuration, totalMs, currentTimeMs, onAnnotationAdded],
 	);
 
 	useTimelineKeyboardShortcuts({

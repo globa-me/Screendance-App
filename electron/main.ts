@@ -6,6 +6,7 @@ import {
 	BrowserWindow,
 	desktopCapturer,
 	dialog,
+	globalShortcut,
 	ipcMain,
 	Menu,
 	Notification,
@@ -51,6 +52,7 @@ import {
 	isHudOverlayMousePassthroughSupported,
 	showUpdateToastWindow,
 } from "./windows";
+import { initializeLogger, registerLoggingIpcHandlers } from "./ipc/logging";
 
 const electronMainDir = path.dirname(fileURLToPath(import.meta.url));
 const IS_SMOKE_EXPORT = process.env.RECORDLY_SMOKE_EXPORT === "1";
@@ -66,6 +68,8 @@ function ignoreBrokenConsolePipe(stream: NodeJS.WritableStream | undefined) {
 
 ignoreBrokenConsolePipe(process.stdout);
 ignoreBrokenConsolePipe(process.stderr);
+
+initializeLogger();
 
 app.commandLine.appendSwitch("ignore-gpu-blocklist");
 app.commandLine.appendSwitch("enable-unsafe-webgpu");
@@ -125,6 +129,9 @@ export const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
 export const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron");
 export const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
 const IS_DEV = Boolean(VITE_DEV_SERVER_URL);
+const APP_WEBSITE_URL = "https://zakharov.asia";
+const SELECT_SOURCE_SHORTCUT = "CommandOrControl+Shift+H";
+const TOGGLE_RECORDING_SHORTCUT = "CommandOrControl+Shift+R";
 
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
 	? path.join(process.env.APP_ROOT, "public")
@@ -872,9 +879,75 @@ function createSourceSelectorWindowWrapper() {
 	return sourceSelectorWindow;
 }
 
+function getOrCreateHudWindow() {
+	const existingHud = getHudOverlayWindow();
+	if (existingHud && !existingHud.isDestroyed()) {
+		return existingHud;
+	}
+
+	const hud = createHudOverlayWindow();
+	if (!mainWindow || mainWindow.isDestroyed()) {
+		mainWindow = hud;
+	}
+	return hud;
+}
+
+function sendHudShortcutAction(channel: "global-shortcut-select-source" | "global-shortcut-toggle-recording") {
+	const hud = getOrCreateHudWindow();
+	const send = () => {
+		if (hud.isDestroyed()) return;
+		showHudOverlayFromTray();
+		hud.webContents.send(channel);
+	};
+
+	if (hud.webContents.isLoadingMainFrame()) {
+		hud.webContents.once("did-finish-load", send);
+		return;
+	}
+
+	send();
+}
+
+function setupAboutPanel() {
+	if (process.platform !== "darwin") {
+		return;
+	}
+
+	app.setAboutPanelOptions({
+		applicationName: "Screendance App",
+		applicationVersion: "1.1",
+		version: "1.1",
+		website: APP_WEBSITE_URL,
+		copyright: "Zakharov Asia",
+	});
+}
+
+function registerGlobalRecordingShortcuts() {
+	const shortcuts = [
+		{
+			accelerator: SELECT_SOURCE_SHORTCUT,
+			channel: "global-shortcut-select-source" as const,
+		},
+		{
+			accelerator: TOGGLE_RECORDING_SHORTCUT,
+			channel: "global-shortcut-toggle-recording" as const,
+		},
+	];
+
+	for (const shortcut of shortcuts) {
+		const registered = globalShortcut.register(shortcut.accelerator, () => {
+			sendHudShortcutAction(shortcut.channel);
+		});
+		if (!registered) {
+			console.warn(`[shortcuts] Failed to register ${shortcut.accelerator}`);
+		}
+	}
+}
+
 // On macOS, applications and their menu bar stay active until the user quits
 // explicitly with Cmd + Q.
 app.on("before-quit", () => {
+	globalShortcut.unregisterAll();
 	killWindowsCaptureProcess();
 	showCursor();
 	cleanupNativeVideoExportSessions();
@@ -902,6 +975,7 @@ app.whenReady().then(async () => {
 	if (process.platform === "win32") {
 		app.setAppUserModelId("dev.screendance.app");
 	}
+	setupAboutPanel();
 
 	session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
 		const allowed = ["media", "audioCapture", "microphone", "camera", "videoCapture"];
@@ -997,6 +1071,8 @@ app.whenReady().then(async () => {
 	);
 
 	registerExtensionIpcHandlers();
+	registerLoggingIpcHandlers();
+	registerGlobalRecordingShortcuts();
 
 	if (IS_SMOKE_EXPORT || process.env.RECORDLY_DEV_OPEN_RECORDING_INPUT) {
 		await logSmokeExportGpuDiagnostics();

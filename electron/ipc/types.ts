@@ -15,6 +15,12 @@ export type NativeMacRecordingOptions = {
 	microphoneLabel?: string;
 };
 
+export type RecordingAudioLevels = {
+	system?: number;
+	microphone?: number;
+	mixed?: number;
+};
+
 export type WindowBounds = {
 	x: number;
 	y: number;
@@ -48,6 +54,8 @@ export type RecordingSessionData = {
 	webcamPath?: string | null;
 	timeOffsetMs?: number;
 	hideOverlayCursorByDefault?: boolean;
+	assetStatus?: "assembling" | "ready" | "degraded";
+	assetMessage?: string | null;
 };
 
 export type PauseSegment = {

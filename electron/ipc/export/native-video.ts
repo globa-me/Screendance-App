@@ -1193,6 +1193,7 @@ async function runFfmpegWithMetrics(
 	signal: NodeJS.Signals | null;
 }> {
 	const startedAt = getNowMs();
+	console.log(`[native-video] Spawning FFmpeg (with metrics): ${ffmpegPath} ${args.join(" ")}`);
 	return await new Promise((resolve) => {
 		const child = spawn(ffmpegPath, args, {
 			stdio: ["ignore", "ignore", "pipe"],
@@ -1224,6 +1225,7 @@ async function runFfmpegWithMetrics(
 				session.currentProcess = null;
 			}
 			clearTimeout(timeout);
+			console.error(`[native-video] FFmpeg (with metrics) process error:`, error);
 			resolve({
 				success: false,
 				elapsedMs: getNowMs() - startedAt,
@@ -1239,6 +1241,10 @@ async function runFfmpegWithMetrics(
 				session.currentProcess = null;
 			}
 			clearTimeout(timeout);
+			console.log(`[native-video] FFmpeg (with metrics) closed with code ${code} and signal ${signal}`);
+			if (stderr.trim()) {
+				console.log(`[native-video] FFmpeg (with metrics) STDERR:\n${stderr.trim()}`);
+			}
 			resolve({
 				success: code === 0,
 				elapsedMs: getNowMs() - startedAt,
@@ -1326,6 +1332,7 @@ async function runFfmpegAudioMux(
 	onProgress?: (progress: NativeVideoAudioMuxProgress) => void,
 	session?: NativeStaticLayoutExportSession,
 ) {
+	console.log(`[native-video] Spawning FFmpeg (audio mux): ${ffmpegPath} ${args.join(" ")}`);
 	if (!onProgress && !session) {
 		await execFileAsync(ffmpegPath, args, {
 			timeout: timeoutMs,
@@ -1368,6 +1375,7 @@ async function runFfmpegAudioMux(
 				session.currentProcess = null;
 			}
 			clearTimeout(timeout);
+			console.error(`[native-video] FFmpeg (audio mux) process error:`, error);
 			reject(error);
 		});
 		child.once("close", (code, signal) => {
@@ -1377,6 +1385,10 @@ async function runFfmpegAudioMux(
 				session.currentProcess = null;
 			}
 			clearTimeout(timeout);
+			console.log(`[native-video] FFmpeg (audio mux) closed with code ${code} and signal ${signal}`);
+			if (stderr.trim()) {
+				console.log(`[native-video] FFmpeg (audio mux) STDERR:\n${stderr.trim()}`);
+			}
 			if (session?.terminating) {
 				reject(new Error("Native static layout export was cancelled"));
 				return;

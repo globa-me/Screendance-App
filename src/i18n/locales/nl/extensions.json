@@ -54,7 +54,7 @@
 		"refreshed": "Extensies vernieuwd",
 		"refreshFailed": "Kan extensies niet vernieuwen",
 		"marketplaceInstalled": "{{name}} geïnstalleerd en ingeschakeld",
-		"enableFailed": "Kan extensie niet inschakelen",
-		"marketplaceInstallFailed": "Kan {{name}} niet installeren"
+		"marketplaceInstallFailed": "Kan {{name}} niet installeren",
+		"enableFailed": "Kan extensie niet inschakelen"
 	}
 }

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
+import { createMicrophoneDeviceOptions } from "./useMicrophoneDevices";
 import {
 	createProcessedMicrophoneConstraints,
 	normalizeBrowserMicrophoneProfile,
@@ -105,6 +105,43 @@ describe("createProcessedMicrophoneConstraints", () => {
 		expect(normalizeBrowserMicrophoneProfile("RAW")).toBe("raw");
 		expect(normalizeBrowserMicrophoneProfile("unknown")).toBe("no-agc");
 		expect(normalizeBrowserMicrophoneProfile(null)).toBe("no-agc");
+	});
+});
+
+describe("createMicrophoneDeviceOptions", () => {
+	function audioInput(deviceId: string, label: string, groupId = "group-1"): MediaDeviceInfo {
+		return {
+			deviceId,
+			label,
+			groupId,
+			kind: "audioinput",
+			toJSON: () => ({}),
+		} as MediaDeviceInfo;
+	}
+
+	it("hides browser default aliases when concrete microphone devices exist", () => {
+		expect(
+			createMicrophoneDeviceOptions([
+				audioInput("default", "Default - MacBook Pro Microphone"),
+				audioInput("built-in", "MacBook Pro Microphone"),
+			]),
+		).toEqual([
+			{
+				deviceId: "built-in",
+				label: "MacBook Pro Microphone",
+				groupId: "group-1",
+			},
+		]);
+	});
+
+	it("keeps the default alias as a fallback when no concrete microphone is exposed", () => {
+		expect(createMicrophoneDeviceOptions([audioInput("default", "")])).toEqual([
+			{
+				deviceId: "default",
+				label: "Microphone 1",
+				groupId: "group-1",
+			},
+		]);
 	});
 });
 

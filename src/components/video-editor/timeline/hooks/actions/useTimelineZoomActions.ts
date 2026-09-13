@@ -17,6 +17,7 @@ interface UseTimelineZoomActionsParams {
 	cursorTelemetry: CursorTelemetryPoint[];
 	options: {
 		disableSuggestedZooms: boolean;
+		defaultZoomDurationMs: number;
 	};
 	autoSuggestZoomsTrigger: number;
 	onAutoSuggestZoomsConsumed?: () => void;
@@ -36,8 +37,11 @@ export function useTimelineZoomActions({
 }: UseTimelineZoomActionsParams) {
 	const { videoDuration, totalMs, currentTimeMs } = timeline;
 	const { zoom: zoomRegions, clip: clipRegions } = regions;
-	const { disableSuggestedZooms } = options;
-	const defaultRegionDurationMs = useMemo(() => Math.min(1000, totalMs), [totalMs]);
+	const { disableSuggestedZooms, defaultZoomDurationMs } = options;
+	const defaultZoomDuration = useMemo(
+		() => Math.min(Math.max(100, Math.round(defaultZoomDurationMs)), totalMs),
+		[defaultZoomDurationMs, totalMs],
+	);
 
 	const canPlaceZoomAtMs = useCallback(
 		(startMs: number) => {
@@ -45,7 +49,7 @@ export function useTimelineZoomActions({
 				return false;
 			}
 
-			const defaultDuration = Math.min(defaultRegionDurationMs, totalMs);
+			const defaultDuration = defaultZoomDuration;
 			if (defaultDuration <= 0) {
 				return false;
 			}
@@ -69,9 +73,9 @@ export function useTimelineZoomActions({
 				(region) => startPos >= region.startMs && startPos < region.endMs,
 			);
 
-			return !isOverlapping && availableDuration >= defaultDuration;
+			return !isOverlapping && availableDuration >= Math.min(100, defaultDuration);
 		},
-		[videoDuration, totalMs, defaultRegionDurationMs, clipRegions, zoomRegions],
+		[videoDuration, totalMs, defaultZoomDuration, clipRegions, zoomRegions],
 	);
 
 	const addZoomAtMs = useCallback(
@@ -80,12 +84,25 @@ export function useTimelineZoomActions({
 				return;
 			}
 
-			const defaultDuration = Math.min(defaultRegionDurationMs, totalMs);
+			const defaultDuration = defaultZoomDuration;
 			if (defaultDuration <= 0) {
 				return;
 			}
 
 			const startPos = Math.max(0, Math.min(startMs, totalMs));
+			const activeClip =
+				clipRegions.length === 0
+					? { startMs: 0, endMs: totalMs }
+					: clipRegions.find((clip) => startPos >= clip.startMs && startPos < clip.endMs);
+			const sorted = [...zoomRegions].sort((a, b) => a.startMs - b.startMs);
+			const nextRegion = sorted.find((region) => region.startMs > startPos);
+			const availableDuration = activeClip
+				? Math.min(
+						activeClip.endMs - startPos,
+						nextRegion ? nextRegion.startMs - startPos : activeClip.endMs - startPos,
+					)
+				: 0;
+			const actualDuration = Math.min(defaultDuration, availableDuration);
 			if (!canPlaceZoomAtMs(startPos)) {
 				timelineNotifications.error(
 					"Cannot place zoom here",
@@ -94,9 +111,17 @@ export function useTimelineZoomActions({
 				return;
 			}
 
-			onZoomAdded({ start: startPos, end: startPos + defaultDuration });
+			onZoomAdded({ start: startPos, end: startPos + actualDuration });
 		},
-		[videoDuration, totalMs, defaultRegionDurationMs, canPlaceZoomAtMs, onZoomAdded],
+		[
+			videoDuration,
+			totalMs,
+			defaultZoomDuration,
+			clipRegions,
+			zoomRegions,
+			canPlaceZoomAtMs,
+			onZoomAdded,
+		],
 	);
 
 	const handleAddZoom = useCallback(() => {
@@ -130,7 +155,7 @@ export function useTimelineZoomActions({
 			return;
 		}
 
-		const defaultDuration = Math.min(defaultRegionDurationMs, totalMs);
+		const defaultDuration = defaultZoomDuration;
 		if (defaultDuration <= 0) {
 			return;
 		}
@@ -181,7 +206,7 @@ export function useTimelineZoomActions({
 		disableSuggestedZooms,
 		onZoomSuggested,
 		cursorTelemetry,
-		defaultRegionDurationMs,
+		defaultZoomDuration,
 		zoomRegions,
 	]);
 
@@ -195,7 +220,6 @@ export function useTimelineZoomActions({
 	}, [autoSuggestZoomsTrigger, handleSuggestZooms, onAutoSuggestZoomsConsumed]);
 
 	return {
-		defaultRegionDurationMs,
 		canPlaceZoomAtMs,
 		addZoomAtMs,
 		handleAddZoom,

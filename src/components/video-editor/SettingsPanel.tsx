@@ -80,6 +80,7 @@ import {
 	DEFAULT_CURSOR_SIZE,
 	DEFAULT_CURSOR_STYLE,
 	DEFAULT_CURSOR_SWAY,
+	DEFAULT_NEW_ZOOM_DURATION_MS,
 	DEFAULT_PADDING,
 	DEFAULT_WEBCAM_CORNER_RADIUS,
 	DEFAULT_WEBCAM_MARGIN,
@@ -492,6 +493,10 @@ interface SettingsPanelProps {
 	onConnectZoomsChange?: (enabled: boolean) => void;
 	autoApplyFreshRecordingAutoZooms?: boolean;
 	onAutoApplyFreshRecordingAutoZoomsChange?: (enabled: boolean) => void;
+	defaultZoomDurationMs?: number;
+	onDefaultZoomDurationMsChange?: (durationMs: number) => void;
+	defaultZoomMode?: ZoomMode;
+	onDefaultZoomModeChange?: (mode: ZoomMode) => void;
 	zoomInDurationMs?: number;
 	onZoomInDurationMsChange?: (duration: number) => void;
 	zoomInOverlapMs?: number;
@@ -508,6 +513,8 @@ interface SettingsPanelProps {
 	onZoomOutEasingChange?: (easing: ZoomTransitionEasing) => void;
 	connectedZoomEasing?: ZoomTransitionEasing;
 	onConnectedZoomEasingChange?: (easing: ZoomTransitionEasing) => void;
+	zoomSmoothness?: number;
+	onZoomSmoothnessChange?: (smoothness: number) => void;
 	showCursor?: boolean;
 	onShowCursorChange?: (enabled: boolean) => void;
 	loopCursor?: boolean;
@@ -889,10 +896,16 @@ export function SettingsPanel({
 	onConnectZoomsChange,
 	autoApplyFreshRecordingAutoZooms = true,
 	onAutoApplyFreshRecordingAutoZoomsChange,
+	defaultZoomDurationMs = DEFAULT_NEW_ZOOM_DURATION_MS,
+	onDefaultZoomDurationMsChange,
+	defaultZoomMode = "auto",
+	onDefaultZoomModeChange,
 	zoomInDurationMs = DEFAULT_ZOOM_IN_DURATION_MS,
 	onZoomInDurationMsChange,
 	zoomOutDurationMs = DEFAULT_ZOOM_OUT_DURATION_MS,
 	onZoomOutDurationMsChange,
+	zoomSmoothness = 0.5,
+	onZoomSmoothnessChange,
 	showCursor = false,
 	onShowCursorChange,
 	loopCursor = false,
@@ -1542,6 +1555,7 @@ export function SettingsPanel({
 	const activeMotionPresetId = useMemo(() => {
 		return (
 			getMatchingCursorMotionPresetId({
+				zoomSmoothness,
 				zoomInDurationMs,
 				zoomOutDurationMs,
 				cursorSize,
@@ -1563,12 +1577,14 @@ export function SettingsPanel({
 		cursorSpringDampingMultiplier,
 		cursorSpringMassMultiplier,
 		cursorSpringStiffnessMultiplier,
+		zoomSmoothness,
 		zoomInDurationMs,
 		zoomOutDurationMs,
 	]);
 
 	const applyMotionPreset = (presetId: CursorMotionPresetId) => {
 		const preset = CURSOR_MOTION_PRESETS[presetId];
+		onZoomSmoothnessChange?.(preset.zoomSmoothness);
 		onZoomInDurationMsChange?.(preset.zoomInDurationMs);
 		onZoomOutDurationMsChange?.(preset.zoomOutDurationMs);
 		onCursorSizeChange?.(preset.cursorSize);
@@ -2620,6 +2636,51 @@ export function SettingsPanel({
 							checked={connectZooms}
 							onCheckedChange={onConnectZoomsChange}
 							className="data-[state=checked]:bg-[#2563EB] scale-75"
+						/>
+					</div>
+					<div className="space-y-2 rounded-lg bg-foreground/[0.03] px-2.5 py-2">
+						<div className="flex items-start justify-between gap-3">
+							<div>
+								<div className="text-[11px] font-medium text-foreground">
+									{tSettings("effects.defaultZoomMode", "New zoom mode")}
+								</div>
+								<div className="mt-0.5 text-[10px] text-muted-foreground/70">
+									{tSettings(
+										"effects.defaultZoomModeDescription",
+										"Used when you add a zoom from the timeline.",
+									)}
+								</div>
+							</div>
+							<div className="flex shrink-0 rounded-md border border-foreground/10 bg-foreground/5 p-0.5">
+								{(["auto", "manual"] as const).map((mode) => (
+									<button
+										key={mode}
+										type="button"
+										onClick={() => onDefaultZoomModeChange?.(mode)}
+										className={cn(
+											"rounded px-2 py-1 text-[10px] font-medium transition-all",
+											defaultZoomMode === mode
+												? "bg-[#2563EB] text-white"
+												: "text-muted-foreground hover:text-foreground",
+										)}
+									>
+										{mode === "auto"
+											? tSettings("zoom.modeAuto", "Auto")
+											: tSettings("zoom.modeManual", "Manual")}
+									</button>
+								))}
+							</div>
+						</div>
+						<SliderControl
+							label={tSettings("effects.defaultZoomDuration", "New zoom duration")}
+							value={defaultZoomDurationMs}
+							defaultValue={DEFAULT_NEW_ZOOM_DURATION_MS}
+							min={100}
+							max={30000}
+							step={50}
+							onChange={(value) => onDefaultZoomDurationMsChange?.(value)}
+							formatValue={(value) => `${(value / 1000).toFixed(2)}s`}
+							parseInput={(text) => parseFloat(text.replace(/s$/i, "")) * 1000}
 						/>
 					</div>
 				</section>

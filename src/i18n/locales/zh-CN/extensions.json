@@ -54,7 +54,7 @@
 		"refreshed": "扩展已刷新",
 		"refreshFailed": "刷新扩展失败",
 		"marketplaceInstalled": "已安装并启用 {{name}}",
-		"enableFailed": "启用扩展失败",
-		"marketplaceInstallFailed": "安装 {{name}} 失败"
+		"marketplaceInstallFailed": "安装 {{name}} 失败",
+		"enableFailed": "启用扩展失败"
 	}
 }

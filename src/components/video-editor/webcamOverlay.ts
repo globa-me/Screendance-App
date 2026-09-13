@@ -78,6 +78,37 @@ export function getWebcamOverlaySizePx({
 	return Math.min(maxSize, Math.max(MIN_WEBCAM_OVERLAY_SIZE_PX, scaledSize));
 }
 
+export function getWebcamOverlayPixelScale({
+	containerWidth,
+	containerHeight,
+	previewWidth,
+	previewHeight,
+}: {
+	containerWidth: number;
+	containerHeight: number;
+	previewWidth?: number | null;
+	previewHeight?: number | null;
+}): number {
+	const safeContainerWidth =
+		Number.isFinite(containerWidth) && containerWidth > 0 ? containerWidth : 1;
+	const safeContainerHeight =
+		Number.isFinite(containerHeight) && containerHeight > 0 ? containerHeight : 1;
+	const safePreviewWidth =
+		Number.isFinite(previewWidth) && previewWidth && previewWidth > 0
+			? previewWidth
+			: safeContainerWidth;
+	const safePreviewHeight =
+		Number.isFinite(previewHeight) && previewHeight && previewHeight > 0
+			? previewHeight
+			: safeContainerHeight;
+	const scale = Math.min(
+		safeContainerWidth / safePreviewWidth,
+		safeContainerHeight / safePreviewHeight,
+	);
+
+	return Number.isFinite(scale) && scale > 0 ? scale : 1;
+}
+
 export function getWebcamOverlayPosition({
 	containerWidth,
 	containerHeight,

@@ -173,7 +173,7 @@ export default function Item({
 				<div
 					className={cn(
 						glassClass,
-						"w-full overflow-hidden flex items-center justify-center gap-1.5 cursor-grab active:cursor-grabbing relative",
+						"w-full overflow-visible flex items-center justify-center gap-1.5 cursor-grab active:cursor-grabbing relative",
 						isSelected && glassStyles.selected,
 					)}
 					style={{

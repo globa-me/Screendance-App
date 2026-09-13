@@ -64,6 +64,16 @@ function createExporter(overrides: Record<string, unknown> = {}) {
 			width: number;
 			height: number;
 		};
+		getNativeStaticLayoutWebcamOverlay: () => {
+			inputPath: string;
+			left: number;
+			top: number;
+			size: number;
+			radius: number;
+			shadowIntensity: number;
+			mirror: boolean;
+			timeOffsetMs: number;
+		} | null;
 		resolveNativeStaticLayoutBackground: () => Promise<unknown>;
 		createNativeStaticLayoutGradient: (
 			ctx: CanvasRenderingContext2D,
@@ -415,9 +425,33 @@ describe("ModernVideoExporter native static-layout eligibility", () => {
 
 		expect(result).toBe(gradient);
 		expect(gradient.addColorStop).toHaveBeenCalledTimes(3);
-		expect(gradient.addColorStop).toHaveBeenNthCalledWith(1, 0, "rgba(114,167,232,1)");
-		expect(gradient.addColorStop).toHaveBeenNthCalledWith(2, 0.5, "rgba(253,129,82,1)");
-		expect(gradient.addColorStop).toHaveBeenNthCalledWith(3, 1, "rgba(249,202,86,1)");
+		expect(gradient.addColorStop).toHaveBeenNthCalledWith(1, 0.094, "rgba(114,167,232,1)");
+		expect(gradient.addColorStop).toHaveBeenNthCalledWith(2, 0.439, "rgba(253,129,82,1)");
+		expect(gradient.addColorStop).toHaveBeenNthCalledWith(3, 0.863, "rgba(249,202,86,1)");
+	});
+
+	it("uses CSS linear-gradient direction when rasterizing native backgrounds", () => {
+		const exporter = createExporter();
+		const gradient = { addColorStop: vi.fn() };
+		const ctx = {
+			createLinearGradient: vi.fn(() => gradient),
+			createRadialGradient: vi.fn(() => gradient),
+		} as unknown as CanvasRenderingContext2D;
+
+		const result = exporter.createNativeStaticLayoutGradient(
+			ctx,
+			"linear-gradient(90deg, #FF0101, #4DFF01)",
+		);
+
+		expect(result).toBe(gradient);
+		const [x0, y0, x1, y1] = (ctx.createLinearGradient as ReturnType<typeof vi.fn>).mock
+			.calls[0];
+		expect(x0).toBeCloseTo(0);
+		expect(y0).toBeCloseTo(540);
+		expect(x1).toBeCloseTo(1920);
+		expect(y1).toBeCloseTo(540);
+		expect(gradient.addColorStop).toHaveBeenNthCalledWith(1, 0, "#FF0101");
+		expect(gradient.addColorStop).toHaveBeenNthCalledWith(2, 1, "#4DFF01");
 	});
 
 	it("allows non-tail trim timelines with native static-layout", () => {
@@ -694,5 +728,36 @@ describe("ModernVideoExporter native static-layout eligibility", () => {
 				59,
 			),
 		).toBeNull();
+	});
+
+	it("scales native static-layout webcam pixel offsets from preview to export size", () => {
+		const exporter = createExporter({
+			width: 1080,
+			height: 1920,
+			previewWidth: 360,
+			previewHeight: 640,
+			webcam: {
+				enabled: true,
+				sourcePath: "C:\\recordly\\webcam.mp4",
+				size: 40,
+				margin: 24,
+				cornerRadius: 18,
+				positionPreset: "top-center",
+				positionX: 0.5,
+				positionY: 0,
+				corner: "bottom-right",
+				shadow: 0.5,
+				mirror: true,
+				timeOffsetMs: 0,
+			},
+		});
+
+		expect(exporter.getNativeStaticLayoutWebcamOverlay()).toMatchObject({
+			inputPath: "C:\\recordly\\webcam.mp4",
+			left: 324,
+			top: 72,
+			size: 432,
+			radius: 54,
+		});
 	});
 });

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
 	getWebcamCropSourceRect,
+	getWebcamOverlayPixelScale,
+	getWebcamOverlayPosition,
 	isWebcamCropRegionDefault,
 	normalizeWebcamCropRegion,
 } from "./webcamOverlay";
@@ -30,5 +32,50 @@ describe("getWebcamCropSourceRect", () => {
 			sw: 960,
 			sh: 810,
 		});
+	});
+});
+
+describe("getWebcamOverlayPixelScale", () => {
+	it("scales export-only pixel values from preview pixels to export pixels", () => {
+		const scale = getWebcamOverlayPixelScale({
+			containerWidth: 1080,
+			containerHeight: 1920,
+			previewWidth: 360,
+			previewHeight: 640,
+		});
+
+		expect(scale).toBe(3);
+	});
+
+	it("keeps top-center margin visually consistent between preview and export", () => {
+		const preview = getWebcamOverlayPosition({
+			containerWidth: 360,
+			containerHeight: 640,
+			size: 144,
+			margin: 24,
+			positionPreset: "top-center",
+			positionX: 0.5,
+			positionY: 0,
+			legacyCorner: "bottom-right",
+		});
+		const scale = getWebcamOverlayPixelScale({
+			containerWidth: 1080,
+			containerHeight: 1920,
+			previewWidth: 360,
+			previewHeight: 640,
+		});
+		const exported = getWebcamOverlayPosition({
+			containerWidth: 1080,
+			containerHeight: 1920,
+			size: 432,
+			margin: 24 * scale,
+			positionPreset: "top-center",
+			positionX: 0.5,
+			positionY: 0,
+			legacyCorner: "bottom-right",
+		});
+
+		expect(exported.x / scale).toBeCloseTo(preview.x);
+		expect(exported.y / scale).toBeCloseTo(preview.y);
 	});
 });

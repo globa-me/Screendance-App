@@ -213,6 +213,8 @@ interface Window {
 		onSelectedSourceChanged: (
 			callback: (source: ProcessedDesktopSource | null) => void,
 		) => () => void;
+		onGlobalShortcutSelectSource: (callback: () => void) => () => void;
+		onGlobalShortcutToggleRecording: (callback: () => void) => () => void;
 		startNativeScreenRecording: (
 			source: ProcessedDesktopSource,
 			options?: {
@@ -421,6 +423,7 @@ interface Window {
 			bitrate: number;
 			encodingMode: "fast" | "balanced" | "quality";
 			inputMode?: "rawvideo" | "h264-stream";
+			outputProfile?: "mp4-h264" | "mov-prores-4444";
 		}) => Promise<{
 			success: boolean;
 			sessionId?: string;
@@ -562,6 +565,9 @@ interface Window {
 		onRecordingStateChanged: (
 			callback: (state: { recording: boolean; sourceName: string }) => void,
 		) => () => void;
+		onRecordingAudioLevels: (
+			callback: (levels: { system?: number; microphone?: number; mixed?: number }) => void,
+		) => () => void;
 		onRecordingSessionChanged: (
 			callback: (session: RendererRecordingSessionData | null) => void,
 		) => () => void;
@@ -664,6 +670,8 @@ interface Window {
 				webcamPath?: string | null;
 				timeOffsetMs?: number;
 				hideOverlayCursorByDefault?: boolean;
+				assetStatus?: "assembling" | "ready" | "degraded";
+				assetMessage?: string | null;
 			},
 			options?: { preserveProjectPath?: boolean },
 		) => Promise<{ success: boolean }>;
@@ -674,6 +682,8 @@ interface Window {
 				webcamPath?: string | null;
 				timeOffsetMs?: number;
 				hideOverlayCursorByDefault?: boolean;
+				assetStatus?: "assembling" | "ready" | "degraded";
+				assetMessage?: string | null;
 			};
 		}>;
 		getCurrentVideoPath: () => Promise<{ success: boolean; path?: string }>;
@@ -818,6 +828,9 @@ interface Window {
 		}>;
 		/** Returns the app version from package.json */
 		getAppVersion: () => Promise<string>;
+		getAppLogs: () => Promise<string>;
+		clearAppLogs: () => Promise<{ success: boolean; error?: string }>;
+		writeClipboardText: (text: string) => Promise<void>;
 		/** Hide the OS cursor before browser capture starts. */
 		hideOsCursor: () => Promise<{ success: boolean }>;
 		/** Recording preferences (mic, system audio) */

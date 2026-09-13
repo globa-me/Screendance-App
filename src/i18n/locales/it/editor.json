@@ -44,7 +44,6 @@
 		"solidColor": "Colore pieno (Censura)",
 		"borderRadius": "Raggio bordo"
 	},
-
 	"fontStyles": {
 		"classic": "Classico",
 		"editor": "Editor",
@@ -111,7 +110,23 @@
 		"showInFolder": "Mostra nella cartella"
 	},
 	"project": {
-		"untitled": "Senza titolo"
+		"untitled": "Senza titolo",
+		"projects": "Projects",
+		"search": "Search projects",
+		"noPreview": "No preview yet",
+		"current": "Current",
+		"recordingFrom": "Recording · {{date}}",
+		"noSearchResults": "No matching projects",
+		"noProjects": "No saved projects yet",
+		"saving": "Saving…",
+		"saveFailed": "Save failed",
+		"unsaved": "Unsaved changes",
+		"saved": "Saved"
+	},
+	"recordingAssets": {
+		"assembling": "Finishing audio and camera…",
+		"degraded": "Recording ready with issues",
+		"waitForExport": "Finishing recording audio and camera. Export will be available when they are ready."
 	},
 	"nativeCaptureUnavailable": {
 		"title": "Niente è rotto, ma non sarà possibile renderizzare un overlay del cursore animato.",

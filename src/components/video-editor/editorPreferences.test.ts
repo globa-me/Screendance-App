@@ -67,6 +67,10 @@ describe("editorPreferences", () => {
 				showCursor: "yes",
 				cropRegion: { x: 2, width: -1 },
 				aspectRatio: "bad-value",
+				exportTransparentBackground: "yes",
+				exportAlphaSafeCanvas: "yes",
+				exportAlphaSafeCanvasScale: "huge",
+				exportAlphaFormat: "bad-format",
 				customAspectWidth: "0",
 				customAspectHeight: "",
 				customWallpapers: "not-an-array",
@@ -77,6 +81,10 @@ describe("editorPreferences", () => {
 			aspectRatio: DEFAULT_EDITOR_PREFERENCES.aspectRatio,
 			cursorStyle: DEFAULT_EDITOR_PREFERENCES.cursorStyle,
 			cursorSize: DEFAULT_EDITOR_PREFERENCES.cursorSize,
+			exportTransparentBackground: DEFAULT_EDITOR_PREFERENCES.exportTransparentBackground,
+			exportAlphaSafeCanvas: DEFAULT_EDITOR_PREFERENCES.exportAlphaSafeCanvas,
+			exportAlphaSafeCanvasScale: DEFAULT_EDITOR_PREFERENCES.exportAlphaSafeCanvasScale,
+			exportAlphaFormat: DEFAULT_EDITOR_PREFERENCES.exportAlphaFormat,
 			customAspectWidth: DEFAULT_EDITOR_PREFERENCES.customAspectWidth,
 			customAspectHeight: DEFAULT_EDITOR_PREFERENCES.customAspectHeight,
 			customWallpapers: DEFAULT_EDITOR_PREFERENCES.customWallpapers,
@@ -126,7 +134,9 @@ describe("editorPreferences", () => {
 
 		const loaded = loadEditorPreferences();
 
-		expect(loaded.zoomMotionBlurTuning).toEqual(DEFAULT_EDITOR_PREFERENCES.zoomMotionBlurTuning);
+		expect(loaded.zoomMotionBlurTuning).toEqual(
+			DEFAULT_EDITOR_PREFERENCES.zoomMotionBlurTuning,
+		);
 	});
 
 	it("does not save dev-only split blur tuning overrides to editor preferences", () => {
@@ -159,6 +169,10 @@ describe("editorPreferences", () => {
 					cropRegion: { x: 0.1, y: 0.2, width: 0.7, height: 0.6 },
 					aspectRatio: "native",
 					exportFormat: "gif",
+					exportTransparentBackground: true,
+					exportAlphaSafeCanvas: true,
+					exportAlphaSafeCanvasScale: 1.75,
+					exportAlphaFormat: "webm",
 					gifFrameRate: 30,
 					gifLoop: false,
 					customAspectWidth: "21",
@@ -176,6 +190,10 @@ describe("editorPreferences", () => {
 			aspectRatio: "native",
 			zoomInOverlapMs: 200,
 			exportFormat: "gif",
+			exportTransparentBackground: true,
+			exportAlphaSafeCanvas: true,
+			exportAlphaSafeCanvasScale: 1.75,
+			exportAlphaFormat: "webm",
 			gifFrameRate: 30,
 			gifLoop: false,
 			customAspectWidth: "21",
@@ -272,6 +290,10 @@ describe("editorPreferences", () => {
 			exportQuality: "source",
 			mp4FrameRate: DEFAULT_EDITOR_PREFERENCES.mp4FrameRate,
 			exportFormat: "gif",
+			exportTransparentBackground: true,
+			exportAlphaSafeCanvas: true,
+			exportAlphaSafeCanvasScale: 1.8,
+			exportAlphaFormat: "webm",
 			gifFrameRate: 20,
 			gifLoop: false,
 			gifSizePreset: "large",
@@ -302,6 +324,10 @@ describe("editorPreferences", () => {
 			aspectRatio: "4:5",
 			exportEncodingMode: "quality",
 			exportFormat: "gif",
+			exportTransparentBackground: true,
+			exportAlphaSafeCanvas: true,
+			exportAlphaSafeCanvasScale: 1.8,
+			exportAlphaFormat: "webm",
 			gifFrameRate: 20,
 			gifLoop: false,
 			gifSizePreset: "large",

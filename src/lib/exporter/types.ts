@@ -8,6 +8,15 @@ export interface ExportConfig {
 	backendPreference?: ExportBackendPreference;
 	preferredRenderBackend?: ExportRenderBackend;
 	experimentalNativeExport?: boolean;
+	transparentBackground?: boolean;
+	alphaSafeCanvas?: boolean;
+	alphaFormat?: "mov" | "webm";
+	layoutViewport?: {
+		x: number;
+		y: number;
+		width: number;
+		height: number;
+	};
 	maxEncodeQueue?: number;
 	maxDecodeQueue?: number;
 	maxPendingFrames?: number;
@@ -198,6 +207,10 @@ export interface ExportSettings {
 	mp4FrameRate?: ExportMp4FrameRate;
 	backendPreference?: ExportBackendPreference;
 	pipelineModel?: ExportPipelineModel;
+	transparentBackground?: boolean;
+	alphaSafeCanvas?: boolean;
+	alphaSafeCanvasScale?: number;
+	alphaFormat?: "mov" | "webm";
 	// GIF settings
 	gifConfig?: GifExportConfig;
 }

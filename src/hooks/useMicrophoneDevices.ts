@@ -8,6 +8,35 @@ export interface MicrophoneDevice {
 
 let hasRequestedMicrophoneLabels = false;
 
+const ALIAS_MICROPHONE_DEVICE_IDS = new Set(["default", "communications"]);
+
+function getFallbackMicrophoneLabel(device: MediaDeviceInfo, index: number) {
+	return device.label || `Microphone ${index + 1}`;
+}
+
+export function createMicrophoneDeviceOptions(devices: MediaDeviceInfo[]): MicrophoneDevice[] {
+	const audioInputs = devices.filter((device) => device.kind === "audioinput");
+	const concreteInputs = audioInputs.filter(
+		(device) => !ALIAS_MICROPHONE_DEVICE_IDS.has(device.deviceId),
+	);
+	const visibleInputs = concreteInputs.length > 0 ? concreteInputs : audioInputs;
+	const seenDeviceIds = new Set<string>();
+
+	return visibleInputs
+		.filter((device) => {
+			if (seenDeviceIds.has(device.deviceId)) {
+				return false;
+			}
+			seenDeviceIds.add(device.deviceId);
+			return true;
+		})
+		.map((device, index) => ({
+			deviceId: device.deviceId,
+			label: getFallbackMicrophoneLabel(device, index),
+			groupId: device.groupId,
+		}));
+}
+
 export function useMicrophoneDevices(enabled: boolean = true, preferredDeviceId?: string) {
 	const [devices, setDevices] = useState<MicrophoneDevice[]>([]);
 	const [selectedDeviceId, setSelectedDeviceId] = useState<string>("default");
@@ -29,28 +58,20 @@ export function useMicrophoneDevices(enabled: boolean = true, preferredDeviceId?
 				setError(null);
 
 				let allDevices = await navigator.mediaDevices.enumerateDevices();
-				let audioInputs = allDevices
-					.filter((device) => device.kind === "audioinput")
-					.map((device) => ({
-						deviceId: device.deviceId,
-						label: device.label || `Microphone ${device.deviceId.slice(0, 8)}`,
-						groupId: device.groupId,
-					}));
+				const audioInputDevices = allDevices.filter(
+					(device) => device.kind === "audioinput",
+				);
+				let audioInputs = createMicrophoneDeviceOptions(allDevices);
 
 				const needsLabelPermission =
-					audioInputs.length > 0 && audioInputs.every((device) => !device.label.trim());
+					audioInputDevices.length > 0 &&
+					audioInputDevices.every((device) => !device.label.trim());
 
 				if (needsLabelPermission && !hasRequestedMicrophoneLabels) {
 					hasRequestedMicrophoneLabels = true;
 					permissionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 					allDevices = await navigator.mediaDevices.enumerateDevices();
-					audioInputs = allDevices
-						.filter((device) => device.kind === "audioinput")
-						.map((device) => ({
-							deviceId: device.deviceId,
-							label: device.label || `Microphone ${device.deviceId.slice(0, 8)}`,
-							groupId: device.groupId,
-						}));
+					audioInputs = createMicrophoneDeviceOptions(allDevices);
 				}
 
 				if (mounted) {

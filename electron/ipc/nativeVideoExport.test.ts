@@ -6,12 +6,40 @@ import {
 	buildNativeCudaOverlayStaticLayoutArgs,
 	buildNativeCudaScaleCpuPadStaticLayoutArgs,
 	buildNativePrecompositedStaticLayoutArgs,
+	buildNativeProresAlphaExportArgs,
 	buildNativeStaticBackgroundRenderArgs,
 	buildNativeStaticLayoutChunks,
 	buildTrimmedSourceAudioFilter,
 	createNativeSquircleMaskPgmBuffer,
 	isNativeCudaOutOfMemory,
 } from "./nativeVideoExport";
+
+describe("buildNativeProresAlphaExportArgs", () => {
+	it("encodes raw RGBA frames into ProRes 4444 with alpha", () => {
+		const args = buildNativeProresAlphaExportArgs(
+			{
+				width: 1920,
+				height: 1080,
+				frameRate: 30,
+				bitrate: 50_000_000,
+				encodingMode: "balanced",
+				inputMode: "rawvideo",
+				outputProfile: "mov-prores-4444",
+			},
+			"out.mov",
+		);
+
+		expect(args).toContain("prores_ks");
+		expect(args).toContain("4444");
+		expect(args).toContain("yuva444p10le");
+		expect(args).toContain("16");
+		expect(args).toContain("bt709");
+		expect(args).toContain("out.mov");
+		expect(args).not.toContain("apl0");
+		expect(args).not.toContain("yuv420p");
+		expect(args).not.toContain("vflip");
+	});
+});
 
 describe("buildTrimmedSourceAudioFilter", () => {
 	it("concatenates trimmed source segments into a single output label", () => {

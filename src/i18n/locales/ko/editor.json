@@ -14,7 +14,6 @@
 		"arrow": "화살표",
 		"blur": "흐리게",
 		"textContent": "텍스트 내용",
-
 		"textPlaceholder": "텍스트를 입력하세요...",
 		"fontStyle": "글꼴 스타일",
 		"selectStyle": "스타일 선택",
@@ -45,7 +44,6 @@
 		"solidColor": "단색 (검열)",
 		"borderRadius": "테두리 반경"
 	},
-
 	"fontStyles": {
 		"classic": "클래식",
 		"editor": "에디터",
@@ -112,7 +110,28 @@
 		"showInFolder": "폴더에서 보기"
 	},
 	"project": {
-		"untitled": "제목 없음"
+		"untitled": "제목 없음",
+		"projects": "Projects",
+		"search": "Search projects",
+		"noPreview": "No preview yet",
+		"current": "Current",
+		"recordingFrom": "Recording · {{date}}",
+		"noSearchResults": "No matching projects",
+		"noProjects": "No saved projects yet",
+		"saving": "Saving…",
+		"saveFailed": "Save failed",
+		"unsaved": "Unsaved changes",
+		"saved": "Saved"
+	},
+	"recordingAssets": {
+		"assembling": "Finishing audio and camera…",
+		"degraded": "Recording ready with issues",
+		"waitForExport": "Finishing recording audio and camera. Export will be available when they are ready."
+	},
+	"nativeCaptureUnavailable": {
+		"title": "Nothing’s broken, but we won’t be able to render an animated cursor overlay.",
+		"description": "Your device does not support native capture. This could be for a variety of reasons we haven’t figured out yet. This doesn’t break Screendance App, but it does make cursor smoothing impossible.",
+		"confirm": "Okay"
 	},
 	"exportStatus": {
 		"exporting": "내보내는 중",

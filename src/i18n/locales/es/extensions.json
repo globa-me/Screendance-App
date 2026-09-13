@@ -54,7 +54,7 @@
 		"refreshed": "Extensiones actualizadas",
 		"refreshFailed": "Error al actualizar extensiones",
 		"marketplaceInstalled": "{{name}} instalada y activada",
-		"enableFailed": "Error al activar la extensión",
-		"marketplaceInstallFailed": "Error al instalar {{name}}"
+		"marketplaceInstallFailed": "Error al instalar {{name}}",
+		"enableFailed": "Error al activar la extensión"
 	}
 }
