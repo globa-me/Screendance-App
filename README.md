@@ -18,6 +18,13 @@
   [Downloads](https://github.com/globa-me/Screendance-App/releases) ·
   [Changelog](CHANGELOG.md) ·
   [Report an issue](https://github.com/globa-me/Screendance-App/issues)
+
+  **Support independent GZ Apps development**
+
+  Get ready-to-run builds, updates, and member posts while helping me improve this project.
+
+  [![Support on Patreon](https://img.shields.io/badge/Support_on-Patreon-FF424D?style=for-the-badge&logo=patreon&logoColor=white)](https://www.patreon.com/c/globa_me)
+  [![Support on Boosty](https://img.shields.io/badge/Support_on-Boosty-F15F2C?style=for-the-badge)](https://boosty.to/globa_me)
 </div>
 
 <br />
