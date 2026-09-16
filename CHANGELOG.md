@@ -5,11 +5,10 @@ the fork, see [Recordly](https://github.com/webadderallorg/Recordly/commits/main
 For the complete, browseable history after the fork, see the
 [Screendance commit log](https://github.com/globa-me/Screendance-App/commits/screendance/macos-apple-silicon).
 
-## In development — 1.1.0
+## September 16, 2026 — 1.4.0
 
-This work is present in the local development tree as of August 10, 2026. It is
-not yet an uploaded GitHub Release and must be committed and tested before it is
-presented as a downloadable build.
+This release is available from the
+[Screendance App 1.4.0 release](https://github.com/globa-me/Screendance-App/releases/tag/v1.4.0).
 
 - Transparent video export: WebM and ProRes 4444 QuickTime `.mov`, streamed
   temporary files, alpha-safe canvases and alpha-channel validation.
@@ -28,6 +27,13 @@ presented as a downloadable build.
   save, appear in the project library and protect their recordings from cleanup.
 - The Extensions manager and extension-contributed sidebar pages are hidden
   pending a redesigned experience; extension implementation code is retained.
+- Editor templates now preserve the complete reusable presentation and export
+  setup, including cursor visibility, padding, crop, output format, webcam
+  position, aspect ratio, alpha/GIF settings, caption styling and default zoom
+  creation behavior.
+- The last explicitly applied or newly saved template becomes the default for
+  every fresh recording and imported video, while saved projects retain their
+  own editor state and camera media bindings.
 
 ## May 22, 2026 — Screendance macOS fork
 

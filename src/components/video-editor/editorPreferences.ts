@@ -1,13 +1,6 @@
 import { loadAppSetting, saveAppSetting } from "../../lib/appSettings";
 import { DEFAULT_ALPHA_SAFE_CANVAS_SCALE, normalizeAlphaSafeCanvasScale } from "./exportDimensions";
 import {
-	DEFAULT_MANUAL_ZOOM_FOCUS,
-	DEFAULT_NEW_ZOOM_DURATION_MS,
-	DEFAULT_NEW_ZOOM_MODE,
-	type ZoomFocus,
-	type ZoomMode,
-} from "./types";
-import {
 	normalizeExportBackendPreference,
 	normalizeExportMp4FrameRate,
 	normalizeExportPipelineModel,
@@ -15,6 +8,14 @@ import {
 	type ProjectEditorState,
 	stripPersistedDevMotionBlurSettings,
 } from "./projectPersistence";
+import {
+	DEFAULT_MANUAL_ZOOM_FOCUS,
+	DEFAULT_NEW_ZOOM_DURATION_MS,
+	DEFAULT_NEW_ZOOM_MODE,
+	type WebcamOverlaySettings,
+	type ZoomFocus,
+	type ZoomMode,
+} from "./types";
 
 type PersistedProjectEditorControls = Pick<
 	ProjectEditorState,
@@ -55,6 +56,7 @@ type PersistedProjectEditorControls = Pick<
 	| "borderRadius"
 	| "padding"
 	| "frame"
+	| "cropRegion"
 	| "webcam"
 	| "aspectRatio"
 	| "exportEncodingMode"
@@ -82,6 +84,10 @@ type PartialEditorControls = Partial<PersistedEditorControls>;
 type PresetAutoCaptionSettings = ProjectEditorState["autoCaptionSettings"];
 
 export interface EditorPresetSnapshot extends PersistedEditorControls {
+	autoApplyFreshRecordingAutoZooms: boolean;
+	defaultZoomDurationMs: number;
+	defaultZoomMode: ZoomMode;
+	lastManualZoomFocus: ZoomFocus;
 	autoCaptionSettings: PresetAutoCaptionSettings;
 	whisperExecutablePath: string | null;
 	whisperModelPath: string | null;
@@ -109,6 +115,7 @@ export interface EditorPreferences extends PersistedEditorControls {
 
 export const EDITOR_PREFERENCES_STORAGE_KEY = "recordly.editor.preferences";
 export const EDITOR_PRESETS_STORAGE_KEY = "recordly.editor.presets";
+export const LAST_EDITOR_PRESET_ID_STORAGE_KEY = "recordly.editor.lastPresetId";
 
 const DEFAULT_EDITOR_CONTROLS = normalizeProjectEditor({});
 
@@ -150,6 +157,7 @@ export const DEFAULT_EDITOR_PREFERENCES: EditorPreferences = {
 	borderRadius: DEFAULT_EDITOR_CONTROLS.borderRadius,
 	padding: DEFAULT_EDITOR_CONTROLS.padding,
 	frame: DEFAULT_EDITOR_CONTROLS.frame,
+	cropRegion: DEFAULT_EDITOR_CONTROLS.cropRegion,
 	webcam: DEFAULT_EDITOR_CONTROLS.webcam,
 	aspectRatio: DEFAULT_EDITOR_CONTROLS.aspectRatio,
 	exportEncodingMode: DEFAULT_EDITOR_CONTROLS.exportEncodingMode,
@@ -249,13 +257,40 @@ function normalizePresetAutoCaptionSettings(value: unknown): PresetAutoCaptionSe
 
 function normalizeEditorPresetSnapshot(candidate: unknown): EditorPresetSnapshot {
 	const normalizedPreferences = normalizeEditorPreferences(candidate);
+	const normalizedControls = normalizeEditorControls(
+		normalizedPreferences,
+		normalizedPreferences,
+	);
 	const raw =
 		candidate && typeof candidate === "object"
 			? (candidate as Partial<EditorPresetSnapshot>)
 			: {};
 
 	return {
-		...normalizeEditorControls(normalizedPreferences, normalizedPreferences),
+		...normalizedControls,
+		webcam: {
+			...normalizedControls.webcam,
+			sourcePath: null,
+			timeOffsetMs: 0,
+		},
+		autoApplyFreshRecordingAutoZooms: normalizeBoolean(
+			raw.autoApplyFreshRecordingAutoZooms,
+			normalizedPreferences.autoApplyFreshRecordingAutoZooms,
+		),
+		defaultZoomDurationMs: normalizeNumber(
+			raw.defaultZoomDurationMs,
+			normalizedPreferences.defaultZoomDurationMs,
+			100,
+			30000,
+		),
+		defaultZoomMode: normalizeZoomMode(
+			raw.defaultZoomMode,
+			normalizedPreferences.defaultZoomMode,
+		),
+		lastManualZoomFocus: normalizeZoomFocus(
+			raw.lastManualZoomFocus,
+			normalizedPreferences.lastManualZoomFocus,
+		),
 		autoCaptionSettings: normalizePresetAutoCaptionSettings(raw.autoCaptionSettings),
 		whisperExecutablePath:
 			normalizeNullablePath(raw.whisperExecutablePath) ??
@@ -332,6 +367,12 @@ function normalizeEditorControls(
 		shadowIntensity: sanitizedRaw.shadowIntensity ?? fallback.shadowIntensity,
 		backgroundBlur: sanitizedRaw.backgroundBlur ?? fallback.backgroundBlur,
 		zoomMotionBlur: sanitizedRaw.zoomMotionBlur ?? fallback.zoomMotionBlur,
+		zoomTemporalMotionBlur:
+			sanitizedRaw.zoomTemporalMotionBlur ?? fallback.zoomTemporalMotionBlur,
+		zoomMotionBlurSampleCount:
+			sanitizedRaw.zoomMotionBlurSampleCount ?? fallback.zoomMotionBlurSampleCount,
+		zoomMotionBlurShutterFraction:
+			sanitizedRaw.zoomMotionBlurShutterFraction ?? fallback.zoomMotionBlurShutterFraction,
 		connectZooms: sanitizedRaw.connectZooms ?? fallback.connectZooms,
 		zoomInDurationMs: sanitizedRaw.zoomInDurationMs ?? fallback.zoomInDurationMs,
 		zoomInOverlapMs: sanitizedRaw.zoomInOverlapMs ?? fallback.zoomInOverlapMs,
@@ -371,6 +412,7 @@ function normalizeEditorControls(
 		borderRadius: sanitizedRaw.borderRadius ?? fallback.borderRadius,
 		padding: sanitizedRaw.padding ?? fallback.padding,
 		frame: sanitizedRaw.frame !== undefined ? sanitizedRaw.frame : fallback.frame,
+		cropRegion: sanitizedRaw.cropRegion ?? fallback.cropRegion,
 		webcam: sanitizedRaw.webcam ?? fallback.webcam,
 		aspectRatio: sanitizedRaw.aspectRatio ?? fallback.aspectRatio,
 		exportEncodingMode: sanitizedRaw.exportEncodingMode ?? fallback.exportEncodingMode,
@@ -449,6 +491,7 @@ function normalizeEditorControls(
 		borderRadius: normalized.borderRadius,
 		padding: normalized.padding,
 		frame: normalized.frame,
+		cropRegion: normalized.cropRegion,
 		webcam: normalized.webcam,
 		aspectRatio: normalized.aspectRatio,
 		exportEncodingMode: normalized.exportEncodingMode,
@@ -569,4 +612,60 @@ export function saveEditorPresets(presets: EditorPreset[]): boolean {
 		// Ignore storage failures so editor controls still work.
 		return false;
 	}
+}
+
+function normalizeEditorPresetId(value: unknown): string | null {
+	return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+export function loadLastSelectedEditorPresetId(): string | null {
+	const persisted = loadAppSetting<unknown>(LAST_EDITOR_PRESET_ID_STORAGE_KEY);
+	if (persisted !== null) {
+		return normalizeEditorPresetId(persisted);
+	}
+
+	try {
+		const stored = globalThis.localStorage?.getItem(LAST_EDITOR_PRESET_ID_STORAGE_KEY);
+		return normalizeEditorPresetId(stored);
+	} catch {
+		return null;
+	}
+}
+
+export function saveLastSelectedEditorPresetId(presetId: string | null): boolean {
+	try {
+		const normalized = normalizeEditorPresetId(presetId);
+		const persisted = saveAppSetting(LAST_EDITOR_PRESET_ID_STORAGE_KEY, normalized);
+		if (normalized === null) {
+			globalThis.localStorage?.removeItem(LAST_EDITOR_PRESET_ID_STORAGE_KEY);
+		} else {
+			globalThis.localStorage?.setItem(LAST_EDITOR_PRESET_ID_STORAGE_KEY, normalized);
+		}
+		return persisted || typeof globalThis.localStorage !== "undefined";
+	} catch {
+		return false;
+	}
+}
+
+export function resolveLastSelectedEditorPreset(
+	presets: EditorPreset[],
+	presetId: string | null = loadLastSelectedEditorPresetId(),
+): EditorPreset | null {
+	return presets.find((preset) => preset.id === presetId) ?? null;
+}
+
+/**
+ * Applies reusable webcam layout without ever carrying a media file or sync
+ * offset from the video where the preset was created.
+ */
+export function mergeEditorPresetWebcamSettings(
+	preset: WebcamOverlaySettings,
+	current: WebcamOverlaySettings,
+): WebcamOverlaySettings {
+	return {
+		...preset,
+		enabled: preset.enabled && Boolean(current.sourcePath),
+		sourcePath: current.sourcePath,
+		timeOffsetMs: current.timeOffsetMs,
+	};
 }

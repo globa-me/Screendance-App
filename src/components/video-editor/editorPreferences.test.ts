@@ -4,11 +4,16 @@ import {
 	DEFAULT_EDITOR_PREFERENCES,
 	EDITOR_PREFERENCES_STORAGE_KEY,
 	EDITOR_PRESETS_STORAGE_KEY,
+	LAST_EDITOR_PRESET_ID_STORAGE_KEY,
 	loadEditorPreferences,
 	loadEditorPresets,
+	loadLastSelectedEditorPresetId,
+	mergeEditorPresetWebcamSettings,
 	normalizeEditorPreferences,
+	resolveLastSelectedEditorPreset,
 	saveEditorPreferences,
 	saveEditorPresets,
+	saveLastSelectedEditorPresetId,
 } from "./editorPreferences";
 import { DEFAULT_AUTO_CAPTION_SETTINGS } from "./types";
 
@@ -187,6 +192,7 @@ describe("editorPreferences", () => {
 			wallpaper: "#123456",
 			backgroundBlur: 3.5,
 			showCursor: false,
+			cropRegion: { x: 0.1, y: 0.2, width: 0.7, height: 0.6 },
 			aspectRatio: "native",
 			zoomInOverlapMs: 200,
 			exportFormat: "gif",
@@ -423,6 +429,171 @@ describe("editorPreferences", () => {
 				name: "Demo Preset",
 			},
 		]);
+	});
+
+	it("round-trips the complete reusable video configuration in a preset", () => {
+		const localStorage = createStorageMock();
+		vi.stubGlobal("localStorage", localStorage);
+
+		const snapshot = {
+			...DEFAULT_EDITOR_PREFERENCES,
+			showCursor: false,
+			padding: { top: 8, bottom: 12, left: 16, right: 20, linked: false },
+			cropRegion: { x: 0.1, y: 0.2, width: 0.65, height: 0.7 },
+			aspectRatio: "1:1" as const,
+			exportFormat: "gif" as const,
+			exportTransparentBackground: true,
+			exportAlphaSafeCanvas: true,
+			exportAlphaSafeCanvasScale: 1.5,
+			exportAlphaFormat: "webm" as const,
+			gifFrameRate: 30 as const,
+			gifLoop: false,
+			webcam: {
+				...DEFAULT_EDITOR_PREFERENCES.webcam,
+				enabled: true,
+				sourcePath: "/recordings/old-camera.mov",
+				timeOffsetMs: 240,
+				positionPreset: "custom" as const,
+				positionX: 0.23,
+				positionY: 0.71,
+				size: 32,
+				mirror: false,
+				cropRegion: { x: 0.05, y: 0.1, width: 0.8, height: 0.75 },
+			},
+			autoApplyFreshRecordingAutoZooms: false,
+			defaultZoomDurationMs: 6200,
+			defaultZoomMode: "manual" as const,
+			lastManualZoomFocus: { cx: 0.25, cy: 0.75 },
+			autoCaptionSettings: {
+				...DEFAULT_AUTO_CAPTION_SETTINGS,
+				enabled: true,
+			},
+		};
+
+		expect(
+			saveEditorPresets([
+				{
+					id: "complete-preset",
+					name: "Complete",
+					createdAt: "2026-09-15T00:00:00.000Z",
+					updatedAt: "2026-09-15T00:00:00.000Z",
+					snapshot,
+				},
+			]),
+		).toBe(true);
+
+		expect(loadEditorPresets()[0]?.snapshot).toMatchObject({
+			showCursor: false,
+			padding: snapshot.padding,
+			cropRegion: snapshot.cropRegion,
+			aspectRatio: "1:1",
+			exportFormat: "gif",
+			exportTransparentBackground: true,
+			exportAlphaSafeCanvas: true,
+			exportAlphaSafeCanvasScale: 1.5,
+			exportAlphaFormat: "webm",
+			gifFrameRate: 30,
+			gifLoop: false,
+			webcam: {
+				...snapshot.webcam,
+				sourcePath: null,
+				timeOffsetMs: 0,
+			},
+			autoApplyFreshRecordingAutoZooms: false,
+			defaultZoomDurationMs: 6200,
+			defaultZoomMode: "manual",
+			lastManualZoomFocus: { cx: 0.25, cy: 0.75 },
+			autoCaptionSettings: { enabled: true },
+		});
+	});
+
+	it("normalizes crop bounds stored by presets", () => {
+		const localStorage = createStorageMock();
+		vi.stubGlobal("localStorage", localStorage);
+
+		saveEditorPresets([
+			{
+				id: "crop-preset",
+				name: "Crop",
+				createdAt: "2026-09-15T00:00:00.000Z",
+				updatedAt: "2026-09-15T00:00:00.000Z",
+				snapshot: {
+					...DEFAULT_EDITOR_PREFERENCES,
+					cropRegion: { x: 0.8, y: -1, width: 0.9, height: 5 },
+					autoCaptionSettings: DEFAULT_AUTO_CAPTION_SETTINGS,
+				},
+			},
+		]);
+
+		expect(loadEditorPresets()[0]?.snapshot.cropRegion).toMatchObject({
+			x: 0.8,
+			y: 0,
+			height: 1,
+		});
+		expect(loadEditorPresets()[0]?.snapshot.cropRegion.width).toBeCloseTo(0.2);
+	});
+
+	it("persists and resolves the last explicitly selected preset", () => {
+		const localStorage = createStorageMock();
+		vi.stubGlobal("localStorage", localStorage);
+		const presets = [
+			{
+				id: "preset-1",
+				name: "Default batch style",
+				createdAt: "2026-09-15T00:00:00.000Z",
+				updatedAt: "2026-09-15T00:00:00.000Z",
+				snapshot: {
+					...DEFAULT_EDITOR_PREFERENCES,
+					autoCaptionSettings: DEFAULT_AUTO_CAPTION_SETTINGS,
+				},
+			},
+		];
+
+		expect(saveLastSelectedEditorPresetId("preset-1")).toBe(true);
+		expect(localStorage.getItem(LAST_EDITOR_PRESET_ID_STORAGE_KEY)).toBe("preset-1");
+		expect(loadLastSelectedEditorPresetId()).toBe("preset-1");
+		expect(resolveLastSelectedEditorPreset(presets)?.id).toBe("preset-1");
+		expect(resolveLastSelectedEditorPreset(presets, "deleted-preset")).toBeNull();
+
+		expect(saveLastSelectedEditorPresetId(null)).toBe(true);
+		expect(loadLastSelectedEditorPresetId()).toBeNull();
+	});
+
+	it("stores the last selected preset ID in Electron app settings", () => {
+		const settingsStore = stubElectronSettings();
+
+		expect(saveLastSelectedEditorPresetId("preset-electron")).toBe(true);
+		expect(settingsStore.get(LAST_EDITOR_PRESET_ID_STORAGE_KEY)).toBe("preset-electron");
+		expect(loadLastSelectedEditorPresetId()).toBe("preset-electron");
+	});
+
+	it("applies webcam layout without carrying media from another video", () => {
+		const presetWebcam = {
+			...DEFAULT_EDITOR_PREFERENCES.webcam,
+			enabled: true,
+			sourcePath: "/recordings/old-camera.mov",
+			timeOffsetMs: 900,
+			positionPreset: "custom" as const,
+			positionX: 0.2,
+			positionY: 0.8,
+			size: 28,
+		};
+		const currentWebcam = {
+			...DEFAULT_EDITOR_PREFERENCES.webcam,
+			enabled: true,
+			sourcePath: "/recordings/new-camera.mov",
+			timeOffsetMs: -125,
+		};
+
+		expect(mergeEditorPresetWebcamSettings(presetWebcam, currentWebcam)).toMatchObject({
+			enabled: true,
+			sourcePath: "/recordings/new-camera.mov",
+			timeOffsetMs: -125,
+			positionPreset: "custom",
+			positionX: 0.2,
+			positionY: 0.8,
+			size: 28,
+		});
 	});
 
 	it("returns false when preset persistence fails", () => {

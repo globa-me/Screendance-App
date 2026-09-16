@@ -65,3 +65,21 @@ node scripts/finalize-macos-release.mjs release/notarized-dual
 
 The September 11, 2026 validation record and Apple submission IDs are in
 `docs/releasing/macos-signing.md`.
+
+## Editor preset guardrail
+
+Editor presets are persisted in `src/components/video-editor/editorPreferences.ts`.
+They own reusable presentation and export settings, including cursor visibility,
+padding, main-video crop, webcam layout, aspect ratio, output format, alpha/GIF
+options, caption styling, and default zoom-creation behavior.
+
+The ID of the last explicitly applied or newly saved preset is stored separately
+under `recordly.editor.lastPresetId`. Apply that preset to fresh recordings and
+newly imported videos only. A saved `.scrdance`/`.recordly` project remains the
+authoritative source of its editor state and must not be overwritten by the last
+preset during load.
+
+Webcam preset application must preserve the current video's `sourcePath` and
+`timeOffsetMs`; never carry camera media from the video where the preset was
+created. Session-level `hideOverlayCursorByDefault` also remains stronger than a
+preset so native recordings do not display a duplicate cursor.

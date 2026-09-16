@@ -128,8 +128,12 @@ import {
 	type EditorPresetSnapshot,
 	loadEditorPreferences,
 	loadEditorPresets,
+	loadLastSelectedEditorPresetId,
+	mergeEditorPresetWebcamSettings,
+	resolveLastSelectedEditorPreset,
 	saveEditorPreferences,
 	saveEditorPresets,
+	saveLastSelectedEditorPresetId,
 	serializeEditorPresetSnapshot,
 } from "./editorPreferences";
 import ProjectBrowserDialog, { type ProjectLibraryEntry } from "./ProjectBrowserDialog";
@@ -382,6 +386,12 @@ export default function VideoEditor() {
 		typeof navigator !== "undefined" && /Mac/i.test(navigator.platform) ? "darwin" : "",
 	);
 	const initialEditorPreferences = useMemo(() => loadEditorPreferences(), []);
+	const initialEditorPresets = useMemo(() => loadEditorPresets(), []);
+	const initialLastSelectedEditorPreset = useMemo(
+		() =>
+			resolveLastSelectedEditorPreset(initialEditorPresets, loadLastSelectedEditorPresetId()),
+		[initialEditorPresets],
+	);
 	const [videoPath, setVideoPath] = useState<string | null>(null);
 	const [videoSourcePath, setVideoSourcePath] = useState<string | null>(null);
 	const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null);
@@ -500,7 +510,9 @@ export default function VideoEditor() {
 	const [borderRadius, setBorderRadius] = useState(initialEditorPreferences.borderRadius);
 	const [padding, setPadding] = useState(initialEditorPreferences.padding);
 	const [frame, setFrame] = useState<string | null>(initialEditorPreferences.frame);
-	const [cropRegion, setCropRegion] = useState<CropRegion>(DEFAULT_CROP_REGION);
+	const [cropRegion, setCropRegion] = useState<CropRegion>(
+		initialEditorPreferences.cropRegion ?? DEFAULT_CROP_REGION,
+	);
 	const [webcam, setWebcam] = useState<WebcamOverlaySettings>(
 		initialEditorPreferences.webcam ?? DEFAULT_WEBCAM_OVERLAY,
 	);
@@ -624,8 +636,13 @@ export default function VideoEditor() {
 		"assembling" | "ready" | "degraded"
 	>("ready");
 	const [recordingAssetMessage, setRecordingAssetMessage] = useState<string | null>(null);
-	const [editorPresets, setEditorPresets] = useState<EditorPreset[]>(() => loadEditorPresets());
-	const [activeEditorPresetId, setActiveEditorPresetId] = useState<string | null>(null);
+	const [editorPresets, setEditorPresets] = useState<EditorPreset[]>(initialEditorPresets);
+	const [activeEditorPresetId, setActiveEditorPresetId] = useState<string | null>(
+		initialLastSelectedEditorPreset?.id ?? null,
+	);
+	const [lastSelectedEditorPresetId, setLastSelectedEditorPresetId] = useState<string | null>(
+		initialLastSelectedEditorPreset?.id ?? null,
+	);
 	const [presetPopoverOpen, setPresetPopoverOpen] = useState(false);
 	const [presetNameDraft, setPresetNameDraft] = useState("");
 	const [showCropModal, setShowCropModal] = useState(false);
@@ -655,6 +672,7 @@ export default function VideoEditor() {
 	const pendingFreshRecordingAutoSuggestTimeoutRef = useRef<number | null>(null);
 	const pendingFreshRecordingAutoSuggestTelemetryCountRef = useRef(0);
 	const cropSnapshotRef = useRef<CropRegion | null>(null);
+	const presetWebcamEnabledRef = useRef<boolean | null>(null);
 	const mp4SupportRequestRef = useRef(0);
 	const smokeExportStartedRef = useRef(false);
 	const projectAutosaveTimeoutRef = useRef<number | null>(null);
@@ -743,6 +761,7 @@ export default function VideoEditor() {
 			borderRadius,
 			padding: { ...padding },
 			frame,
+			cropRegion: { ...cropRegion },
 			webcam: { ...webcam },
 			aspectRatio,
 			exportEncodingMode,
@@ -758,6 +777,10 @@ export default function VideoEditor() {
 			gifFrameRate,
 			gifLoop,
 			gifSizePreset,
+			autoApplyFreshRecordingAutoZooms,
+			defaultZoomDurationMs,
+			defaultZoomMode,
+			lastManualZoomFocus: { ...lastManualZoomFocus },
 			autoCaptionSettings: { ...autoCaptionSettings },
 			whisperExecutablePath,
 			whisperModelPath,
@@ -800,6 +823,7 @@ export default function VideoEditor() {
 			borderRadius,
 			padding,
 			frame,
+			cropRegion,
 			webcam,
 			aspectRatio,
 			exportEncodingMode,
@@ -815,6 +839,10 @@ export default function VideoEditor() {
 			gifFrameRate,
 			gifLoop,
 			gifSizePreset,
+			autoApplyFreshRecordingAutoZooms,
+			defaultZoomDurationMs,
+			defaultZoomMode,
+			lastManualZoomFocus,
 			autoCaptionSettings,
 			whisperExecutablePath,
 			whisperModelPath,
@@ -861,6 +889,7 @@ export default function VideoEditor() {
 	}, [presetPopoverOpen]);
 
 	const applyEditorPresetSnapshot = useCallback((snapshot: EditorPresetSnapshot) => {
+		presetWebcamEnabledRef.current = snapshot.webcam.enabled;
 		setWallpaper(snapshot.wallpaper);
 		setShadowIntensity(snapshot.shadowIntensity);
 		setBackgroundBlur(snapshot.backgroundBlur);
@@ -898,7 +927,10 @@ export default function VideoEditor() {
 		setBorderRadius(snapshot.borderRadius);
 		setPadding({ ...snapshot.padding });
 		setFrame(snapshot.frame);
-		setWebcam({ ...snapshot.webcam });
+		setCropRegion({ ...snapshot.cropRegion });
+		setWebcam((currentWebcam) =>
+			mergeEditorPresetWebcamSettings(snapshot.webcam, currentWebcam),
+		);
 		setAspectRatio(snapshot.aspectRatio);
 		setExportEncodingMode(snapshot.exportEncodingMode);
 		setExportBackendPreference(snapshot.exportBackendPreference);
@@ -906,13 +938,31 @@ export default function VideoEditor() {
 		setExportQuality(snapshot.exportQuality);
 		setMp4FrameRate(snapshot.mp4FrameRate);
 		setExportFormat(snapshot.exportFormat);
+		setExportTransparentBackground(snapshot.exportTransparentBackground);
+		setExportAlphaSafeCanvas(snapshot.exportAlphaSafeCanvas);
+		setExportAlphaSafeCanvasScale(snapshot.exportAlphaSafeCanvasScale);
+		setExportAlphaFormat(snapshot.exportAlphaFormat);
 		setGifFrameRate(snapshot.gifFrameRate);
 		setGifLoop(snapshot.gifLoop);
 		setGifSizePreset(snapshot.gifSizePreset);
+		setAutoApplyFreshRecordingAutoZooms(snapshot.autoApplyFreshRecordingAutoZooms);
+		setDefaultZoomDurationMs(snapshot.defaultZoomDurationMs);
+		setDefaultZoomMode(snapshot.defaultZoomMode);
+		setLastManualZoomFocus({ ...snapshot.lastManualZoomFocus });
 		setAutoCaptionSettings({ ...snapshot.autoCaptionSettings });
 		setWhisperExecutablePath(snapshot.whisperExecutablePath);
 		setWhisperModelPath(snapshot.whisperModelPath);
 	}, []);
+
+	const applyLastSelectedPresetToFreshVideo = useCallback(() => {
+		if (!initialLastSelectedEditorPreset) {
+			return null;
+		}
+
+		setActiveEditorPresetId(initialLastSelectedEditorPreset.id);
+		applyEditorPresetSnapshot(initialLastSelectedEditorPreset.snapshot);
+		return initialLastSelectedEditorPreset.snapshot;
+	}, [applyEditorPresetSnapshot, initialLastSelectedEditorPreset]);
 
 	const handleApplyEditorPreset = useCallback(
 		(presetId: string) => {
@@ -922,6 +972,8 @@ export default function VideoEditor() {
 			}
 
 			setActiveEditorPresetId(preset.id);
+			setLastSelectedEditorPresetId(preset.id);
+			saveLastSelectedEditorPresetId(preset.id);
 			applyEditorPresetSnapshot(preset.snapshot);
 			toast.success(
 				t("editor.presets.toasts.applied", 'Applied preset "{{name}}"', {
@@ -976,6 +1028,8 @@ export default function VideoEditor() {
 
 			setEditorPresets(nextPresets);
 			setActiveEditorPresetId(nextPreset.id);
+			setLastSelectedEditorPresetId(nextPreset.id);
+			saveLastSelectedEditorPresetId(nextPreset.id);
 			toast.success(
 				t("editor.presets.toasts.saved", 'Saved preset "{{name}}"', {
 					name: normalizedName,
@@ -1008,13 +1062,17 @@ export default function VideoEditor() {
 			if (preset.id === activeEditorPresetId) {
 				setActiveEditorPresetId(null);
 			}
+			if (preset.id === lastSelectedEditorPresetId) {
+				setLastSelectedEditorPresetId(null);
+				saveLastSelectedEditorPresetId(null);
+			}
 			toast.success(
 				t("editor.presets.toasts.deleted", 'Deleted preset "{{name}}"', {
 					name: preset.name,
 				}),
 			);
 		},
-		[activeEditorPresetId, editorPresets, t],
+		[activeEditorPresetId, editorPresets, lastSelectedEditorPresetId, t],
 	);
 
 	const handleSavePresetSubmit = useCallback(() => {
@@ -2107,6 +2165,7 @@ export default function VideoEditor() {
 			return;
 		}
 
+		presetWebcamEnabledRef.current = true;
 		setWebcam((prev) => ({
 			...prev,
 			enabled: true,
@@ -2119,6 +2178,7 @@ export default function VideoEditor() {
 	}, [syncRecordingSessionWebcam, t]);
 
 	const handleClearWebcam = useCallback(async () => {
+		presetWebcamEnabledRef.current = false;
 		setWebcam((prev) => ({
 			...prev,
 			enabled: false,
@@ -2188,6 +2248,9 @@ export default function VideoEditor() {
 				}
 
 				if (!smokeExportConfig.enabled && devOpenRecordingConfig.inputPath) {
+					const freshPresetSnapshot = applyLastSelectedPresetToFreshVideo();
+					const shouldEnablePresetWebcam = freshPresetSnapshot?.webcam.enabled ?? true;
+					presetWebcamEnabledRef.current = shouldEnablePresetWebcam;
 					const sourcePath = fromFileUrl(devOpenRecordingConfig.inputPath);
 					const sourceVideoUrl = await resolveVideoUrl(sourcePath);
 					const webcamSourcePath = devOpenRecordingConfig.webcamInputPath
@@ -2197,12 +2260,14 @@ export default function VideoEditor() {
 					setVideoPath(sourceVideoUrl);
 					setCurrentProjectPath(null);
 					setLastSavedSnapshot(null);
-					pendingFreshRecordingAutoZoomPathRef.current = autoApplyFreshRecordingAutoZooms
-						? sourceVideoUrl
-						: null;
+					pendingFreshRecordingAutoZoomPathRef.current =
+						(freshPresetSnapshot?.autoApplyFreshRecordingAutoZooms ??
+						initialEditorPreferences.autoApplyFreshRecordingAutoZooms)
+							? sourceVideoUrl
+							: null;
 					setWebcam((prev) => ({
 						...prev,
-						enabled: Boolean(webcamSourcePath),
+						enabled: shouldEnablePresetWebcam && Boolean(webcamSourcePath),
 						sourcePath: webcamSourcePath,
 						timeOffsetMs: DEFAULT_WEBCAM_TIME_OFFSET_MS,
 					}));
@@ -2251,53 +2316,31 @@ export default function VideoEditor() {
 						currentProjectResult.path ?? null,
 					);
 					if (restored) {
-						// Re-apply user preferences so stale project data does not
-						// overwrite the last-used padding, aspect ratio, export
-						// settings, etc. that were saved to localStorage.
-						setPadding(initialEditorPreferences.padding);
-						setBorderRadius(initialEditorPreferences.borderRadius);
-						setAspectRatio(initialEditorPreferences.aspectRatio);
-						setExportFormat(initialEditorPreferences.exportFormat);
-						setMp4FrameRate(
-							initialEditorPreferences.mp4FrameRate ?? DEFAULT_MP4_EXPORT_FRAME_RATE,
-						);
-						setExportQuality(initialEditorPreferences.exportQuality);
-						setExportEncodingMode(initialEditorPreferences.exportEncodingMode);
-						setExportBackendPreference(
-							initialEditorPreferences.exportBackendPreference,
-						);
-						setExportPipelineModel(initialEditorPreferences.exportPipelineModel);
-						setGifFrameRate(initialEditorPreferences.gifFrameRate);
-						setGifLoop(initialEditorPreferences.gifLoop);
-						setGifSizePreset(initialEditorPreferences.gifSizePreset);
-						setExportTransparentBackground(
-							initialEditorPreferences.exportTransparentBackground,
-						);
-						setExportAlphaSafeCanvas(initialEditorPreferences.exportAlphaSafeCanvas);
-						setExportAlphaSafeCanvasScale(
-							initialEditorPreferences.exportAlphaSafeCanvasScale ??
-								DEFAULT_ALPHA_SAFE_CANVAS_SCALE,
-						);
-						setExportAlphaFormat(initialEditorPreferences.exportAlphaFormat);
 						return;
 					}
 				}
 
 				const sessionResult = await window.electronAPI.getCurrentRecordingSession?.();
 				if (sessionResult?.success && sessionResult.session?.videoPath) {
+					const freshPresetSnapshot = applyLastSelectedPresetToFreshVideo();
+					const shouldEnablePresetWebcam = freshPresetSnapshot?.webcam.enabled ?? true;
+					presetWebcamEnabledRef.current = shouldEnablePresetWebcam;
 					const sourcePath = fromFileUrl(sessionResult.session.videoPath);
 					const sourceVideoUrl = await resolveVideoUrl(sourcePath);
 					setVideoSourcePath(sourcePath);
 					setVideoPath(sourceVideoUrl);
 					setCurrentProjectPath(null);
 					setLastSavedSnapshot(null);
-					pendingFreshRecordingAutoZoomPathRef.current = autoApplyFreshRecordingAutoZooms
-						? sourceVideoUrl
-						: null;
+					pendingFreshRecordingAutoZoomPathRef.current =
+						(freshPresetSnapshot?.autoApplyFreshRecordingAutoZooms ??
+						initialEditorPreferences.autoApplyFreshRecordingAutoZooms)
+							? sourceVideoUrl
+							: null;
 					applySessionPresentation(sessionResult.session);
 					setWebcam((prev) => ({
 						...prev,
-						enabled: Boolean(sessionResult.session?.webcamPath),
+						enabled:
+							shouldEnablePresetWebcam && Boolean(sessionResult.session?.webcamPath),
 						sourcePath: sessionResult.session?.webcamPath ?? null,
 						timeOffsetMs:
 							sessionResult.session?.timeOffsetMs ?? DEFAULT_WEBCAM_TIME_OFFSET_MS,
@@ -2307,6 +2350,7 @@ export default function VideoEditor() {
 
 				const result = await window.electronAPI.getCurrentVideoPath();
 				if (result.success && result.path) {
+					applyLastSelectedPresetToFreshVideo();
 					const sourcePath = fromFileUrl(result.path);
 					const sourceVideoUrl = await resolveVideoUrl(sourcePath);
 					setVideoSourcePath(sourcePath);
@@ -2334,11 +2378,11 @@ export default function VideoEditor() {
 		loadInitialData();
 	}, [
 		applyLoadedProject,
+		applyLastSelectedPresetToFreshVideo,
 		applySessionPresentation,
-		autoApplyFreshRecordingAutoZooms,
 		devOpenRecordingConfig.inputPath,
 		devOpenRecordingConfig.webcamInputPath,
-		initialEditorPreferences,
+		initialEditorPreferences.autoApplyFreshRecordingAutoZooms,
 		smokeExportConfig.enabled,
 		smokeExportConfig.inputPath,
 		smokeExportConfig.projectPath,
@@ -2369,7 +2413,8 @@ export default function VideoEditor() {
 
 			setWebcam((prev) => ({
 				...prev,
-				enabled: Boolean(session.webcamPath),
+				enabled:
+					(presetWebcamEnabledRef.current ?? prev.enabled) && Boolean(session.webcamPath),
 				sourcePath: session.webcamPath ?? null,
 				timeOffsetMs: session.webcamPath
 					? (session.timeOffsetMs ?? prev.timeOffsetMs)
@@ -2441,6 +2486,7 @@ export default function VideoEditor() {
 			borderRadius,
 			padding,
 			frame,
+			cropRegion,
 			webcam,
 			aspectRatio,
 			exportEncodingMode,
@@ -2501,6 +2547,7 @@ export default function VideoEditor() {
 		borderRadius,
 		padding,
 		frame,
+		cropRegion,
 		webcam,
 		aspectRatio,
 		exportEncodingMode,
