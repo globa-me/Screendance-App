@@ -8,13 +8,13 @@ The certificate and private key are available in the local Keychain.
 `electron-builder.json5` now requires signing and signs the DMG as well as the app.
 Hardened runtime and the existing entitlements remain enabled.
 
-## Ready artifacts — 2026-09-11
+## Release artifacts — 2026-09-16
 
-Version 1.1.0 is signed, notarized and stapled for both architectures. The
-current local distribution candidates are:
+Version 1.4.0 is signed, notarized and stapled for both architectures. The
+release artifacts are built from commit `42a098b` and stored locally at:
 
-- `release/notarized-dual/Screendance App-arm64.dmg` — Apple Silicon;
-- `release/notarized-dual/Screendance App-x64.dmg` — Intel.
+- `release/notarized-v1.4.0/Screendance App-arm64.dmg` — Apple Silicon;
+- `release/notarized-v1.4.0/Screendance App-x64.dmg` — Intel.
 
 The ZIP files in that directory contain the corresponding stapled apps.
 `SHA256SUMS.txt`, blockmaps and `latest-mac.yml` reflect the final bytes.
@@ -23,11 +23,8 @@ Nothing has been published externally.
 Keychain profile: `Screendance-notary`. Both app and DMG have Apple status
 `Accepted` and pass Gatekeeper with `source=Notarized Developer ID`.
 Old files under the other `release/` directories are historical or intermediate
-artifacts; use `release/notarized-dual/` for this dual-architecture build.
-
-The working tree already contained extensive development changes before this
-signing task. The build includes them; they have not been committed or published.
-No export/transcoding implementation was changed by the signing task.
+artifacts; use `release/notarized-v1.4.0/` for this release. GitHub assets use
+hyphenated filenames matching `latest-mac.yml`.
 
 ## Store notarization credentials locally
 
@@ -77,7 +74,7 @@ This fails closed if code signatures, stapled tickets or Gatekeeper assessments
 fail. It regenerates the DMG blockmap, SHA-512 update metadata and SHA256SUMS.
 The existing updater URLs use electron-builder's GitHub-safe names (spaces
 replaced with hyphens); preserve those names when publishing release assets.
-No public release is authorized by this local signing task.
+Publishing remains a separate explicit release step.
 
 ## Signed staging build (not notarized)
 
@@ -152,3 +149,20 @@ PACKAGED_SMOKE_ROOT=release/signed-staging PACKAGED_SMOKE_ARCH_TAGS=darwin-arm64
   critical x64 native component were run through Rosetta, but recording permissions,
   camera/microphone capture and end-to-end export should still receive a final
   hardware smoke test on Intel macOS 14 or 15 before public release.
+
+## Version 1.4.0 validation — 2026-09-16
+
+- Source commit: `42a098b` (`feat: persist complete editor templates`).
+- TypeScript, Biome and the full Vitest suite passed: 75 files, 665 tests.
+- Both packaged app bundles passed native-binary smoke checks for FFmpeg,
+  FFprobe, ScreenCaptureKit/window/cursor helpers, Whisper and `uiohook-napi`.
+- App notarization submissions: arm64
+  `ebaea03c-015f-44cd-9f13-6a70e8dfcb24`; x64
+  `68c53989-81cb-489f-ae3f-5b3c44a6f92c`.
+- DMG notarization submissions: arm64
+  `5ce3bb89-dac0-4c9d-b517-74feb264c5f6`; x64
+  `3a6f9a1f-a7b8-419c-8033-3cfadad3205b`.
+- All four Apple submissions were `Accepted`. Both apps and DMGs pass stapler
+  validation and Gatekeeper with `source=Notarized Developer ID`.
+- Finalizer and `hdiutil verify` passed for both architectures; blockmaps,
+  `latest-mac.yml` and `SHA256SUMS.txt` were regenerated from the final bytes.

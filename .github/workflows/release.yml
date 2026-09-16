@@ -24,6 +24,7 @@ concurrency:
 jobs:
   prepare-release:
     name: Prepare release
+    if: ${{ github.event_name != 'release' || !contains(github.event.release.body, '<!-- locally-notarized-release -->') }}
     runs-on: ubuntu-latest
     outputs:
       tag_name: ${{ steps.prepare.outputs.tag_name }}
