@@ -36,6 +36,7 @@
 		"label": "Audio"
 	},
 	"addSpeed": "Snelheid toevoegen (S)",
+	"playbackPosition": "Afspeelpositie",
 	"resizeLeft": "Links verkleinen",
 	"resizeRight": "Rechts verkleinen"
 }

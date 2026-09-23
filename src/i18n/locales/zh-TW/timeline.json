@@ -36,6 +36,7 @@
 		"label": "音訊"
 	},
 	"addSpeed": "新增速度（S）",
+	"playbackPosition": "播放位置",
 	"resizeLeft": "向左調整大小",
 	"resizeRight": "向右調整大小"
 }

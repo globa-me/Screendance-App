@@ -653,6 +653,7 @@ const APP_LANGUAGE_LABELS: Record<AppLocale, string> = {
 	nl: "Nederlands",
 	ko: "한국어",
 	"pt-BR": "Português",
+	ru: "Русский",
 	"zh-CN": "簡體中文",
 	"zh-TW": "繁體中文",
 };
@@ -980,6 +981,8 @@ export function SettingsPanel({
 	onOpenNativeCaptureUnavailableModal,
 }: SettingsPanelProps) {
 	const tSettings = useScopedT("settings");
+	const selectedWallpaperRef = useRef(selected);
+	selectedWallpaperRef.current = selected;
 	const { locale, setLocale, t } = useI18n();
 	const { preference: themePreference, setPreference: setThemePreference } = useTheme();
 	const isBackgroundPanel = panelMode === "background";
@@ -1429,33 +1432,34 @@ export function SettingsPanel({
 			onClick?: () => void;
 			children?: React.ReactNode;
 		},
-	) => (
-		<div
-			key={props?.key}
-			className={wallpaperTileClass(isSelected)}
-			aria-label={props?.ariaLabel}
-			title={props?.title}
-			onClick={props?.onClick}
-			role="button"
-		>
-			<div className="absolute inset-[1px] overflow-hidden rounded-[8px] bg-editor-dialog">
-				{isVideoWallpaperSource(wallpaperUrl) ? (
-					<WallpaperVideoPreview src={wallpaperUrl} />
-				) : (
-					<img
-						src={wallpaperUrl}
-						alt={
-							props?.title ??
-							props?.ariaLabel ??
-							tSettings("background.wallpaperPreview", "Wallpaper preview")
-						}
-						className="h-full w-full select-none object-cover [transform:translateZ(0)]"
-						draggable={false}
-					/>
-				)}
+		) => (
+			<div
+				key={props?.key}
+				className={wallpaperTileClass(isSelected)}
+			>
+				<button
+					type="button"
+					className="absolute inset-0 rounded-[10px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 focus-visible:ring-offset-editor-surface"
+					aria-label={props?.ariaLabel ?? props?.title ?? tSettings("background.wallpaperPreview", "Wallpaper preview")}
+					aria-pressed={isSelected}
+					title={props?.title}
+					onClick={props?.onClick}
+				>
+					<div className="absolute inset-[1px] overflow-hidden rounded-[8px] bg-editor-dialog">
+						{isVideoWallpaperSource(wallpaperUrl) ? (
+							<WallpaperVideoPreview src={wallpaperUrl} />
+						) : (
+							<img
+								src={wallpaperUrl}
+								alt=""
+								className="h-full w-full select-none object-cover [transform:translateZ(0)]"
+								draggable={false}
+							/>
+						)}
+					</div>
+				</button>
+				{props?.children}
 			</div>
-			{props?.children}
-		</div>
 	);
 
 	const crop = cropRegion ?? {
@@ -1702,16 +1706,36 @@ export function SettingsPanel({
 
 	const handleRemoveCustomImage = (imageUrl: string, event: React.MouseEvent) => {
 		event.stopPropagation();
+		const originalIndex = customImages.indexOf(imageUrl);
+		if (originalIndex < 0) return;
+		const wasSelected = selected === imageUrl;
+		const fallbackWallpaper =
+			builtInWallpaperPaths[0] ??
+			extensionWallpaperPaths[0] ??
+			BUILT_IN_WALLPAPERS[0]?.publicPath ??
+			"";
 		setCustomImages((prev) => prev.filter((img) => img !== imageUrl));
-		// If the removed image was selected, clear selection
-		if (selected === imageUrl) {
-			onWallpaperChange(
-				builtInWallpaperPaths[0] ??
-					extensionWallpaperPaths[0] ??
-					BUILT_IN_WALLPAPERS[0]?.publicPath ??
-					"",
-			);
+		if (wasSelected) {
+			selectedWallpaperRef.current = fallbackWallpaper;
+			onWallpaperChange(fallbackWallpaper);
 		}
+		toast.info(tSettings("background.removedCustom", "Background removed"), {
+			duration: 10000,
+			action: {
+				label: tSettings("background.undoRemove", "Undo"),
+				onClick: () => {
+					setCustomImages((current) => {
+						if (current.includes(imageUrl)) return current;
+						const restored = [...current];
+						restored.splice(Math.min(originalIndex, restored.length), 0, imageUrl);
+						return restored;
+					});
+					if (wasSelected && selectedWallpaperRef.current === fallbackWallpaper) {
+						onWallpaperChange(imageUrl);
+					}
+				},
+			},
+		});
 	};
 
 	// Find selected annotation
@@ -1823,25 +1847,21 @@ export function SettingsPanel({
 											const isSelected = getWallpaperTileState(imageUrl);
 											return renderWallpaperImageTile(imageUrl, isSelected, {
 												key: `custom-${idx}`,
-												ariaLabel: isVideoWallpaperSource(imageUrl)
-													? (imageUrl.split(/[\\/]/).pop() ??
-														tSettings(
-															"background.video",
-															"Video background",
-														))
-													: undefined,
+												ariaLabel: imageUrl.split(/[\\/]/).pop() ?? tSettings("background.wallpaperPreview", "Wallpaper preview"),
 												title: isVideoWallpaperSource(imageUrl)
 													? imageUrl.split(/[\\/]/).pop()
 													: undefined,
 												onClick: () => onWallpaperChange(imageUrl),
 												children: (
 													<button
+														type="button"
+														aria-label={tSettings("background.removeCustom", "Remove custom background")}
 														onClick={(e) =>
 															handleRemoveCustomImage(imageUrl, e)
 														}
-														className="absolute top-0.5 right-0.5 w-3 h-3 bg-red-500/90 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+														className="absolute top-0.5 right-0.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-white opacity-70 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white group-hover:opacity-100"
 													>
-														<X className="w-2 h-2 text-white" />
+														<X className="h-3 w-3" />
 													</button>
 												),
 											});
@@ -1892,16 +1912,18 @@ export function SettingsPanel({
 														title: videoUrl.split(/[\\/]/).pop(),
 														onClick: () => onWallpaperChange(videoUrl),
 														children: (
-															<button
-																onClick={(e) =>
+																<button
+																	type="button"
+																	aria-label={tSettings("background.removeCustom", "Remove custom background")}
+																	onClick={(e) =>
 																	handleRemoveCustomImage(
 																		videoUrl,
 																		e,
 																	)
 																}
-																className="absolute top-0.5 right-0.5 w-3 h-3 bg-red-500/90 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
-															>
-																<X className="w-2 h-2 text-white" />
+																	className="absolute top-0.5 right-0.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-white opacity-70 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white group-hover:opacity-100"
+																>
+																	<X className="h-3 w-3" />
 															</button>
 														),
 													},

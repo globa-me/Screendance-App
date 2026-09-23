@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { dialog, ipcMain } from "electron";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({
@@ -17,6 +18,7 @@ vi.mock("electron", () => ({
 	},
 	ipcMain: {
 		handle: vi.fn(),
+		on: vi.fn(),
 	},
 	powerSaveBlocker: {
 		isStarted: () => true,
@@ -35,6 +37,7 @@ import {
 	getProResAlphaValidationError,
 	moveExportedTempFile,
 	parseAlphaSignalStats,
+	registerExportHandlers,
 } from "./export";
 
 const tempDirs: string[] = [];
@@ -50,6 +53,69 @@ afterEach(async () => {
 	await Promise.allSettled(
 		tempDirs.splice(0).map((dir) => fs.rm(dir, { force: true, recursive: true })),
 	);
+});
+
+describe("select-export-destination", () => {
+	it("resolves a writable destination before rendering and normalizes its extension", async () => {
+		const dir = await makeTempDir();
+		vi.mocked(dialog.showSaveDialog).mockResolvedValue({
+			canceled: false,
+			filePath: path.join(dir, "my-export.webm"),
+		});
+		registerExportHandlers();
+		const registration = vi
+			.mocked(ipcMain.handle)
+			.mock.calls.find(([channel]) => channel === "select-export-destination");
+		expect(registration).toBeDefined();
+		const result = await registration![1]({ sender: {} } as never, {
+			fileName: "video.mov",
+			format: "mov",
+			expectedBytes: 1024,
+		});
+		expect(result).toMatchObject({ success: true, path: path.join(dir, "my-export.mov") });
+	});
+
+	it("rejects a destination when the space estimate exceeds available bytes", async () => {
+		const dir = await makeTempDir();
+		vi.mocked(dialog.showSaveDialog).mockResolvedValue({
+			canceled: false,
+			filePath: path.join(dir, "video.mp4"),
+		});
+		registerExportHandlers();
+		const registration = vi
+			.mocked(ipcMain.handle)
+			.mock.calls.find(([channel]) => channel === "select-export-destination");
+		const result = await registration![1]({ sender: {} } as never, {
+			fileName: "video.mp4",
+			format: "mp4",
+			expectedBytes: Number.MAX_SAFE_INTEGER,
+		});
+		expect(result).toMatchObject({
+			success: false,
+			error: "Not enough free space at the selected destination",
+		});
+	});
+
+	it("does not overwrite an existing file after correcting the extension", async () => {
+		const dir = await makeTempDir();
+		const existingPath = path.join(dir, "my-export.mov");
+		await fs.writeFile(existingPath, "existing result");
+		vi.mocked(dialog.showSaveDialog).mockResolvedValue({
+			canceled: false,
+			filePath: path.join(dir, "my-export.webm"),
+		});
+		registerExportHandlers();
+		const registration = vi
+			.mocked(ipcMain.handle)
+			.mock.calls.find(([channel]) => channel === "select-export-destination");
+		const result = await registration![1]({ sender: {} } as never, {
+			fileName: "video.mov",
+			format: "mov",
+			expectedBytes: 1024,
+		});
+		expect(result).toMatchObject({ success: false, code: "name-conflict" });
+		await expect(fs.readFile(existingPath, "utf8")).resolves.toBe("existing result");
+	});
 });
 
 describe("moveExportedTempFile", () => {
@@ -109,6 +175,10 @@ describe("ProRes alpha export helpers", () => {
 				"4",
 				"-pix_fmt",
 				"yuva444p10le",
+				"-color_primaries",
+				"bt709",
+				"-color_trc",
+				"-colorspace",
 				"alpha_mode=1",
 				"-alpha_bits",
 				"16",

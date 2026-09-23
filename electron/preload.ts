@@ -430,6 +430,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	closeExportStream: (streamId: string, options?: { abort?: boolean }) => {
 		return ipcRenderer.invoke("export-stream-close", streamId, options);
 	},
+	selectExportDestination: (payload: {
+		fileName: string;
+		format: "mp4" | "gif" | "mov" | "webm";
+		expectedBytes?: number;
+	}) => ipcRenderer.invoke("select-export-destination", payload),
 	finalizeExportedVideo: (payload: {
 		tempPath: string;
 		fileName: string;
@@ -628,8 +633,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	openAccessibilityPreferences: () => {
 		return ipcRenderer.invoke("open-accessibility-preferences");
 	},
-	saveExportedVideo: (videoData: ArrayBuffer, fileName: string) => {
-		return ipcRenderer.invoke("save-exported-video", videoData, fileName);
+	saveExportedVideo: (videoData: ArrayBuffer, fileName: string, outputPath?: string | null) => {
+		return ipcRenderer.invoke("save-exported-video", videoData, fileName, outputPath);
 	},
 	getAppLogs: () => {
 		return ipcRenderer.invoke("get-app-logs");

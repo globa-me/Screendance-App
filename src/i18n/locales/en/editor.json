@@ -44,7 +44,6 @@
 		"solidColor": "Solid Color (Censorship)",
 		"borderRadius": "Border Radius"
 	},
-
 	"fontStyles": {
 		"classic": "Classic",
 		"editor": "Editor",
@@ -141,7 +140,18 @@
 		"completePercent": "{{percent}}% complete",
 		"issue": "Export issue",
 		"complete": "Export complete",
-		"savedSuccessfully": "Your file was saved successfully."
+		"savedSuccessfully": "Your file was saved successfully.",
+		"canceling": "Canceling…",
+		"canceled": "Export canceled",
+		"savedTo": "Saved to {{path}}",
+		"revealInFolder": "Show in Folder",
+		"alreadyRunning": "Export is already running",
+		"noVideo": "No video loaded",
+		"videoNotReady": "Video is not ready",
+		"destinationUnavailable": "Selected folder is unavailable. Choose another location.",
+		"destinationPrepareFailed": "Could not prepare destination: {{error}}",
+		"insufficientSpace": "Not enough free space in the selected folder.",
+		"nameConflict": "A file with the export extension already exists. Choose another name."
 	},
 	"export": {
 		"processingAudioEdits": "Processing audio with speed/overlay edits"

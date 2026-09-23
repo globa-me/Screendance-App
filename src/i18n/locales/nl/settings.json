@@ -182,9 +182,12 @@
 		"gradient": "Verloop",
 		"wallpaperPreview": "Achtergrondvoorbeeld",
 		"uploadCustom": "Afbeelding uploaden",
+		"removeCustom": "Aangepaste achtergrond verwijderen",
 		"uploadSuccess": "Eigen afbeelding succesvol geüpload!",
 		"uploadError": "Upload een JPG- of JPEG-afbeelding.",
-		"uploadErrorDescription": "Alleen JPG- en JPEG-afbeeldingen worden ondersteund."
+		"uploadErrorDescription": "Alleen JPG- en JPEG-afbeeldingen worden ondersteund.",
+		"removedCustom": "Achtergrond verwijderd",
+		"undoRemove": "Ongedaan maken"
 	},
 	"export": {
 		"title": "Exporteren",
@@ -204,9 +207,9 @@
 		"sizePresetLargeShort": "Grt",
 		"loadProject": "Project laden",
 		"saveProject": "Project opslaan",
-		"transparentBackground": "Alpha channel",
-		"transparentBackgroundHint": "Export WebM with transparent background.",
-		"advanced": "Advanced compatibility",
+		"transparentBackground": "Transparante achtergrond",
+		"transparentBackgroundHint": "Exporteer met transparante achtergrond als MOV of WebM.",
+		"advanced": "Geavanceerde instellingen",
 		"pipelineTitle": "Export engine",
 		"pipeline": {
 			"legacy": "Compatibility",
@@ -216,7 +219,8 @@
 		},
 		"exportVideo": "{{format}} exporteren",
 		"reportBug": "Bug melden",
-		"starOnGithub": "Ster op GitHub"
+		"starOnGithub": "Ster op GitHub",
+		"alphaFormat": "Alphaformaat"
 	},
 	"audio": {
 		"title": "Audio",

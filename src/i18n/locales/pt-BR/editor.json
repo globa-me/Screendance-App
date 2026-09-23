@@ -140,7 +140,18 @@
 		"completePercent": "{{percent}}% concluído",
 		"issue": "Problema na exportação",
 		"complete": "Exportação concluída",
-		"savedSuccessfully": "Seu arquivo foi salvo com sucesso."
+		"savedSuccessfully": "Seu arquivo foi salvo com sucesso.",
+		"canceling": "Cancelando…",
+		"canceled": "Exportação cancelada",
+		"savedTo": "Salvo em {{path}}",
+		"revealInFolder": "Mostrar na pasta",
+		"alreadyRunning": "Já existe uma exportação em andamento",
+		"noVideo": "Nenhum vídeo carregado",
+		"videoNotReady": "O vídeo ainda não está pronto",
+		"destinationUnavailable": "A pasta não está disponível. Escolha outro local.",
+		"destinationPrepareFailed": "Não foi possível preparar o destino: {{error}}",
+		"insufficientSpace": "Não há espaço livre suficiente na pasta selecionada.",
+		"nameConflict": "Já existe um arquivo com a extensão de exportação. Escolha outro nome."
 	},
 	"export": {
 		"processingAudioEdits": "Processando áudio com edições de velocidade/sobreposição"

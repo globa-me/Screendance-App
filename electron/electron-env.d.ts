@@ -522,6 +522,19 @@ interface Window {
 			bytesWritten?: number;
 			error?: string;
 		}>;
+		selectExportDestination: (payload: {
+			fileName: string;
+			format: "mp4" | "gif" | "mov" | "webm";
+			expectedBytes?: number;
+		}) => Promise<{
+			success: boolean;
+			canceled?: boolean;
+			path?: string;
+			availableBytes?: number;
+			expectedBytes?: number;
+			code?: "unsupported-format" | "insufficient-space" | "not-writable" | "name-conflict";
+			error?: string;
+		}>;
 		finalizeExportedVideo: (payload: {
 			tempPath: string;
 			fileName: string;
@@ -600,6 +613,7 @@ interface Window {
 		saveExportedVideo: (
 			videoData: ArrayBuffer,
 			fileName: string,
+			outputPath?: string | null,
 		) => Promise<{ success: boolean; path?: string; message?: string; canceled?: boolean }>;
 		writeExportedVideoToPath: (
 			videoData: ArrayBuffer,

@@ -18,7 +18,8 @@ release artifacts are built from commit `42a098b` and stored locally at:
 
 The ZIP files in that directory contain the corresponding stapled apps.
 `SHA256SUMS.txt`, blockmaps and `latest-mac.yml` reflect the final bytes.
-Nothing has been published externally.
+The 1.4.0 artifacts were later published at
+https://github.com/globa-me/Screendance-App/releases/tag/v1.4.0.
 
 Keychain profile: `Screendance-notary`. Both app and DMG have Apple status
 `Accepted` and pass Gatekeeper with `source=Notarized Developer ID`.
@@ -166,3 +167,28 @@ PACKAGED_SMOKE_ROOT=release/signed-staging PACKAGED_SMOKE_ARCH_TAGS=darwin-arm64
   validation and Gatekeeper with `source=Notarized Developer ID`.
 - Finalizer and `hdiutil verify` passed for both architectures; blockmaps,
   `latest-mac.yml` and `SHA256SUMS.txt` were regenerated from the final bytes.
+
+## Version 1.5.0 validation — 2026-09-23
+
+- The `Screendance-notary` Keychain profile was confirmed active with
+  `xcrun notarytool history`. An earlier exit 69 was transient.
+- The dual build with `APPLE_KEYCHAIN_PROFILE=Screendance-notary` wrote
+  notarized apps to `release/notarized-v1.5.0/`.
+- App submissions: arm64 `561c0759-4b3e-4225-82e6-b428db05ea3e`, x64
+  `4e3783ae-c39e-49ce-bf29-e13c81d813b5`; both `Accepted`.
+- DMG submissions: arm64 `91e23c0f-97a1-48a0-aae7-3a71d6fe4293`, x64
+  `31d8e335-534a-4562-a485-bb87aa94028a`; both `Accepted` and stapled.
+- `node scripts/finalize-macos-release.mjs release/notarized-v1.5.0` passed
+  signature, stapler and Gatekeeper checks, then refreshed release metadata.
+- `hdiutil verify`, `shasum -a 256 -c SHA256SUMS.txt`, and per-architecture
+  packaged-binary smoke passed. Mounted DMG apps passed deep/strict signature,
+  stapler and Gatekeeper checks. For smoke, set `PACKAGED_SMOKE_ROOT` to
+  `release/notarized-v1.5.0/mac-arm64` or `release/notarized-v1.5.0/mac`, not
+  the common release directory; the two apps contain different `uiohook`
+  architectures.
+- Release details and remaining manual checks: `docs/releases/v1.5.0.md`.
+- The quarantined arm64 app launched under App Translocation on macOS 26.5.
+  Live source selection, an imported-video MP4 export, and a short native
+  screen recording passed. The GitHub release is `v1.5.0`; its body includes
+  `<!-- locally-notarized-release -->` so release CI does not rebuild the
+  already notarized artifacts.

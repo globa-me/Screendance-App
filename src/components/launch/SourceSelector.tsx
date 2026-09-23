@@ -1,6 +1,6 @@
 import * as React from "react";
 import { MonitorIcon, AppWindowIcon, CaretUpIcon } from "@phosphor-icons/react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useScopedT } from "@/contexts/I18nContext";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,9 @@ import {
 } from "./popovers/launchPopoverTypes";
 import "./launchTheme.css";
 import "./SourceSelector.css";
-import { useHudInteraction } from "./contexts/HudInteractionContext";
+import { HudInteractionContext } from "./contexts/HudInteractionContext";
+
+const useSafeLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 interface SourceSelectorProps {
 	/** List of available screen sources */
@@ -39,8 +41,7 @@ interface SourceSelectorProps {
 export function MarqueeText({ text }: { text: string }) {
 	const staticRef = useRef<HTMLSpanElement>(null);
 	const [overflowing, setOverflowing] = useState(false);
-
-	useLayoutEffect(() => {
+	useSafeLayoutEffect(() => {
 		const node = staticRef.current;
 		if (!node) return;
 		const checkOverflow = () => {
@@ -60,7 +61,7 @@ export function MarqueeText({ text }: { text: string }) {
 			<span ref={staticRef} className="source-selector-marquee-static">
 				{text}
 			</span>
-			<span className="source-selector-marquee-animated">
+			<span className="source-selector-marquee-animated" aria-hidden="true">
 				<span className="source-selector-marquee-track">
 					<span className="source-selector-marquee-segment">{text}</span>
 					<span className="source-selector-marquee-segment source-selector-marquee-duplicate">
@@ -68,6 +69,26 @@ export function MarqueeText({ text }: { text: string }) {
 					</span>
 				</span>
 			</span>
+		</div>
+	);
+}
+
+function SourceThumbnail({ source }: { source: DesktopSource }) {
+	const [failed, setFailed] = useState(false);
+	return source.thumbnail && !failed ? (
+		<img
+			src={source.thumbnail}
+			alt=""
+			className="w-12 h-8 rounded-[8px] object-cover bg-black/50"
+			onError={() => setFailed(true)}
+		/>
+	) : (
+		<div className="source-selector-thumb-fallback w-12 h-8 rounded-[8px] flex items-center justify-center" aria-hidden="true">
+			{source.sourceType === "window" ? (
+				<AppWindowIcon className="w-5 h-5 source-selector-muted" />
+			) : (
+				<MonitorIcon className="w-5 h-5 source-selector-muted" />
+			)}
 		</div>
 	);
 }
@@ -96,24 +117,7 @@ export const SourceSelectorContent = ({
 				onClick={() => onSourceSelect(source)}
 			>
 				<div className="relative flex-shrink-0">
-					{source.thumbnail ? (
-						<img
-							src={source.thumbnail}
-							alt=""
-							className="w-12 h-8 rounded-[8px] object-cover bg-black/50"
-							onError={(e) => {
-								(e.target as HTMLImageElement).style.display = "none";
-							}}
-						/>
-					) : (
-						<div className="source-selector-thumb-fallback w-12 h-8 rounded-[8px] flex items-center justify-center">
-							{source.sourceType === "window" ? (
-								<AppWindowIcon className="w-5 h-5 source-selector-muted" />
-							) : (
-								<MonitorIcon className="w-5 h-5 source-selector-muted" />
-							)}
-						</div>
-					)}
+					<SourceThumbnail source={source} />
 				</div>
 
 					<div className="flex-1 min-w-0 flex flex-col items-start text-left">
@@ -342,7 +346,7 @@ export const SourceSelector = React.memo(function SourceSelector({
 		</Button>
 	);
 
-	const { onMouseEnter } = useHudInteraction();
+	const onMouseEnter = useContext(HudInteractionContext)?.onMouseEnter;
 
 	return (
 		<Popover open={open} onOpenChange={onOpenChange} modal={false}>

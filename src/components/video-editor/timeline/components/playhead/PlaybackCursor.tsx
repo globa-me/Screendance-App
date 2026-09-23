@@ -1,6 +1,7 @@
 import { useTimelineContext } from "dnd-timeline";
 import { useEffect, useState, type RefObject } from "react";
 import { cn } from "@/lib/utils";
+import { useScopedT } from "@/contexts/I18nContext";
 import { formatPlayheadTime } from "../../core/time";
 
 interface PlaybackCursorProps {
@@ -21,6 +22,7 @@ export default function PlaybackCursor({
 	isLoading = false,
 }: PlaybackCursorProps) {
 	const { sidebarWidth, direction, range, valueToPixels, pixelsToValue } = useTimelineContext();
+	const t = useScopedT("timeline");
 	const sideProperty = direction === "rtl" ? "right" : "left";
 	const [isDragging, setIsDragging] = useState(false);
 
@@ -87,15 +89,39 @@ export default function PlaybackCursor({
 			}}
 		>
 			<div
-				className="absolute top-0 bottom-0 w-[2px] bg-[#2563EB] shadow-[0_0_10px_rgba(37,99,235,0.5)] cursor-ew-resize pointer-events-auto hover:shadow-[0_0_15px_rgba(37,99,235,0.7)] transition-shadow"
+				role="slider"
+				tabIndex={onSeek ? 0 : -1}
+				aria-label={t("playbackPosition", "Playback position")}
+				aria-valuemin={0}
+				aria-valuemax={Math.round(videoDurationMs / 1000)}
+				aria-valuenow={Math.round(clampedTime / 1000)}
+				aria-valuetext={formatPlayheadTime(clampedTime)}
+				aria-orientation="horizontal"
+				className="group/playhead absolute top-0 bottom-0 -translate-x-1/2 w-4 cursor-ew-resize pointer-events-auto focus-visible:outline-none"
 				style={{ [sideProperty]: `${offset}px` }}
+				onKeyDown={(event) => {
+					if (!onSeek) return;
+					let nextTimeMs: number;
+					const stepMs = event.shiftKey ? 5000 : 1000;
+					switch (event.key) {
+						case "ArrowLeft": nextTimeMs = clampedTime - stepMs; break;
+						case "ArrowRight": nextTimeMs = clampedTime + stepMs; break;
+						case "Home": nextTimeMs = 0; break;
+						case "End": nextTimeMs = videoDurationMs; break;
+						default: return;
+					}
+					event.preventDefault();
+					event.stopPropagation();
+					onSeek(Math.max(0, Math.min(nextTimeMs, videoDurationMs)) / 1000);
+				}}
 				onMouseDown={(e) => {
 					e.stopPropagation();
 					setIsDragging(true);
 				}}
 			>
+				<div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 bg-[#2563EB] shadow-[0_0_10px_rgba(37,99,235,0.5)] group-hover/playhead:shadow-[0_0_15px_rgba(37,99,235,0.7)]" />
 				<div
-					className="absolute -top-1 left-1/2 -translate-x-1/2 hover:scale-125 transition-transform"
+					className="absolute -top-1 left-1/2 -translate-x-1/2 rounded-sm transition-transform hover:scale-125 group-focus-visible/playhead:ring-2 group-focus-visible/playhead:ring-white group-focus-visible/playhead:ring-offset-2 group-focus-visible/playhead:ring-offset-[#2563EB]"
 					style={{ width: "16px", height: "16px" }}
 				>
 					<div className="w-3 h-3 mx-auto mt-[2px] bg-[#2563EB] rotate-45 rounded-sm shadow-lg border border-foreground/20" />

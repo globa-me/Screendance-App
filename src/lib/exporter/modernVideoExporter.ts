@@ -3869,7 +3869,7 @@ export class ModernVideoExporter {
 		this.encoderName = null;
 	}
 
-	cancel(): void {
+	async cancel(): Promise<void> {
 		this.cancelled = true;
 		if (this.streamingDecoder) {
 			this.streamingDecoder.cancel();
@@ -3877,22 +3877,22 @@ export class ModernVideoExporter {
 		if (this.audioProcessor) {
 			this.audioProcessor.cancel();
 		}
-		if (this.alphaWebmMuxer) {
-			void this.alphaWebmMuxer.abortStream();
-		}
+		const cancellations: Promise<unknown>[] = [];
+		if (this.alphaWebmMuxer) cancellations.push(this.alphaWebmMuxer.abortStream());
 		this.disposeNativeH264Encoder();
 
 		const nativeExportSessionId = this.nativeExportSessionId;
 		this.nativeExportSessionId = null;
 		if (nativeExportSessionId && typeof window !== "undefined") {
-			void window.electronAPI?.nativeVideoExportCancel?.(nativeExportSessionId);
+			if (window.electronAPI?.nativeVideoExportCancel) cancellations.push(window.electronAPI.nativeVideoExportCancel(nativeExportSessionId));
 		}
 
 		const nativeStaticLayoutSessionId = this.nativeStaticLayoutSessionId;
 		this.nativeStaticLayoutSessionId = null;
 		if (nativeStaticLayoutSessionId && typeof window !== "undefined") {
-			void window.electronAPI?.nativeStaticLayoutExportCancel?.(nativeStaticLayoutSessionId);
+			if (window.electronAPI?.nativeStaticLayoutExportCancel) cancellations.push(window.electronAPI.nativeStaticLayoutExportCancel(nativeStaticLayoutSessionId));
 		}
+		await Promise.allSettled(cancellations);
 	}
 
 	private cleanup(): void {

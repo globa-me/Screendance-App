@@ -182,9 +182,12 @@
 		"gradient": "Degradado",
 		"wallpaperPreview": "Vista previa del fondo",
 		"uploadCustom": "Subir personalizado",
+		"removeCustom": "Eliminar fondo personalizado",
 		"uploadSuccess": "¡Imagen personalizada subida exitosamente!",
 		"uploadError": "Por favor sube un archivo de imagen JPG o JPEG.",
-		"uploadErrorDescription": "Solo se admiten imágenes JPG y JPEG."
+		"uploadErrorDescription": "Solo se admiten imágenes JPG y JPEG.",
+		"removedCustom": "Fondo eliminado",
+		"undoRemove": "Deshacer"
 	},
 	"export": {
 		"title": "Exportar",
@@ -204,9 +207,9 @@
 		"sizePresetLargeShort": "Gra",
 		"loadProject": "Cargar proyecto",
 		"saveProject": "Guardar proyecto",
-		"transparentBackground": "Alpha channel",
-		"transparentBackgroundHint": "Export WebM with transparent background.",
-		"advanced": "Advanced compatibility",
+		"transparentBackground": "Fondo transparente",
+		"transparentBackgroundHint": "Exportar con fondo transparente en MOV o WebM.",
+		"advanced": "Opciones avanzadas",
 		"pipelineTitle": "Export engine",
 		"pipeline": {
 			"legacy": "Compatibility",
@@ -216,7 +219,8 @@
 		},
 		"exportVideo": "Exportar {{format}}",
 		"reportBug": "Reportar error",
-		"starOnGithub": "Estrella en GitHub"
+		"starOnGithub": "Estrella en GitHub",
+		"alphaFormat": "Formato alfa"
 	},
 	"audio": {
 		"title": "Audio",

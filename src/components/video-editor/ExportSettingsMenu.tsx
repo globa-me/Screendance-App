@@ -100,7 +100,7 @@ export function ExportSettingsMenu({
 			)}
 		>
 			<div className="mb-2 flex items-center justify-between">
-				<span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+				<span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
 					{tSettings("export.title", "Export")}
 				</span>
 			</div>
@@ -122,7 +122,7 @@ export function ExportSettingsMenu({
 								onClick={() => onExportFormatChange?.(option.value)}
 								aria-pressed={isActive}
 								className={cn(
-									"relative flex-1 overflow-hidden rounded-xl border py-2 text-xs font-medium transition-colors",
+									"relative flex-1 overflow-hidden rounded-xl border py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]",
 									isActive
 										? "border-[#2563EB]/50 text-[#2563EB] dark:text-white"
 										: "border-foreground/10 bg-foreground/5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground",
@@ -163,7 +163,7 @@ export function ExportSettingsMenu({
 									type="button"
 									onClick={() => onExportQualityChange?.(option.value)}
 									aria-pressed={isActive}
-									className="relative rounded-lg px-1 py-1 text-[11px] font-medium transition-colors"
+									className="relative rounded-lg px-1 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
 								>
 									{isActive ? (
 										<motion.span
@@ -189,7 +189,7 @@ export function ExportSettingsMenu({
 										{mp4OutputDimensions ? (
 											<span
 												className={cn(
-													"mt-0.5 text-[9px]",
+													"mt-0.5 text-xs",
 													isActive
 														? "text-white/75 dark:text-black/75"
 														: "text-muted-foreground/70",
@@ -204,115 +204,127 @@ export function ExportSettingsMenu({
 							);
 						})}
 					</div>
-					<div className="mb-1 flex items-center justify-between px-1">
-						<span className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70">
-							{tSettings("export.encodingTitle", "Encoding")}
-						</span>
-					</div>
-					<div className="mb-3 grid min-h-10 w-full grid-cols-3 rounded-xl border border-foreground/5 bg-foreground/5 p-0.5">
-						{(
-							[
-								{ value: "fast", label: tSettings("export.encoding.fast", "Fast") },
-								{
-									value: "balanced",
-									label: tSettings("export.encoding.balanced", "Balanced"),
-								},
-								{
-									value: "quality",
-									label: tSettings("export.encoding.quality", "Quality"),
-								},
-							] as const
-						).map((option) => {
-							const isActive = exportEncodingMode === option.value;
-							return (
-								<button
-									key={option.value}
-									type="button"
-									onClick={() => onExportEncodingModeChange?.(option.value)}
-									aria-pressed={isActive}
-									className="relative rounded-lg px-1 py-1 text-[11px] font-medium transition-colors"
-								>
-									{isActive ? (
-										<motion.span
-											layoutId="header-export-encoding-pill"
-											className="absolute inset-0 rounded-lg bg-neutral-800 dark:bg-white"
-											transition={{
-												type: "spring",
-												stiffness: 420,
-												damping: 34,
-											}}
-										/>
-									) : null}
-									<span
-										className={cn(
-											"relative z-10",
-											isActive
-												? "text-white dark:text-black"
-												: "text-muted-foreground hover:text-foreground",
-										)}
-									>
-										{option.label}
-									</span>
-								</button>
-							);
-						})}
-					</div>
-					<div className="mb-1 flex items-center justify-between px-1">
-						<span className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70">
-							{tSettings("export.fpsTitle", "FPS")}
-						</span>
-					</div>
-					<div className="mb-3 grid min-h-10 w-full grid-cols-3 rounded-xl border border-foreground/5 bg-foreground/5 p-0.5">
-						{MP4_FRAME_RATES.map((rate) => {
-							const isActive = mp4FrameRate === rate;
-							return (
-								<button
-									key={rate}
-									type="button"
-									onClick={() => onMp4FrameRateChange?.(rate)}
-									aria-pressed={isActive}
-									className="relative rounded-lg px-1 py-1 text-[11px] font-medium transition-colors"
-								>
-									{isActive ? (
-										<motion.span
-											layoutId="header-export-fps-pill"
-											className="absolute inset-0 rounded-lg bg-neutral-800 dark:bg-white"
-											transition={{
-												type: "spring",
-												stiffness: 420,
-												damping: 34,
-											}}
-										/>
-									) : null}
-									<span
-										className={cn(
-											"relative z-10",
-											isActive
-												? "text-white dark:text-black"
-												: "text-muted-foreground hover:text-foreground",
-										)}
-									>
-										{rate}
-									</span>
-								</button>
-							);
-						})}
-					</div>
 					<button
 						type="button"
 						onClick={() => setShowAdvanced((value) => !value)}
 						aria-expanded={showAdvanced}
-						className="mb-2 flex w-full items-center justify-between rounded-lg px-1 py-1 text-left text-[11px] font-medium text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+						className="mb-2 flex min-h-9 w-full items-center justify-between rounded-lg px-2 text-left text-xs font-medium text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
 					>
-						<span>{tSettings("export.advanced", "Advanced compatibility")}</span>
+						<span>{tSettings("export.advanced", "Advanced settings")}</span>
 						<CaretDown
 							className={`h-3.5 w-3.5 transition-transform ${showAdvanced ? "rotate-180" : ""}`}
 							aria-hidden="true"
 						/>
 					</button>
 					{showAdvanced ? (
+						<div>
+							<div className="mb-1 flex items-center justify-between px-1">
+								<span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/70">
+									{tSettings("export.encodingTitle", "Encoding")}
+								</span>
+							</div>
+							<div className="mb-3 grid min-h-10 w-full grid-cols-3 rounded-xl border border-foreground/5 bg-foreground/5 p-0.5">
+								{(
+									[
+										{
+											value: "fast",
+											label: tSettings("export.encoding.fast", "Fast"),
+										},
+										{
+											value: "balanced",
+											label: tSettings(
+												"export.encoding.balanced",
+												"Balanced",
+											),
+										},
+										{
+											value: "quality",
+											label: tSettings("export.encoding.quality", "Quality"),
+										},
+									] as const
+								).map((option) => {
+									const isActive = exportEncodingMode === option.value;
+									return (
+										<button
+											key={option.value}
+											type="button"
+											onClick={() =>
+												onExportEncodingModeChange?.(option.value)
+											}
+											aria-pressed={isActive}
+											className="relative rounded-lg px-1 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+										>
+											{isActive ? (
+												<motion.span
+													layoutId="header-export-encoding-pill"
+													className="absolute inset-0 rounded-lg bg-neutral-800 dark:bg-white"
+													transition={{
+														type: "spring",
+														stiffness: 420,
+														damping: 34,
+													}}
+												/>
+											) : null}
+											<span
+												className={cn(
+													"relative z-10",
+													isActive
+														? "text-white dark:text-black"
+														: "text-muted-foreground hover:text-foreground",
+												)}
+											>
+												{option.label}
+											</span>
+										</button>
+									);
+								})}
+							</div>
+							<div className="mb-1 flex items-center justify-between px-1">
+								<span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/70">
+									{tSettings("export.fpsTitle", "FPS")}
+								</span>
+							</div>
+							<div className="mb-3 grid min-h-10 w-full grid-cols-3 rounded-xl border border-foreground/5 bg-foreground/5 p-0.5">
+								{MP4_FRAME_RATES.map((rate) => {
+									const isActive = mp4FrameRate === rate;
+									return (
+										<button
+											key={rate}
+											type="button"
+											onClick={() => onMp4FrameRateChange?.(rate)}
+											aria-pressed={isActive}
+											className="relative rounded-lg px-1 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+										>
+											{isActive ? (
+												<motion.span
+													layoutId="header-export-fps-pill"
+													className="absolute inset-0 rounded-lg bg-neutral-800 dark:bg-white"
+													transition={{
+														type: "spring",
+														stiffness: 420,
+														damping: 34,
+													}}
+												/>
+											) : null}
+											<span
+												className={cn(
+													"relative z-10",
+													isActive
+														? "text-white dark:text-black"
+														: "text-muted-foreground hover:text-foreground",
+												)}
+											>
+												{rate}
+											</span>
+										</button>
+									);
+								})}
+							</div>
+						</div>
+					) : null}
+					{showAdvanced ? (
 						<div className="mb-3 rounded-xl border border-foreground/10 bg-foreground/[0.035] p-2">
-							<div className="mb-1 px-1 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70">
+							<div className="mb-1 px-1 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/70">
 								{tSettings("export.pipelineTitle", "Export engine")}
 							</div>
 							<div className="grid min-h-10 w-full grid-cols-2 rounded-lg border border-foreground/5 bg-foreground/5 p-0.5">
@@ -340,7 +352,7 @@ export function ExportSettingsMenu({
 												onExportPipelineModelChange?.(option.value)
 											}
 											aria-pressed={isActive}
-											className="relative rounded-lg px-1 py-1 text-[11px] font-medium transition-colors"
+											className="relative rounded-lg px-1 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
 										>
 											{isActive ? (
 												<motion.span
@@ -367,7 +379,7 @@ export function ExportSettingsMenu({
 									);
 								})}
 							</div>
-							<p className="mt-2 px-1 text-[10px] leading-relaxed text-muted-foreground">
+							<p className="mt-2 px-1 text-xs leading-relaxed text-muted-foreground">
 								{isLegacyModel
 									? tSettings(
 											"export.pipeline.legacyHint",
@@ -383,20 +395,21 @@ export function ExportSettingsMenu({
 
 					<div className="mb-3 flex items-center justify-between px-1">
 						<div className="flex flex-col gap-0.5">
-							<span className="text-[11px] font-semibold text-foreground">
+							<span className="text-xs font-semibold text-foreground">
 								{tSettings("export.transparentBackground", "Alpha channel")}
 							</span>
-							<span className="text-[9px] text-muted-foreground/75 leading-snug">
+							<span className="text-xs text-muted-foreground/75 leading-snug">
 								{tSettings(
 									"export.transparentBackgroundHint",
-									"Export WebM with transparent background.",
+									"Export with a transparent background in MOV or WebM.",
 								)}
 							</span>
 						</div>
 						<Switch
+							aria-label={tSettings("export.transparentBackground", "Alpha channel")}
 							checked={exportTransparentBackground}
 							onCheckedChange={onExportTransparentBackgroundChange}
-							className="scale-75 data-[state=checked]:bg-[#2563EB]"
+							className="data-[state=checked]:bg-[#2563EB]"
 						/>
 					</div>
 
@@ -404,10 +417,10 @@ export function ExportSettingsMenu({
 						<div className="mb-3 rounded-xl border border-foreground/5 bg-foreground/5 p-2 space-y-1.5 animate-in fade-in duration-200">
 							<div className="flex items-center justify-between px-1 py-0.5">
 								<div className="flex flex-col gap-0.5">
-									<span className="text-[10px] font-semibold text-foreground">
+									<span className="text-xs font-semibold text-foreground">
 										{tSettings("export.alphaSafeCanvas", "Safe canvas")}
 									</span>
-									<span className="text-[9px] text-muted-foreground/75 leading-snug">
+									<span className="text-xs text-muted-foreground/75 leading-snug">
 										{tSettings(
 											"export.alphaSafeCanvasHint",
 											"Add transparent margins for motion.",
@@ -415,21 +428,22 @@ export function ExportSettingsMenu({
 									</span>
 								</div>
 								<Switch
+									aria-label={tSettings("export.alphaSafeCanvas", "Safe canvas")}
 									checked={exportAlphaSafeCanvas}
 									onCheckedChange={onExportAlphaSafeCanvasChange}
-									className="scale-75 data-[state=checked]:bg-[#2563EB]"
+									className="data-[state=checked]:bg-[#2563EB]"
 								/>
 							</div>
 							{exportAlphaSafeCanvas && (
 								<div className="space-y-2 rounded-lg bg-foreground/[0.04] px-2 py-2">
 									<div className="flex items-center justify-between">
-										<span className="text-[10px] font-medium text-muted-foreground">
+										<span className="text-xs font-medium text-muted-foreground">
 											{tSettings(
 												"export.alphaSafeCanvasScale",
 												"Canvas size",
 											)}
 										</span>
-										<span className="text-[10px] font-semibold tabular-nums text-foreground">
+										<span className="text-xs font-semibold tabular-nums text-foreground">
 											{alphaSafeCanvasScaleLabel}
 										</span>
 									</div>
@@ -449,18 +463,18 @@ export function ExportSettingsMenu({
 										)}
 										className="py-1"
 									/>
-									<div className="flex justify-between text-[9px] text-muted-foreground/60">
+									<div className="flex justify-between text-xs text-muted-foreground/60">
 										<span>1.25x</span>
 										<span>2.50x</span>
 									</div>
 								</div>
 							)}
 							<div className="flex items-center justify-between px-1">
-								<span className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70">
-									Alpha Format
+								<span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/70">
+									{tSettings("export.alphaFormat", "Alpha format")}
 								</span>
 							</div>
-							<div className="grid min-h-8 w-full grid-cols-2 rounded-lg bg-foreground/5 p-0.5">
+							<div className="grid min-h-10 w-full grid-cols-2 rounded-lg bg-foreground/5 p-0.5">
 								{(
 									[
 										{ value: "mov", label: "ProRes (.mov)" },
@@ -476,7 +490,7 @@ export function ExportSettingsMenu({
 												onExportAlphaFormatChange?.(option.value)
 											}
 											aria-pressed={isActive}
-											className="relative rounded-md py-1 text-[10px] font-medium transition-colors"
+											className="relative rounded-md py-1 text-xs font-medium transition-colors"
 										>
 											{isActive ? (
 												<motion.span
@@ -510,7 +524,7 @@ export function ExportSettingsMenu({
 				<div className="mb-3 space-y-2">
 					<div className="flex items-center gap-2">
 						<LayoutGroup id="header-gif-frame-rate-toggle">
-							<div className="grid h-8 flex-1 grid-cols-4 rounded-xl border border-foreground/5 bg-foreground/5 p-0.5">
+							<div className="grid min-h-10 flex-1 grid-cols-4 rounded-xl border border-foreground/5 bg-foreground/5 p-0.5">
 								{GIF_FRAME_RATES.map((rate) => {
 									const isActive = gifFrameRate === rate.value;
 									return (
@@ -519,7 +533,7 @@ export function ExportSettingsMenu({
 											type="button"
 											onClick={() => onGifFrameRateChange?.(rate.value)}
 											aria-pressed={isActive}
-											className="relative rounded-lg text-[11px] font-medium transition-colors"
+											className="relative rounded-lg text-xs font-medium transition-colors"
 										>
 											{isActive ? (
 												<motion.span
@@ -548,7 +562,7 @@ export function ExportSettingsMenu({
 							</div>
 						</LayoutGroup>
 						<LayoutGroup id="header-gif-size-toggle">
-							<div className="grid h-8 flex-1 grid-cols-3 rounded-xl border border-foreground/5 bg-foreground/5 p-0.5">
+							<div className="grid min-h-10 flex-1 grid-cols-3 rounded-xl border border-foreground/5 bg-foreground/5 p-0.5">
 								{Object.entries(GIF_SIZE_PRESETS).map(([key]) => {
 									const isActive = gifSizePreset === key;
 									return (
@@ -559,7 +573,7 @@ export function ExportSettingsMenu({
 												onGifSizePresetChange?.(key as GifSizePreset)
 											}
 											aria-pressed={isActive}
-											className="relative rounded-lg text-[11px] font-medium transition-colors"
+											className="relative rounded-lg text-xs font-medium transition-colors"
 										>
 											{isActive ? (
 												<motion.span
@@ -602,17 +616,18 @@ export function ExportSettingsMenu({
 						</LayoutGroup>
 					</div>
 					<div className="flex items-center justify-between px-1">
-						<span className="text-[10px] text-muted-foreground/70">
+						<span className="text-xs text-muted-foreground/70">
 							{gifOutputDimensions.width} × {gifOutputDimensions.height}px
 						</span>
 						<div className="flex items-center gap-2">
-							<span className="text-[10px] text-muted-foreground">
+							<span className="text-xs text-muted-foreground">
 								{tSettings("export.loop")}
 							</span>
 							<Switch
+								aria-label={tSettings("export.loop", "Loop")}
 								checked={gifLoop}
 								onCheckedChange={onGifLoopChange}
-								className="scale-75 data-[state=checked]:bg-[#2563EB]"
+								className="data-[state=checked]:bg-[#2563EB]"
 							/>
 						</div>
 					</div>
@@ -640,7 +655,7 @@ export function ExportSettingsMenu({
 			</Button>
 			{exportDisabled && exportDisabledReason ? (
 				<p
-					className="mt-2 px-1 text-[11px] leading-relaxed text-amber-600 dark:text-amber-300"
+					className="mt-2 px-1 text-xs leading-relaxed text-amber-600 dark:text-amber-300"
 					role="status"
 				>
 					{exportDisabledReason}

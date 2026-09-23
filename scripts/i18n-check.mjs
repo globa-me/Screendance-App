@@ -12,6 +12,18 @@ const locales = fs
 	})
 	.sort((left, right) => left.localeCompare(right));
 
+const localeConfig = fs.readFileSync(path.join(root, "src", "i18n", "config.ts"), "utf8");
+const supportedLocalesMatch = localeConfig.match(/export const SUPPORTED_LOCALES = (\[[^\]]+\])/);
+if (!supportedLocalesMatch) {
+	console.error("i18n-check: cannot read SUPPORTED_LOCALES from src/i18n/config.ts");
+	process.exit(1);
+}
+const supportedLocales = JSON.parse(supportedLocalesMatch[1]).sort((left, right) => left.localeCompare(right));
+if (JSON.stringify(locales) !== JSON.stringify(supportedLocales)) {
+	console.error(`i18n-check: locale directories and SUPPORTED_LOCALES differ: directories=${locales.join(",")} configured=${supportedLocales.join(",")}`);
+	process.exit(1);
+}
+
 if (!locales.includes("en")) {
 	console.error('i18n-check: expected base locale directory "en"');
 	process.exit(1);
@@ -56,6 +68,26 @@ const namespaceFiles = fs
 	.sort((left, right) => left.localeCompare(right));
 
 let hasErrors = false;
+const contextSource = fs.readFileSync(path.join(root, "src", "contexts", "I18nContext.tsx"), "utf8");
+const menuSource = fs.readFileSync(path.join(root, "src", "components", "launch", "popovers", "MorePopover.tsx"), "utf8");
+const menuLabels = menuSource.match(/const LOCALE_LABELS:[^=]+ = \{([\s\S]*?)\};/)?.[1] ?? "";
+for (const locale of locales) {
+	const quotedLocale = JSON.stringify(locale);
+	if (!contextSource.includes(`${quotedLocale}: {`) && !contextSource.includes(`${locale}: {`)) {
+		console.error(`i18n-check: ${locale} is missing from I18nContext messages`);
+		hasErrors = true;
+	}
+	if (!menuLabels.includes(`${quotedLocale}:`) && !menuLabels.includes(`${locale}:`)) {
+		console.error(`i18n-check: ${locale} is missing from the language menu`);
+		hasErrors = true;
+	}
+	for (const namespaceFile of namespaceFiles) {
+		if (!contextSource.includes(`/locales/${locale}/${namespaceFile}`)) {
+			console.error(`i18n-check: ${locale}/${namespaceFile} is not imported by I18nContext`);
+			hasErrors = true;
+		}
+	}
+}
 
 for (const namespaceFile of namespaceFiles) {
 	const baseData = loadJson(path.join(baseLocaleDir, namespaceFile));

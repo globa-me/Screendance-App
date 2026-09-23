@@ -140,7 +140,18 @@
 		"completePercent": "{{percent}}% voltooid",
 		"issue": "Exportprobleem",
 		"complete": "Export voltooid",
-		"savedSuccessfully": "Je bestand is succesvol opgeslagen."
+		"savedSuccessfully": "Je bestand is succesvol opgeslagen.",
+		"canceling": "Annuleren…",
+		"canceled": "Export geannuleerd",
+		"savedTo": "Opgeslagen in {{path}}",
+		"revealInFolder": "Toon in map",
+		"alreadyRunning": "Er loopt al een export",
+		"noVideo": "Geen video geladen",
+		"videoNotReady": "Video is nog niet gereed",
+		"destinationUnavailable": "De gekozen map is niet beschikbaar. Kies een andere locatie.",
+		"destinationPrepareFailed": "Kon opslaglocatie niet voorbereiden: {{error}}",
+		"insufficientSpace": "Er is onvoldoende vrije ruimte in de gekozen map.",
+		"nameConflict": "Er bestaat al een bestand met de exportextensie. Kies een andere naam."
 	},
 	"export": {
 		"processingAudioEdits": "Audio verwerken met snelheids-/overlay-bewerkingen"

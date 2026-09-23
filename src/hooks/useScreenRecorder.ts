@@ -1,6 +1,7 @@
 import { fixWebmDuration } from "@fix-webm-duration/fix";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useScopedT } from "@/contexts/I18nContext";
 import { getEffectiveRecordingDurationMs } from "@/lib/mediaTiming";
 import {
 	getVideoExtensionForMimeType,
@@ -301,6 +302,7 @@ async function resolveRecordingMicrophoneDevice(preferredDeviceId?: string) {
 }
 
 export function useScreenRecorder(): UseScreenRecorderReturn {
+	const tLaunch = useScopedT("launch");
 	const [recording, setRecording] = useState(false);
 	const [paused, setPaused] = useState(false);
 	const [starting, setStarting] = useState(false);
@@ -502,14 +504,10 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 		}
 
 		await window.electronAPI.openAccessibilityPreferences();
-		alert(
-			options.startup
-				? "Screendance App also needs Accessibility permission for cursor tracking. System Settings has been opened. After enabling it, quit and reopen Screendance App."
-				: "Accessibility permission is still missing. System Settings has been opened again. Enable it, then quit and reopen Screendance App before recording.",
-		);
+		toast.error(tLaunch(options.startup ? "permissions.accessibilityNeeded" : "permissions.accessibilityMissing"), { duration: 12000 });
 
 		return false;
-	}, []);
+	}, [tLaunch]);
 
 	const selectMimeType = useCallback(() => {
 		return selectRecordingMimeType();
@@ -1487,7 +1485,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 
 					if (state.reason === "window-unavailable" && !hasPromptedForReselect.current) {
 						hasPromptedForReselect.current = true;
-						alert(state.message);
+						toast.error(state.message, { duration: 12000 });
 						await window.electronAPI.openSourceSelector();
 					} else {
 						console.error(state.message);
@@ -1534,7 +1532,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 			const selectedSource =
 				existingSource ?? (platform === "linux" ? LINUX_PORTAL_SOURCE : null);
 			if (!selectedSource) {
-				alert("Please select a source to record");
+				toast.error(tLaunch("permissions.selectSource"));
 				return;
 			}
 			// Persist the synthetic Linux portal sentinel to main so that the
@@ -1805,9 +1803,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 							"System audio capture failed, falling back to video-only:",
 							audioError,
 						);
-						alert(
-							"System audio is not available for this source. Recording will continue without system audio.",
-						);
+						toast.warning(tLaunch("permissions.systemAudioUnavailable"), { duration: 10000 });
 						screenMediaStream = useLinuxPortal
 							? await acquireLinuxPortalStream(false)
 							: await mediaDevices.getUserMedia({
@@ -1844,9 +1840,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 						);
 					} catch (audioError) {
 						console.warn("Failed to get microphone access:", audioError);
-						alert(
-							"Microphone access was denied. Recording will continue without microphone audio.",
-						);
+						toast.warning(tLaunch("permissions.microphoneDenied"), { duration: 10000 });
 						setMicrophoneEnabled(false);
 					}
 				}
@@ -2081,10 +2075,11 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 			window.electronAPI?.setRecordingState(true);
 		} catch (error) {
 			console.error("Failed to start recording:", error);
-			alert(
+			toast.error(
 				error instanceof Error
-					? `Failed to start recording: ${error.message}`
-					: "Failed to start recording",
+					? tLaunch("permissions.failedToStart", undefined, { error: error.message })
+					: tLaunch("permissions.failedToStartGeneric"),
+				{ duration: 12000 },
 			);
 			setRecording(false);
 			setRecordingAudioSources({

@@ -36,6 +36,7 @@
 		"label": "音频"
 	},
 	"addSpeed": "添加变速 (S)",
+	"playbackPosition": "播放位置",
 	"resizeLeft": "向左调整",
 	"resizeRight": "向右调整"
 }

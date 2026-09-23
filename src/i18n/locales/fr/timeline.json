@@ -36,6 +36,7 @@
 		"label": "Audio"
 	},
 	"addSpeed": "Ajouter une vitesse (S)",
+	"playbackPosition": "Position de lecture",
 	"resizeLeft": "Redimensionner vers la gauche",
 	"resizeRight": "Redimensionner vers la droite"
 }

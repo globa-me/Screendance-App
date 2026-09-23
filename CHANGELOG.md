@@ -5,6 +5,34 @@ the fork, see [Recordly](https://github.com/webadderallorg/Recordly/commits/main
 For the complete, browseable history after the fork, see the
 [Screendance commit log](https://github.com/globa-me/Screendance-App/commits/screendance/macos-apple-silicon).
 
+## September 23, 2026 — 1.5.0
+
+This release is available from the
+[Screendance App 1.5.0 release](https://github.com/globa-me/Screendance-App/releases/tag/v1.5.0).
+
+- Fixed the blank standalone source-selection window and added a fallback for
+  unavailable source thumbnails. Animated names are now announced once by
+  screen readers.
+- Enabled the existing Russian translation in language settings and added a
+  registration check for locale files, runtime bundles and the language menu.
+- Improved keyboard access and visible focus for wallpaper choices, editor
+  sections and the timeline playhead. Added keyboard seeking with arrow keys,
+  Shift, Home and End.
+- Added Undo for deleted editor presets and custom wallpapers.
+- Simplified default export settings, increased label and control sizes, and
+  clarified transparent MOV/WebM output.
+- Export now asks for a destination and checks write access and free space
+  before rendering. Progress remains visible in the toolbar; cancellation waits
+  for the exporter to stop. Direct writes use temporary files before replacing
+  an existing result.
+- WebM-to-ProRes conversion now explicitly marks BT.709 color space; a small
+  alpha sample retained transparency in macOS Quick Look verification.
+- Replaced blocking recording alerts with localized notifications.
+
+The 1.5.0 arm64 and x64 apps and DMGs are signed, notarized, stapled and
+verified locally. Validation details are in
+[`docs/releases/v1.5.0.md`](docs/releases/v1.5.0.md).
+
 ## September 16, 2026 — 1.4.0
 
 This release is available from the

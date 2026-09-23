@@ -1,5 +1,6 @@
 import type { ChildProcessByStdio } from "node:child_process";
 import { spawn } from "node:child_process";
+import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { Readable, Writable } from "node:stream";
@@ -146,6 +147,18 @@ export async function moveExportedTempFile(tempPath: string, destinationPath: st
 	}
 }
 
+async function writeExportedDataAtomic(destinationPath: string, data: Buffer): Promise<void> {
+	const partialPath = getPartialExportDestinationPath(destinationPath);
+	try {
+		await fs.mkdir(path.dirname(destinationPath), { recursive: true });
+		await fs.writeFile(partialPath, data);
+		await moveExportedTempFile(partialPath, destinationPath);
+	} catch (error) {
+		await fs.rm(partialPath, { force: true }).catch(() => undefined);
+		throw error;
+	}
+}
+
 type ProcessOutput = {
 	stdout: string;
 	stderr: string;
@@ -188,6 +201,12 @@ export function buildWebmToProResArgs(tempPath: string, destinationPath: string)
 		"4",
 		"-pix_fmt",
 		"yuva444p10le",
+		"-color_primaries",
+		"bt709",
+		"-color_trc",
+		"bt709",
+		"-colorspace",
+		"bt709",
 		"-metadata:s:v:0",
 		"alpha_mode=1",
 		"-alpha_bits",
@@ -490,6 +509,53 @@ function isTempPathSafe(tempPath: string): boolean {
 }
 
 export function registerExportHandlers() {
+	ipcMain.handle(
+		"select-export-destination",
+		async (event, payload: { fileName: string; format: "mp4" | "gif" | "mov" | "webm"; expectedBytes?: number }) => {
+			const format = payload?.format;
+			if (!format || !["mp4", "gif", "mov", "webm"].includes(format)) {
+				return { success: false, code: "unsupported-format", error: "Unsupported export format" };
+			}
+			const fileName = path.basename(payload.fileName || `Screendance export.${format}`);
+			const defaultFileName = ensureFileExtension(fileName, `.${format}`);
+			const parentWindow = BrowserWindow.fromWebContents(event.sender);
+			const options: SaveDialogOptions = {
+				title: "Save Exported Video",
+				defaultPath: path.join(app.getPath("downloads"), defaultFileName),
+				filters: [{ name: format.toUpperCase(), extensions: [format] }],
+				properties: ["createDirectory", "showOverwriteConfirmation"],
+			};
+			const result = parentWindow
+				? await dialog.showSaveDialog(parentWindow, options)
+				: await dialog.showSaveDialog(options);
+			if (result.canceled || !result.filePath) return { success: false, canceled: true };
+			const chosenPath = path.resolve(result.filePath);
+			const destinationPath = ensureFileExtension(chosenPath, `.${format}`);
+			try {
+				if (destinationPath !== chosenPath) {
+					try {
+						await fs.access(destinationPath);
+						return { success: false, code: "name-conflict", error: "A file with the corrected export extension already exists" };
+					} catch (error) {
+						if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+					}
+				}
+				const destinationDir = path.dirname(destinationPath);
+				await fs.access(destinationDir, fsConstants.W_OK);
+				const disk = await fs.statfs(destinationDir);
+				const availableBytes = Number(disk.bavail) * Number(disk.bsize);
+				const expectedBytes = Number.isFinite(payload.expectedBytes)
+					? Math.max(0, Math.floor(payload.expectedBytes ?? 0))
+					: 0;
+				if (expectedBytes > 0 && availableBytes < expectedBytes) {
+					return { success: false, code: "insufficient-space", error: "Not enough free space at the selected destination", availableBytes, expectedBytes };
+				}
+				return { success: true, path: destinationPath, availableBytes, expectedBytes };
+			} catch (error) {
+				return { success: false, code: "not-writable", error: `Selected destination is not writable: ${String(error)}` };
+			}
+		},
+	);
 	ipcMain.handle(
 		"native-video-export-start",
 		async (
@@ -1072,7 +1138,7 @@ export function registerExportHandlers() {
 
 	ipcMain.handle(
 		"save-exported-video",
-		async (event, videoData: ArrayBuffer, fileName: string) => {
+		async (event, videoData: ArrayBuffer, fileName: string, outputPath?: string | null) => {
 			try {
 				const sizeError = getInMemoryExportTooLargeMessage(videoData.byteLength);
 				if (sizeError) {
@@ -1121,9 +1187,11 @@ export function registerExportHandlers() {
 					properties: ["createDirectory", "showOverwriteConfirmation"],
 				};
 
-				const result = parentWindow
-					? await dialog.showSaveDialog(parentWindow, saveDialogOptions)
-					: await dialog.showSaveDialog(saveDialogOptions);
+				const result = outputPath
+					? { canceled: false, filePath: outputPath }
+					: parentWindow
+						? await dialog.showSaveDialog(parentWindow, saveDialogOptions)
+						: await dialog.showSaveDialog(saveDialogOptions);
 
 				if (result.canceled || !result.filePath) {
 					return {
@@ -1150,7 +1218,7 @@ export function registerExportHandlers() {
 						await fs.rm(tempPath, { force: true }).catch(() => undefined);
 					}
 				} else {
-					await fs.writeFile(destinationPath, Buffer.from(videoData));
+					await writeExportedDataAtomic(destinationPath, Buffer.from(videoData));
 				}
 				approveUserPath(destinationPath);
 
@@ -1186,7 +1254,7 @@ export function registerExportHandlers() {
 
 				const resolvedPath = path.resolve(outputPath);
 				await fs.mkdir(path.dirname(resolvedPath), { recursive: true });
-				await fs.writeFile(resolvedPath, Buffer.from(videoData));
+				await writeExportedDataAtomic(resolvedPath, Buffer.from(videoData));
 				approveUserPath(resolvedPath);
 
 				return {

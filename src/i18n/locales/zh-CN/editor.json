@@ -140,7 +140,18 @@
 		"completePercent": "已完成 {{percent}}%",
 		"issue": "导出问题",
 		"complete": "导出完成",
-		"savedSuccessfully": "文件已成功保存。"
+		"savedSuccessfully": "文件已成功保存。",
+		"canceling": "正在取消…",
+		"canceled": "导出已取消",
+		"savedTo": "已保存到 {{path}}",
+		"revealInFolder": "在文件夹中显示",
+		"alreadyRunning": "导出正在进行中",
+		"noVideo": "未加载视频",
+		"videoNotReady": "视频尚未准备就绪",
+		"destinationUnavailable": "所选文件夹不可用。请选择其他位置。",
+		"destinationPrepareFailed": "无法准备保存位置：{{error}}",
+		"insufficientSpace": "所选文件夹的可用空间不足。",
+		"nameConflict": "使用导出扩展名的文件已存在。请选择其他名称。"
 	},
 	"export": {
 		"processingAudioEdits": "正在处理带有速度/叠加编辑的音频"

@@ -182,9 +182,12 @@
 		"gradient": "漸層",
 		"wallpaperPreview": "桌布預覽",
 		"uploadCustom": "上傳自訂圖片",
+		"removeCustom": "刪除自訂背景",
 		"uploadSuccess": "自訂圖片已成功上傳！",
 		"uploadError": "請上傳 JPG 或 JPEG 圖片檔。",
-		"uploadErrorDescription": "僅支援 JPG 與 JPEG 圖片。"
+		"uploadErrorDescription": "僅支援 JPG 與 JPEG 圖片。",
+		"removedCustom": "背景已刪除",
+		"undoRemove": "復原"
 	},
 	"export": {
 		"title": "匯出",
@@ -204,9 +207,9 @@
 		"sizePresetLargeShort": "大",
 		"loadProject": "載入專案",
 		"saveProject": "儲存專案",
-		"transparentBackground": "Alpha channel",
-		"transparentBackgroundHint": "Export WebM with transparent background.",
-		"advanced": "Advanced compatibility",
+		"transparentBackground": "透明背景",
+		"transparentBackgroundHint": "以 MOV 或 WebM 格式匯出透明背景影片。",
+		"advanced": "進階設定",
 		"pipelineTitle": "Export engine",
 		"pipeline": {
 			"legacy": "Compatibility",
@@ -216,7 +219,8 @@
 		},
 		"exportVideo": "匯出 {{format}}",
 		"reportBug": "回報錯誤",
-		"starOnGithub": "在 GitHub 按讚"
+		"starOnGithub": "在 GitHub 按讚",
+		"alphaFormat": "透明通道格式"
 	},
 	"audio": {
 		"title": "音訊",

@@ -182,9 +182,12 @@
 		"gradient": "Градиент",
 		"wallpaperPreview": "Предпросмотр",
 		"uploadCustom": "Загрузить",
+		"removeCustom": "Удалить свой фон",
 		"uploadSuccess": "Изображение загружено.",
 		"uploadError": "Загрузите JPG или JPEG.",
-		"uploadErrorDescription": "Поддерживаются только JPG и JPEG."
+		"uploadErrorDescription": "Поддерживаются только JPG и JPEG.",
+		"removedCustom": "Фон удалён",
+		"undoRemove": "Отменить"
 	},
 	"export": {
 		"title": "Экспорт",
@@ -204,9 +207,9 @@
 		"sizePresetLargeShort": "Бол",
 		"loadProject": "Загрузить проект",
 		"saveProject": "Сохранить проект",
-		"transparentBackground": "Альфа-канал",
-		"transparentBackgroundHint": "Экспорт WebM с прозрачным фоном.",
-		"advanced": "Расширенная совместимость",
+		"transparentBackground": "Прозрачный фон",
+		"transparentBackgroundHint": "Экспорт с прозрачным фоном в MOV или WebM.",
+		"advanced": "Дополнительные настройки",
 		"pipelineTitle": "Движок экспорта",
 		"pipeline": {
 			"legacy": "Совместимость",
@@ -216,7 +219,8 @@
 		},
 		"exportVideo": "Экспортировать {{format}}",
 		"reportBug": "Сообщить об ошибке",
-		"starOnGithub": "Оценить на GitHub"
+		"starOnGithub": "Оценить на GitHub",
+		"alphaFormat": "Формат прозрачного видео"
 	},
 	"audio": {
 		"title": "Аудио",

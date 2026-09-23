@@ -19,7 +19,6 @@ import {
 	SkipForward,
 	Sparkle,
 	ArrowCounterClockwise as Undo2,
-	UserCircle as User,
 	SpeakerLow as Volume1,
 	SpeakerHigh as Volume2,
 	SpeakerX as VolumeX,
@@ -155,8 +154,6 @@ import {
 	APP_HEADER_ICON_BUTTON_CLASS,
 	DebugLogsDialog,
 	FeedbackDialog,
-	openExternalLink,
-	SCREENDANCE_ISSUES_URL,
 } from "./TutorialHelp";
 import TimelineEditor, { type TimelineEditorHandle } from "./timeline/TimelineEditor";
 import { normalizeCursorTelemetry } from "./timeline/zoomSuggestionUtils";
@@ -229,7 +226,7 @@ type PendingExportSave = {
 };
 
 type CancelableExporter = {
-	cancel(): void;
+	cancel(): void | Promise<void>;
 };
 
 const EXPORT_BLOB_STREAM_CHUNK_BYTES = 16 * 1024 * 1024;
@@ -559,6 +556,7 @@ export default function VideoEditor() {
 	const [whisperModelDownloadProgress, setWhisperModelDownloadProgress] = useState(0);
 	const [isGeneratingCaptions, setIsGeneratingCaptions] = useState(false);
 	const [isExporting, setIsExporting] = useState(false);
+	const [isCancellingExport, setIsCancellingExport] = useState(false);
 	const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null);
 	const [exportError, setExportError] = useState<string | null>(null);
 	const [showExportDropdown, setShowExportDropdown] = useState(false);
@@ -637,6 +635,10 @@ export default function VideoEditor() {
 	>("ready");
 	const [recordingAssetMessage, setRecordingAssetMessage] = useState<string | null>(null);
 	const [editorPresets, setEditorPresets] = useState<EditorPreset[]>(initialEditorPresets);
+	const editorPresetsRef = useRef(editorPresets);
+	useEffect(() => {
+		editorPresetsRef.current = editorPresets;
+	}, [editorPresets]);
 	const [activeEditorPresetId, setActiveEditorPresetId] = useState<string | null>(
 		initialLastSelectedEditorPreset?.id ?? null,
 	);
@@ -663,6 +665,10 @@ export default function VideoEditor() {
 	const nextAnnotationIdRef = useRef(1);
 	const nextAnnotationZIndexRef = useRef(1); // Track z-index for stacking order
 	const exporterRef = useRef<CancelableExporter | null>(null);
+	const exportStartInFlightRef = useRef(false);
+	const exportRunPromiseRef = useRef<Promise<void> | null>(null);
+	const exportCancelledRef = useRef(false);
+	const exportSavingRef = useRef(false);
 	const autoSuggestedVideoPathRef = useRef<string | null>(null);
 	const pendingFreshRecordingAutoZoomPathRef = useRef<string | null>(null);
 	const editorHistoryRef = useRef(createEditorHistoryStack());
@@ -1027,6 +1033,7 @@ export default function VideoEditor() {
 			}
 
 			setEditorPresets(nextPresets);
+			editorPresetsRef.current = nextPresets;
 			setActiveEditorPresetId(nextPreset.id);
 			setLastSelectedEditorPresetId(nextPreset.id);
 			saveLastSelectedEditorPresetId(nextPreset.id);
@@ -1047,6 +1054,9 @@ export default function VideoEditor() {
 				return;
 			}
 
+			const originalIndex = editorPresets.findIndex((item) => item.id === presetId);
+			const wasActive = preset.id === activeEditorPresetId;
+			const wasLastSelected = preset.id === lastSelectedEditorPresetId;
 			const nextPresets = editorPresets.filter((item) => item.id !== presetId);
 			if (!saveEditorPresets(nextPresets)) {
 				toast.error(
@@ -1059,10 +1069,11 @@ export default function VideoEditor() {
 			}
 
 			setEditorPresets(nextPresets);
-			if (preset.id === activeEditorPresetId) {
+			editorPresetsRef.current = nextPresets;
+			if (wasActive) {
 				setActiveEditorPresetId(null);
 			}
-			if (preset.id === lastSelectedEditorPresetId) {
+			if (wasLastSelected) {
 				setLastSelectedEditorPresetId(null);
 				saveLastSelectedEditorPresetId(null);
 			}
@@ -1070,6 +1081,29 @@ export default function VideoEditor() {
 				t("editor.presets.toasts.deleted", 'Deleted preset "{{name}}"', {
 					name: preset.name,
 				}),
+				{
+					duration: 10000,
+					action: {
+						label: t("common.actions.undo", "Undo"),
+						onClick: () => {
+							const current = editorPresetsRef.current;
+							if (current.some((item) => item.id === preset.id)) return;
+							const restored = [...current];
+							restored.splice(Math.min(originalIndex, restored.length), 0, preset);
+							if (!saveEditorPresets(restored)) {
+								toast.error(t("editor.presets.errors.saveFailed", "Could not restore the preset."));
+								return;
+							}
+							editorPresetsRef.current = restored;
+							setEditorPresets(restored);
+							if (wasActive) setActiveEditorPresetId((currentId) => currentId ?? preset.id);
+							if (wasLastSelected && loadLastSelectedEditorPresetId() === null) {
+								setLastSelectedEditorPresetId((currentId) => currentId ?? preset.id);
+								saveLastSelectedEditorPresetId(preset.id);
+							}
+						},
+					},
+				},
 			);
 		},
 		[activeEditorPresetId, editorPresets, lastSelectedEditorPresetId, t],
@@ -1327,6 +1361,7 @@ export default function VideoEditor() {
 	]);
 
 	const markExportAsSaving = useCallback(() => {
+		exportSavingRef.current = true;
 		setExportProgress((previous) => ({
 			currentFrame: previous?.totalFrames ?? previous?.currentFrame ?? 1,
 			totalFrames: previous?.totalFrames ?? previous?.currentFrame ?? 1,
@@ -1422,9 +1457,7 @@ export default function VideoEditor() {
 			});
 			const arrayBuffer = await blob.arrayBuffer();
 			return {
-				saveResult: outputPath
-					? await window.electronAPI.writeExportedVideoToPath(arrayBuffer, outputPath)
-					: await window.electronAPI.saveExportedVideo(arrayBuffer, fileName),
+				saveResult: await window.electronAPI.saveExportedVideo(arrayBuffer, fileName, outputPath),
 				pendingSave: {
 					fileName,
 					arrayBuffer,
@@ -4022,14 +4055,6 @@ export default function VideoEditor() {
 				return;
 			}
 
-			if (e.key === "Tab") {
-				// Allow tab only in inputs/textareas
-				if (isEditableTarget) {
-					return;
-				}
-				e.preventDefault();
-			}
-
 			if (matchesShortcut(e, shortcuts.playPause, isMac)) {
 				// Allow space only in inputs/textareas
 				if (isEditableTarget) {
@@ -4074,9 +4099,9 @@ export default function VideoEditor() {
 	}, [selectedAudioId, audioRegions]);
 
 	const showExportSuccessToast = useCallback((filePath: string) => {
-		toast.success(`Exported successfully to ${filePath}`, {
+		toast.success(t("editor.exportStatus.savedTo", "Saved to {{path}}", { path: filePath }), {
 			action: {
-				label: "Show in Folder",
+				label: t("editor.exportStatus.revealInFolder", "Show in Folder"),
 				onClick: async () => {
 					try {
 						const result = await window.electronAPI.revealInFolder(filePath);
@@ -4093,27 +4118,71 @@ export default function VideoEditor() {
 				},
 			},
 		});
-	}, []);
+	}, [t]);
 
 	const handleExport = useCallback(
 		async (settings: ExportSettings) => {
-			if (isExporting) {
-				toast.info("Export is already running");
+			if (isExporting || exportStartInFlightRef.current) {
+				toast.info(t("editor.exportStatus.alreadyRunning", "Export is already running"));
 				return;
 			}
 
 			if (!videoPath) {
-				toast.error("No video loaded");
+				toast.error(t("editor.exportStatus.noVideo", "No video loaded"));
 				return;
 			}
 
 			const video = videoPlaybackRef.current?.video;
 			if (!video) {
-				toast.error("Video not ready");
+				toast.error(t("editor.exportStatus.videoNotReady", "Video is not ready"));
 				return;
+			}
+			exportStartInFlightRef.current = true;
+			const exportFileFormat = settings.format === "gif"
+				? "gif"
+				: settings.transparentBackground
+					? (settings.alphaFormat ?? exportAlphaFormat)
+					: "mp4";
+			const exportFileName = `export-${Date.now()}.${exportFileFormat}`;
+			let selectedOutputPath = smokeExportConfig.enabled ? smokeExportConfig.outputPath : null;
+			if (!smokeExportConfig.enabled) {
+				let destinationSelected = false;
+				try {
+					const width = video.videoWidth || 1920;
+					const height = video.videoHeight || 1080;
+					const frames = Math.max(1, video.duration || duration) *
+						(settings.format === "gif" ? settings.gifConfig?.frameRate ?? 15 : settings.mp4FrameRate ?? mp4FrameRate);
+					const bytesPerPixelPerFrame = exportFileFormat === "mov" ? 0.25 : exportFileFormat === "gif" ? 0.08 : exportFileFormat === "webm" ? 0.04 : 0.025;
+					const expectedBytes = Math.max(64 * 1024 * 1024, Math.ceil(width * height * frames * bytesPerPixelPerFrame));
+					const destination = await window.electronAPI.selectExportDestination({
+						fileName: exportFileName,
+						format: exportFileFormat,
+						expectedBytes,
+					});
+					if (destination.canceled) return;
+					if (!destination.success || !destination.path) {
+						toast.error(
+							destination.code === "insufficient-space"
+								? t("editor.exportStatus.insufficientSpace", "Not enough free space in the selected folder.")
+								: destination.code === "name-conflict"
+									? t("editor.exportStatus.nameConflict", "A file with the export extension already exists. Choose another name.")
+								: t("editor.exportStatus.destinationUnavailable", "Selected folder is unavailable. Choose another location."),
+						);
+						return;
+					}
+					selectedOutputPath = destination.path;
+					destinationSelected = true;
+				} catch (error) {
+					toast.error(t("editor.exportStatus.destinationPrepareFailed", "Could not prepare destination: {{error}}", { error: String(error) }));
+					return;
+				} finally {
+					if (!destinationSelected) exportStartInFlightRef.current = false;
+				}
 			}
 
 			setIsExporting(true);
+			exportCancelledRef.current = false;
+			exportSavingRef.current = false;
 			setExportProgress(null);
 			setExportError(null);
 			clearPendingExportSave();
@@ -4121,10 +4190,10 @@ export default function VideoEditor() {
 			const smokeExportStartedAt = smokeExportConfig.enabled ? performance.now() : null;
 
 			let keepExportDialogOpen = false;
+			const wasPlaying = isPlaying;
+			const restoreTime = video.currentTime;
 
 			try {
-				const wasPlaying = isPlaying;
-				const restoreTime = video.currentTime;
 				if (wasPlaying) {
 					videoPlaybackRef.current?.pause();
 				}
@@ -4243,18 +4312,19 @@ export default function VideoEditor() {
 						},
 					});
 
-					exporterRef.current = gifExporter as unknown as VideoExporter;
-					const result = await gifExporter.export();
+			exporterRef.current = gifExporter as unknown as VideoExporter;
+			if (exportCancelledRef.current) return;
+			const result = await gifExporter.export();
+					if (exportCancelledRef.current) return;
 
 					if (result.success && result.blob) {
-						const timestamp = Date.now();
-						const fileName = `export-${timestamp}.gif`;
+						const fileName = exportFileName;
 						markExportAsSaving();
 
 						const { saveResult, pendingSave } = await saveBlobExport(
 							result.blob,
 							fileName,
-							smokeExportConfig.enabled ? smokeExportConfig.outputPath : null,
+							selectedOutputPath,
 						);
 
 						if (saveResult.canceled) {
@@ -4471,21 +4541,20 @@ export default function VideoEditor() {
 								})
 							: new VideoExporter(exporterConfig);
 
-					exporterRef.current = exporter;
-					const result = await exporter.export();
+				exporterRef.current = exporter;
+			if (exportCancelledRef.current) return;
+				const result = await exporter.export();
+					if (exportCancelledRef.current) {
+						if (result.tempFilePath) await window.electronAPI.discardExportedTemp(result.tempFilePath);
+						return;
+					}
 					const smokeExportElapsedMs =
 						smokeExportStartedAt !== null
 							? Math.round(performance.now() - smokeExportStartedAt)
 							: undefined;
 
 					if (result.success && (result.blob || result.tempFilePath)) {
-						const timestamp = Date.now();
-						const exportFileFormat = isAlphaWebmExport
-							? settings.alphaFormat === "mov"
-								? "mov"
-								: "webm"
-							: "mp4";
-						const fileName = `export-${timestamp}.${exportFileFormat}`;
+						const fileName = exportFileName;
 						markExportAsSaving();
 
 						let saveResult: {
@@ -4503,10 +4572,7 @@ export default function VideoEditor() {
 							saveResult = await window.electronAPI.finalizeExportedVideo({
 								tempPath: result.tempFilePath,
 								fileName,
-								outputPath:
-									smokeExportConfig.enabled && smokeExportConfig.outputPath
-										? smokeExportConfig.outputPath
-										: null,
+								outputPath: selectedOutputPath,
 							});
 							pendingOnCancel = { fileName, tempFilePath: result.tempFilePath };
 						} else if (result.blob) {
@@ -4516,7 +4582,7 @@ export default function VideoEditor() {
 							const blobSave = await saveBlobExport(
 								result.blob,
 								fileName,
-								smokeExportConfig.enabled ? smokeExportConfig.outputPath : null,
+								selectedOutputPath,
 							);
 							saveResult = blobSave.saveResult;
 							pendingOnCancel = blobSave.pendingSave;
@@ -4633,12 +4699,8 @@ export default function VideoEditor() {
 					}
 				}
 
-				if (wasPlaying) {
-					videoPlaybackRef.current?.play();
-				} else {
-					video.currentTime = restoreTime;
-				}
-			} catch (error) {
+				} catch (error) {
+				if (exportCancelledRef.current) return;
 				console.error("Export error:", error);
 				const errorMessage = error instanceof Error ? error.message : "Unknown error";
 				if (smokeExportConfig.enabled) {
@@ -4660,10 +4722,18 @@ export default function VideoEditor() {
 					window.close();
 				}
 			} finally {
+				try {
+					video.currentTime = restoreTime;
+					if (wasPlaying) videoPlaybackRef.current?.play();
+				} catch (restoreError) {
+					console.warn("Could not restore preview after export:", restoreError);
+				}
 				extensionHost.emitEvent({ type: "export:complete" });
 				setIsExporting(false);
+				exportStartInFlightRef.current = false;
+				exportSavingRef.current = false;
 				exporterRef.current = null;
-				setShowExportDropdown(keepExportDialogOpen);
+				setShowExportDropdown(keepExportDialogOpen || exportCancelledRef.current);
 				remountPreview();
 			}
 		},
@@ -4726,6 +4796,7 @@ export default function VideoEditor() {
 			isPlaying,
 			exportQuality,
 			exportAlphaFormat,
+			duration,
 			exportAlphaSafeCanvasScale,
 			desiredMp4SourceDimensions.height,
 			desiredMp4SourceDimensions.width,
@@ -4752,6 +4823,7 @@ export default function VideoEditor() {
 			smokeExportConfig.fps,
 			smokeExportConfig.quality,
 			saveBlobExport,
+			t,
 		],
 	);
 
@@ -4856,6 +4928,10 @@ export default function VideoEditor() {
 			toast.error("No video loaded");
 			return;
 		}
+		if (isExporting) {
+			setShowExportDropdown(true);
+			return;
+		}
 
 		if (hasPendingExportSave) {
 			setShowExportDropdown(true);
@@ -4866,7 +4942,7 @@ export default function VideoEditor() {
 		setExportProgress(null);
 		setExportError(null);
 		setExportedFilePath(undefined);
-	}, [videoPath, hasPendingExportSave]);
+	}, [videoPath, hasPendingExportSave, isExporting]);
 
 	const handleStartExportFromDropdown = useCallback(() => {
 		if (recordingAssetStatus === "assembling") {
@@ -4932,7 +5008,11 @@ export default function VideoEditor() {
 		setExportError(null);
 		setExportedFilePath(undefined);
 		setShowExportDropdown(true);
-		handleExport(settings);
+		const run = handleExport(settings);
+		exportRunPromiseRef.current = run;
+		void run.finally(() => {
+			if (exportRunPromiseRef.current === run) exportRunPromiseRef.current = null;
+		});
 	}, [
 		videoPath,
 		exportFormat,
@@ -4953,18 +5033,24 @@ export default function VideoEditor() {
 		t,
 	]);
 
-	const handleCancelExport = useCallback(() => {
-		if (exporterRef.current) {
-			exporterRef.current.cancel();
-			toast.info("Export canceled");
+	const handleCancelExport = useCallback(async () => {
+		const exporter = exporterRef.current;
+		if (!isExporting || isCancellingExport || exportSavingRef.current) return;
+		exportCancelledRef.current = true;
+		setIsCancellingExport(true);
+		try {
+			if (exporter) await exporter.cancel();
+			await exportRunPromiseRef.current?.catch(() => undefined);
 			clearPendingExportSave();
-			setShowExportDropdown(false);
-			setIsExporting(false);
 			setExportProgress(null);
-			setExportError(null);
 			setExportedFilePath(undefined);
+			setExportError(t("editor.exportStatus.canceled", "Export canceled"));
+			setShowExportDropdown(true);
+			toast.info(t("editor.exportStatus.canceled", "Export canceled"));
+		} finally {
+			setIsCancellingExport(false);
 		}
-	}, [clearPendingExportSave]);
+	}, [clearPendingExportSave, isCancellingExport, isExporting, t]);
 
 	const handleExportDropdownClose = useCallback(() => {
 		clearPendingExportSave();
@@ -5063,13 +5149,6 @@ export default function VideoEditor() {
 		}
 	}, [exportedFilePath]);
 
-	const openLightningIssues = useCallback(async () => {
-		await openExternalLink(
-			SCREENDANCE_ISSUES_URL,
-			t("editor.feedback.openFailed", "Failed to open link."),
-		);
-	}, [t]);
-
 	const isExportSaving = exportProgress?.phase === "saving";
 	const isExportPreparing =
 		isExporting && (!exportProgress || exportProgress.phase === "preparing");
@@ -5094,16 +5173,8 @@ export default function VideoEditor() {
 		!isRenderingAudio;
 	const isExportFinalSaveIndeterminate =
 		isExportMuxingAndSaving && (exportFinalizingPercent ?? 0) >= 98;
-	const isLightningExportInProgress =
-		exportFormat === "mp4" &&
-		exportPipelineModel === "modern" &&
-		(isExporting || exportProgress !== null);
 	const shouldSuspendPreviewRendering =
 		isExporting && exportFormat === "mp4" && exportPipelineModel === "modern";
-	const isLegacyExportInProgress =
-		exportFormat === "mp4" &&
-		exportPipelineModel === "legacy" &&
-		(isExporting || exportProgress !== null);
 	const exportRenderSpeedLabel =
 		!isExportPreparing &&
 		!isExportFinalizing &&
@@ -5539,17 +5610,24 @@ export default function VideoEditor() {
 								type="button"
 								onClick={handleOpenExportDropdown}
 								className="inline-flex h-8 min-w-[112px] items-center justify-center gap-2 rounded-[5px] bg-[#2563EB] px-4.5 text-white transition-colors hover:bg-[#2563EB]/92"
+								aria-live="polite"
 							>
 								<Download className="h-4 w-4" />
 								<span className="text-sm font-semibold tracking-tight">
-									{t("common.actions.export", "Export")}
+									{isCancellingExport
+										? t("editor.exportStatus.canceling", "Canceling…")
+										: isExporting
+											? `${t("editor.exportStatus.exporting", "Exporting")} ${Math.round(exportProgress?.percentage ?? 0)}%`
+											: exportError
+												? t("editor.exportStatus.issue", "Export issue")
+												: t("common.actions.export", "Export")}
 								</span>
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent
 							align="end"
 							sideOffset={10}
-							className="w-[360px] border-none bg-transparent p-0 shadow-none"
+							className="w-[min(400px,calc(100vw-24px))] border-none bg-transparent p-0 shadow-none"
 						>
 							{isExporting ? (
 								<div className="rounded-2xl border border-foreground/10 bg-editor-surface p-4 text-foreground shadow-2xl">
@@ -5564,34 +5642,15 @@ export default function VideoEditor() {
 													"Rendering your file.",
 												)}
 											</p>
-											{isLightningExportInProgress ? (
-												<p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground/70">
-													PLEASE
-													<button
-														type="button"
-														onClick={() => void openLightningIssues()}
-														className="underline decoration-slate-500/70 underline-offset-2 transition-colors hover:text-foreground"
-													>
-														report bugs
-													</button>
-													with Lightning export
-													<span aria-hidden="true">{"\u{1F64F}"}</span>
-												</p>
-											) : null}
-											{isLegacyExportInProgress ? (
-												<p className="mt-1 text-[11px] text-muted-foreground/70">
-													Export too slow? Cancel and try Lightning
-													export!
-												</p>
-											) : null}
 										</div>
 										<Button
 											type="button"
 											variant="outline"
 											onClick={handleCancelExport}
+											disabled={isCancellingExport || isExportSaving}
 											className="h-8 border-red-500/20 bg-red-500/10 px-3 text-xs text-red-400 hover:bg-red-500/20"
 										>
-											{t("common.actions.cancel")}
+											{isCancellingExport ? t("editor.exportStatus.canceling", "Canceling…") : t("common.actions.cancel")}
 										</Button>
 									</div>
 									<div className="h-2 overflow-hidden rounded-full border border-foreground/5 bg-foreground/5">
@@ -5767,8 +5826,9 @@ export default function VideoEditor() {
 										<motion.button
 											type="button"
 											onClick={() => setActiveEffectSection(section.id)}
-											title={section.label}
-											className="group relative flex h-9 w-9 items-center justify-center rounded-lg outline-none focus:outline-none focus-visible:outline-none"
+											aria-label={section.label}
+											aria-pressed={isActive}
+											className="group relative flex h-9 w-9 items-center justify-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 focus-visible:ring-offset-editor-surface"
 											animate={{ opacity: isActive ? 1 : 0.55 }}
 											transition={{ duration: 0.14 }}
 										>
@@ -5797,6 +5857,9 @@ export default function VideoEditor() {
 													weight={isActive ? "fill" : "regular"}
 												/>
 											</motion.span>
+											<span aria-hidden="true" className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-neutral-900 px-2 py-1 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+												{section.label}
+											</span>
 										</motion.button>
 										<div className="ml-1.5 h-1.5 w-1.5 flex-shrink-0">
 											{isActive && (
@@ -5817,19 +5880,6 @@ export default function VideoEditor() {
 									</div>
 								);
 							})}
-							<div className="mt-auto flex flex-col items-center gap-0.5 pt-3">
-								<motion.button
-									type="button"
-									onClick={() => toast.info("Account coming soon")}
-									title="Account"
-									className="group relative flex h-9 w-9 items-center justify-center rounded-lg text-foreground/55 outline-none transition hover:text-foreground focus:outline-none focus-visible:outline-none"
-									whileHover={{ opacity: 1 }}
-									initial={{ opacity: 0.55 }}
-								>
-									<motion.span className="absolute inset-0 rounded-lg bg-foreground/[0.04] opacity-0 transition group-hover:opacity-100" />
-									<User className="relative z-10 h-[22px] w-[22px]" />
-								</motion.button>
-							</div>
 						</div>
 						{/* Panel */}
 						<SettingsPanel

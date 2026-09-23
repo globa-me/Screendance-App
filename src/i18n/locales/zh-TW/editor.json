@@ -140,7 +140,18 @@
 		"completePercent": "已完成 {{percent}}%",
 		"issue": "匯出問題",
 		"complete": "匯出完成",
-		"savedSuccessfully": "檔案已成功保存。"
+		"savedSuccessfully": "檔案已成功保存。",
+		"canceling": "正在取消…",
+		"canceled": "匯出已取消",
+		"savedTo": "已儲存至 {{path}}",
+		"revealInFolder": "在資料夾中顯示",
+		"alreadyRunning": "匯出正在進行中",
+		"noVideo": "未載入影片",
+		"videoNotReady": "影片尚未準備就緒",
+		"destinationUnavailable": "所選資料夾無法使用。請選擇其他位置。",
+		"destinationPrepareFailed": "無法準備儲存位置：{{error}}",
+		"insufficientSpace": "所選資料夾的可用空間不足。",
+		"nameConflict": "使用匯出副檔名的檔案已存在。請選擇其他名稱。"
 	},
 	"export": {
 		"processingAudioEdits": "正在處理帶有速度/疊加編輯的音訊"
