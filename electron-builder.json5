@@ -4,6 +4,7 @@
   "appId": "dev.screendance.app",
   "electronUpdaterCompatibility": ">=2.16",
   "asar": true,
+  "afterSign": "scripts/macos-g2-signing.mjs",
   "asarUnpack": [
     "node_modules/ffmpeg-static/**",
     "node_modules/ffprobe-static/**",
@@ -31,7 +32,9 @@
     "!CONTRIBUTING.md",
     "!LICENSE"
   ],
+  "extraFiles": [{ "from": "dist-automation/native/screendance", "to": "MacOS/screendance" }],
   "extraResources": [
+    { "from": "dist-automation/screendance.mjs", "to": "automation/screendance.mjs" },
     {
       "from": "public/wallpapers",
       "to": "assets/wallpapers"
@@ -41,9 +44,12 @@
     "sign": true
   },
   "mac": {
+    "binaries": ["Contents/MacOS/screendance"],
+    "sign": "scripts/sign-macos-g2.mjs",
     "identity": "Gennadiy Zakharov (BN3D9H4C7J)",
     "forceCodeSigning": true,
     "hardenedRuntime": true,
+    "timestamp": "http://timestamp.apple.com/ts01",
     "entitlements": "build/entitlements.mac.plist",
     "entitlementsInherit": "build/entitlements.mac.inherit.plist",
 	"minimumSystemVersion": "14.0",

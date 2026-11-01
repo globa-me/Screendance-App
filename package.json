@@ -12,10 +12,14 @@
 		"url": "https://github.com/globa-me/Screendance-App/issues"
 	},
 	"private": true,
-	"version": "1.5.0",
+	"version": "1.6.0",
 	"type": "module",
 	"scripts": {
 		"dev": "vite --config vite.config.ts",
+		"dev:automation": "SCREENDANCE_AUTOMATION=1 vite --config vite.config.ts",
+		"build:automation": "node scripts/build-automation.mjs",
+		"automation": "node dist-automation/screendance.mjs",
+		"smoke:automation": "node scripts/smoke-automation.mjs",
 		"postinstall": "node scripts/postinstall.mjs",
 		"build": "npm run build:mac",
 		"lint": "biome check .",
@@ -29,9 +33,11 @@
 		"stage:mac-ffmpeg": "node scripts/stage-macos-ffmpeg.mjs",
 		"build:mac-native-helpers": "MACOS_NATIVE_ARCHS=all WHISPER_RUNTIME_ARCHS=all npm run build:native-helpers && MACOS_NATIVE_ARCHS=all WHISPER_RUNTIME_ARCHS=all npm run build:whisper-runtime",
 		"build:platform-native-helpers": "npm run build:mac-native-helpers",
-		"build:mac": "npm run build:mac-native-helpers && npm run stage:mac-ffmpeg && npm run stage:mac-ffprobe && tsc && vite build --config vite.config.ts && npm run normalize:electron-main-cjs && npm run smoke:electron-main-cjs && electron-builder --mac",
-		"build:mac:arm64": "npm run build:mac-native-helpers && npm run stage:mac-ffmpeg && npm run stage:mac-ffprobe && tsc && vite build --config vite.config.ts && npm run normalize:electron-main-cjs && npm run smoke:electron-main-cjs && electron-builder --mac --arm64",
-		"build:mac:x64": "npm run build:mac-native-helpers && npm run stage:mac-ffmpeg && npm run stage:mac-ffprobe && tsc && vite build --config vite.config.ts && npm run normalize:electron-main-cjs && npm run smoke:electron-main-cjs && electron-builder --mac --x64",
+		"build:mac": "node scripts/build-macos-g2.mjs",
+		"build:mac:package": "npm run build:mac-native-helpers && npm run stage:mac-ffmpeg && npm run stage:mac-ffprobe && npm run build:automation && npm run build:automation:launcher && tsc && vite build --config vite.config.ts && npm run normalize:electron-main-cjs && npm run smoke:electron-main-cjs && electron-builder --mac",
+		"build:mac:g2": "node scripts/build-macos-g2.mjs",
+		"build:mac:arm64": "node scripts/build-macos-g2.mjs --arm64",
+		"build:mac:x64": "node scripts/build-macos-g2.mjs --x64",
 		"i18n:check": "node scripts/i18n-check.mjs",
 		"benchmark:export-queues": "node scripts/benchmark-export-queues.mjs",
 		"normalize:electron-main-cjs": "node scripts/normalize-electron-main-cjs.mjs",
@@ -40,7 +46,8 @@
 		"checksums:release": "node scripts/write-release-checksums.mjs",
 		"release:create": "node scripts/create-release.mjs",
 		"test": "vitest --run",
-		"test:watch": "vitest"
+		"test:watch": "vitest",
+		"build:automation:launcher": "node scripts/build-automation-launcher.mjs"
 	},
 	"dependencies": {
 		"@phosphor-icons/react": "^2.1.10",
@@ -48,12 +55,14 @@
 		"electron-updater": "^6.8.3",
 		"ffmpeg-static": "^5.3.0",
 		"ffprobe-static": "^3.1.0",
-		"uiohook-napi": "^1.5.4"
+		"uiohook-napi": "^1.5.4",
+		"zod": "4.6.7"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.3.13",
 		"@electron/rebuild": "^4.0.3",
 		"@fix-webm-duration/fix": "^1.0.1",
+		"@modelcontextprotocol/sdk": "1.32.1",
 		"@pixi/filter-drop-shadow": "^5.2.0",
 		"@pixi/filter-motion-blur": "^5.1.1",
 		"@radix-ui/react-accordion": "^1.2.12",
@@ -83,6 +92,7 @@
 		"electron-builder": "^26.7.0",
 		"electron-icon-builder": "^2.0.1",
 		"emoji-picker-react": "^4.16.1",
+		"esbuild": "0.21.5",
 		"fast-check": "^4.5.2",
 		"fix-webm-duration": "^1.0.6",
 		"gif.js": "^0.2.0",

@@ -77,6 +77,7 @@ import {
 import { VideoMuxer } from "./muxer";
 import { roundNativeStaticLayoutContentSize } from "./nativeStaticLayoutGeometry";
 import { buildNativeStaticLayoutCursorTelemetry } from "./nativeStaticLayoutTelemetry";
+import { hasSourceAudioEnvelopeEdits } from "./sourceAudioEnvelope";
 import { type DecodedVideoInfo, StreamingVideoDecoder } from "./streamingDecoder";
 import type {
 	ExportConfig,
@@ -144,6 +145,8 @@ interface VideoExporterConfig extends ExportConfig {
 	sourceAudioFallbackPaths?: string[];
 	sourceAudioFallbackStartDelayMsByPath?: Record<string, number>;
 	sourceAudioTrackSettings?: SourceAudioTrackSettings;
+	defaultSourceAudioTrackSettings?: SourceAudioTrackSettings;
+	sourceAudioTrackSettingsByClip?: Record<string, SourceAudioTrackSettings>;
 	previewWidth?: number;
 	previewHeight?: number;
 	onProgress?: (progress: ExportProgress) => void;
@@ -179,15 +182,6 @@ type NativeAudioPlan =
 
 const FILTERGRAPH_FALLBACK_AUDIO_SAMPLE_RATE = 48_000;
 
-function hasNonDefaultSourceTrackSettings(sourceAudioTrackSettings?: SourceAudioTrackSettings) {
-	if (!sourceAudioTrackSettings) {
-		return false;
-	}
-	return Object.values(sourceAudioTrackSettings).some(
-		(settings) =>
-			Math.abs((settings?.volume ?? 1) - 1) > 0.0005 || Boolean(settings?.normalize),
-	);
-}
 const MIN_NATIVE_STATIC_LAYOUT_SPEED = 0.25;
 const MAX_NATIVE_STATIC_LAYOUT_SPEED = 30;
 
@@ -816,6 +810,8 @@ export class ModernVideoExporter {
 									this.config.sourceAudioFallbackStartDelayMsByPath,
 									this.config.sourceAudioTrackSettings,
 									this.config.clipRegions,
+									this.config.sourceAudioTrackSettingsByClip,
+									this.config.defaultSourceAudioTrackSettings,
 								),
 								"audio processing",
 								"audio",
@@ -1720,7 +1716,7 @@ export class ModernVideoExporter {
 			audioRegions.length > 0 ||
 			sourceAudioFallbackPaths.length > 1 ||
 			hasTimedSourceAudioFallback ||
-			hasNonDefaultSourceTrackSettings(this.config.sourceAudioTrackSettings) ||
+			hasSourceAudioEnvelopeEdits(this.config) ||
 			(this.config.clipRegions ?? []).some((clip) => Boolean(clip.muted))
 		) {
 			const sourceDurationMs = Math.max(
@@ -1742,7 +1738,7 @@ export class ModernVideoExporter {
 				Number.isFinite(primaryAudioSourceSampleRate) &&
 				primaryAudioSourceSampleRate > 0;
 			const requiresRenderedEditedTrack =
-				hasNonDefaultSourceTrackSettings(this.config.sourceAudioTrackSettings) ||
+				hasSourceAudioEnvelopeEdits(this.config) ||
 				(this.config.clipRegions ?? []).some((clip) => Boolean(clip.muted));
 			const strategy =
 				canUsePrimaryAudioFiltergraph && !requiresRenderedEditedTrack
@@ -2279,6 +2275,8 @@ export class ModernVideoExporter {
 					this.config.sourceAudioFallbackStartDelayMsByPath,
 					this.config.sourceAudioTrackSettings,
 					this.config.clipRegions,
+					this.config.sourceAudioTrackSettingsByClip,
+					this.config.defaultSourceAudioTrackSettings,
 				),
 				description,
 				"audio",
@@ -3884,13 +3882,19 @@ export class ModernVideoExporter {
 		const nativeExportSessionId = this.nativeExportSessionId;
 		this.nativeExportSessionId = null;
 		if (nativeExportSessionId && typeof window !== "undefined") {
-			if (window.electronAPI?.nativeVideoExportCancel) cancellations.push(window.electronAPI.nativeVideoExportCancel(nativeExportSessionId));
+			if (window.electronAPI?.nativeVideoExportCancel)
+				cancellations.push(
+					window.electronAPI.nativeVideoExportCancel(nativeExportSessionId),
+				);
 		}
 
 		const nativeStaticLayoutSessionId = this.nativeStaticLayoutSessionId;
 		this.nativeStaticLayoutSessionId = null;
 		if (nativeStaticLayoutSessionId && typeof window !== "undefined") {
-			if (window.electronAPI?.nativeStaticLayoutExportCancel) cancellations.push(window.electronAPI.nativeStaticLayoutExportCancel(nativeStaticLayoutSessionId));
+			if (window.electronAPI?.nativeStaticLayoutExportCancel)
+				cancellations.push(
+					window.electronAPI.nativeStaticLayoutExportCancel(nativeStaticLayoutSessionId),
+				);
 		}
 		await Promise.allSettled(cancellations);
 	}

@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import type { AutomationRequest, AutomationResponse } from "../shared/automation";
 import type { RecordingSessionData } from "./ipc/types";
 
 type NativeVideoExportWriteResult = { success: boolean; error?: string };
@@ -152,6 +153,56 @@ function settleNativeVideoExportPendingRequests(
 }
 
 contextBridge.exposeInMainWorld("electronAPI", {
+	onAutomationRequest: (callback: (request: AutomationRequest) => void) => {
+		const listener = (_event: Electron.IpcRendererEvent, request: AutomationRequest) =>
+			callback(request);
+		ipcRenderer.on("automation:request", listener);
+		return () => ipcRenderer.removeListener("automation:request", listener);
+	},
+	sendAutomationResponse: (response: AutomationResponse) =>
+		ipcRenderer.send("automation:response", response),
+	onSystemAutomationRequest: (callback: (request: AutomationRequest) => void) => {
+		const listener = (_event: Electron.IpcRendererEvent, request: AutomationRequest) =>
+			callback(request);
+		ipcRenderer.on("automation:system-request", listener);
+		return () => ipcRenderer.removeListener("automation:system-request", listener);
+	},
+	onSystemAutomationSync: (callback: (payload: Record<string, unknown>) => void) => {
+		const listener = (_event: Electron.IpcRendererEvent, payload: Record<string, unknown>) =>
+			callback(payload);
+		ipcRenderer.on("screendance:system-sync", listener);
+		return () => ipcRenderer.removeListener("screendance:system-sync", listener);
+	},
+	automationSystemReady: () => ipcRenderer.send("automation:system-ready"),
+	onAutomationJobRequest: (
+		callback: (request: import("../shared/jobAutomation").AutomationJobRendererRequest) => void,
+	) => {
+		const listener = (
+			_event: Electron.IpcRendererEvent,
+			request: import("../shared/jobAutomation").AutomationJobRendererRequest,
+		) => callback(request);
+		ipcRenderer.on("automation:job-request", listener);
+		return () => ipcRenderer.removeListener("automation:job-request", listener);
+	},
+	sendAutomationJobEvent: (event: import("../shared/jobAutomation").AutomationJobRendererEvent) =>
+		ipcRenderer.send("automation:job-event", event),
+	automationJobsReady: () => ipcRenderer.send("automation:jobs-ready"),
+	onAutomationJobsChanged: (callback: () => void) => {
+		const listener = () => callback();
+		ipcRenderer.on("automation:jobs-changed", listener);
+		return () => ipcRenderer.removeListener("automation:jobs-changed", listener);
+	},
+	getAutomationJobs: () => ipcRenderer.invoke("automation:jobs-ui", "list"),
+	cancelAutomationJob: (jobId: string) =>
+		ipcRenderer.invoke("automation:jobs-ui", "cancel", jobId),
+	retryAutomationJob: (jobId: string) => ipcRenderer.invoke("automation:jobs-ui", "retry", jobId),
+	saveAutomationJob: (jobId: string) => ipcRenderer.invoke("automation:jobs-ui", "save", jobId),
+	automationReady: () => ipcRenderer.send("automation:ready"),
+	automationRecorderReady: () => ipcRenderer.send("automation:recorder-ready"),
+	automationOpenProject: (requestId: string, filePath: string) =>
+		ipcRenderer.invoke("automation:open-project", requestId, filePath),
+	automationSaveProject: (requestId: string, project: unknown, thumbnail?: string | null) =>
+		ipcRenderer.invoke("automation:save-project", requestId, project, thumbnail),
 	hudOverlaySetIgnoreMouse: (ignore: boolean) => {
 		ipcRenderer.send("hud-overlay-set-ignore-mouse", ignore);
 	},
@@ -495,8 +546,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	) => {
 		return ipcRenderer.invoke("start-native-screen-recording", source, options);
 	},
-	stopNativeScreenRecording: () => {
-		return ipcRenderer.invoke("stop-native-screen-recording");
+	stopNativeScreenRecording: (options?: { discard?: boolean }) => {
+		return ipcRenderer.invoke("stop-native-screen-recording", options);
 	},
 	recoverNativeScreenRecording: () => {
 		return ipcRenderer.invoke("recover-native-screen-recording");

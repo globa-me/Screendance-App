@@ -30,6 +30,7 @@ import { FrameRenderer } from "./frameRenderer";
 import { getLocalFilePath } from "./localMediaSource";
 import type { SupportedMp4EncoderPath } from "./mp4Support";
 import { VideoMuxer } from "./muxer";
+import { hasSourceAudioEnvelopeEdits } from "./sourceAudioEnvelope";
 import { type DecodedVideoInfo, StreamingVideoDecoder } from "./streamingDecoder";
 import type {
 	ExportConfig,
@@ -96,6 +97,8 @@ interface VideoExporterConfig extends ExportConfig {
 	sourceAudioFallbackPaths?: string[];
 	sourceAudioFallbackStartDelayMsByPath?: Record<string, number>;
 	sourceAudioTrackSettings?: SourceAudioTrackSettings;
+	defaultSourceAudioTrackSettings?: SourceAudioTrackSettings;
+	sourceAudioTrackSettingsByClip?: Record<string, SourceAudioTrackSettings>;
 	previewWidth?: number;
 	previewHeight?: number;
 	onProgress?: (progress: ExportProgress) => void;
@@ -124,16 +127,6 @@ type NativeAudioPlan =
 	  };
 
 const FILTERGRAPH_FALLBACK_AUDIO_SAMPLE_RATE = 48_000;
-
-function hasNonDefaultSourceTrackSettings(sourceAudioTrackSettings?: SourceAudioTrackSettings) {
-	if (!sourceAudioTrackSettings) {
-		return false;
-	}
-	return Object.values(sourceAudioTrackSettings).some(
-		(settings) =>
-			Math.abs((settings?.volume ?? 1) - 1) > 0.0005 || Boolean(settings?.normalize),
-	);
-}
 
 export class VideoExporter {
 	private config: VideoExporterConfig;
@@ -414,6 +407,8 @@ export class VideoExporter {
 								this.config.sourceAudioFallbackStartDelayMsByPath,
 								this.config.sourceAudioTrackSettings,
 								this.config.clipRegions,
+								this.config.sourceAudioTrackSettingsByClip,
+								this.config.defaultSourceAudioTrackSettings,
 							),
 							"audio processing",
 							"audio",
@@ -577,7 +572,7 @@ export class VideoExporter {
 			audioRegions.length > 0 ||
 			sourceAudioFallbackPaths.length > 1 ||
 			hasTimedSourceAudioFallback ||
-			hasNonDefaultSourceTrackSettings(this.config.sourceAudioTrackSettings) ||
+			hasSourceAudioEnvelopeEdits(this.config) ||
 			(this.config.clipRegions ?? []).some((clip) => Boolean(clip.muted))
 		) {
 			const sourceDurationMs = Math.max(
@@ -598,16 +593,17 @@ export class VideoExporter {
 				typeof primaryAudioSourceSampleRate === "number" &&
 				Number.isFinite(primaryAudioSourceSampleRate) &&
 				primaryAudioSourceSampleRate > 0;
-			const strategy = canUsePrimaryAudioFiltergraph
-				? classifyEditedTrackStrategy({
-						primaryAudioSourcePath,
-						sourceDurationMs,
-						trimRegions,
-						speedRegions,
-						audioRegions,
-						sourceAudioFallbackPaths,
-					})
-				: "offline-render-fallback";
+			const strategy =
+				canUsePrimaryAudioFiltergraph && !hasSourceAudioEnvelopeEdits(this.config)
+					? classifyEditedTrackStrategy({
+							primaryAudioSourcePath,
+							sourceDurationMs,
+							trimRegions,
+							speedRegions,
+							audioRegions,
+							sourceAudioFallbackPaths,
+						})
+					: "offline-render-fallback";
 
 			if (strategy === "filtergraph-fast-path") {
 				const audioSourcePath = primaryAudioSourcePath;
@@ -867,6 +863,8 @@ export class VideoExporter {
 						this.config.sourceAudioFallbackStartDelayMsByPath,
 						this.config.sourceAudioTrackSettings,
 						this.config.clipRegions,
+						this.config.sourceAudioTrackSettingsByClip,
+						this.config.defaultSourceAudioTrackSettings,
 					),
 					"native edited audio rendering",
 					"audio",
@@ -965,6 +963,8 @@ export class VideoExporter {
 						this.config.sourceAudioFallbackStartDelayMsByPath,
 						this.config.sourceAudioTrackSettings,
 						this.config.clipRegions,
+						this.config.sourceAudioTrackSettingsByClip,
+						this.config.defaultSourceAudioTrackSettings,
 					),
 					"ffmpeg edited audio rendering",
 					"audio",

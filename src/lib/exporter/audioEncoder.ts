@@ -1,20 +1,25 @@
 import { WebDemuxer } from "web-demuxer";
+import { SOURCE_AUDIO_NORMALIZE_GAIN } from "@/components/video-editor/audio/audioTypes";
 import type {
 	AudioRegion,
 	ClipRegion,
-	SpeedRegion,
 	SourceAudioTrackSettings,
+	SpeedRegion,
 	TrimRegion,
 } from "@/components/video-editor/types";
-import {
-	buildResolvedAudioPlan,
-	SourceTrackId,
-} from "@/lib/exporter/audioRoutingEngine";
+import { buildResolvedAudioPlan, SourceTrackId } from "@/lib/exporter/audioRoutingEngine";
 import { estimateCompanionAudioStartDelaySeconds } from "@/lib/mediaTiming";
 import { resolveMediaElementSource } from "./localMediaSource";
 import type { VideoMuxer } from "./muxer";
+import {
+	buildSourceAudioGainRanges,
+	hasSourceAudioEnvelopeEdits,
+	intersectSourceAudioGainRanges,
+	resolveSourceAudioGain,
+	type SourceAudioGainRange,
+	sourceAudioDefaults,
+} from "./sourceAudioEnvelope";
 import { resolveSourceTrackRoutingPolicy } from "./sourceTrackRoutingPolicy";
-import { SOURCE_AUDIO_NORMALIZE_GAIN } from "@/components/video-editor/audio/audioTypes";
 
 const AUDIO_BITRATE = 128_000;
 const DECODE_BACKPRESSURE_LIMIT = 20;
@@ -24,18 +29,6 @@ const MP4_AUDIO_CODEC = "mp4a.40.2";
 const OFFLINE_AUDIO_SAMPLE_RATE = 48_000;
 const OFFLINE_ENCODE_CHUNK_FRAMES = 1024;
 const OFFLINE_CHUNK_DURATION_SEC = 30;
-
-function resolveSourceTrackGain(
-	sourceAudioTrackSettings: SourceAudioTrackSettings | undefined,
-	trackId: "mic" | "system" | "mixed",
-) {
-	const settings = sourceAudioTrackSettings?.[trackId];
-	if (!settings) {
-		return 1;
-	}
-	const normalizeGain = settings.normalize ? SOURCE_AUDIO_NORMALIZE_GAIN : 1;
-	return Math.max(0, Math.min(2, settings.volume * normalizeGain));
-}
 
 export function getSourceTrackIdFromPath(audioPath: string): SourceTrackId {
 	const normalized = audioPath.toLowerCase();
@@ -86,10 +79,19 @@ interface TimelineSlice {
 }
 
 interface PreparedOfflineRender {
-	mainBufferEntry: { buffer: AudioBuffer; gain: number } | null;
-	companionEntries: Array<{ buffer: AudioBuffer; startDelaySec: number; gain: number }>;
+	mainBufferEntry: {
+		buffer: AudioBuffer;
+		gain: number;
+		gainRanges?: SourceAudioGainRange[];
+	} | null;
+	companionEntries: Array<{
+		buffer: AudioBuffer;
+		startDelaySec: number;
+		gain: number;
+		trackId: SourceTrackId;
+		gainRanges?: SourceAudioGainRange[];
+	}>;
 	regionEntries: Array<{ buffer: AudioBuffer; region: AudioRegion }>;
-	mutedSourceOutputRangesSec: Array<{ startSec: number; endSec: number }>;
 	slices: TimelineSlice[];
 	outputDurationMs: number;
 	numChannels: number;
@@ -207,6 +209,8 @@ export class AudioProcessor {
 		sourceAudioFallbackStartDelayMsByPath?: Record<string, number>,
 		sourceAudioTrackSettings?: SourceAudioTrackSettings,
 		clipRegions?: ClipRegion[],
+		sourceAudioTrackSettingsByClip?: Record<string, SourceAudioTrackSettings>,
+		defaultSourceAudioTrackSettings?: SourceAudioTrackSettings,
 	): Promise<void> {
 		const sortedTrims = trimRegions
 			? [...trimRegions].sort((a, b) => a.startMs - b.startMs)
@@ -241,8 +245,12 @@ export class AudioProcessor {
 			sortedSpeedRegions.length > 0 ||
 			sortedAudioRegions.length > 0 ||
 			needsSourceAudioMixing ||
-			hasNonDefaultSourceTrackSettings(sourceAudioTrackSettings) ||
-			(clipRegions ?? []).some((clip) => Boolean(clip.muted))
+			hasSourceAudioEnvelopeEdits({
+				sourceAudioTrackSettings,
+				sourceAudioTrackSettingsByClip,
+				defaultSourceAudioTrackSettings,
+				clipRegions,
+			})
 		) {
 			await this.renderAndMuxOfflineAudio(
 				videoUrl,
@@ -254,6 +262,8 @@ export class AudioProcessor {
 				sourceAudioTrackSettings,
 				clipRegions,
 				muxer,
+				sourceAudioTrackSettingsByClip,
+				defaultSourceAudioTrackSettings,
 			);
 			return;
 		}
@@ -287,6 +297,8 @@ export class AudioProcessor {
 				sourceAudioTrackSettings,
 				clipRegions,
 				muxer,
+				sourceAudioTrackSettingsByClip,
+				defaultSourceAudioTrackSettings,
 			);
 			return;
 		}
@@ -334,6 +346,8 @@ export class AudioProcessor {
 		sourceAudioFallbackStartDelayMsByPath?: Record<string, number>,
 		sourceAudioTrackSettings?: SourceAudioTrackSettings,
 		clipRegions?: ClipRegion[],
+		sourceAudioTrackSettingsByClip?: Record<string, SourceAudioTrackSettings>,
+		defaultSourceAudioTrackSettings?: SourceAudioTrackSettings,
 	): Promise<Blob> {
 		const sortedTrims = trimRegions
 			? [...trimRegions].sort((a, b) => a.startMs - b.startMs)
@@ -361,6 +375,8 @@ export class AudioProcessor {
 			sourceAudioFallbackStartDelayMsByPath,
 			sourceAudioTrackSettings,
 			clipRegions,
+			sourceAudioTrackSettingsByClip,
+			defaultSourceAudioTrackSettings,
 		);
 		return this.renderToWavBlobChunked(prepared);
 	}
@@ -639,6 +655,8 @@ export class AudioProcessor {
 		sourceAudioTrackSettings: SourceAudioTrackSettings | undefined,
 		clipRegions: ClipRegion[] | undefined,
 		muxer: VideoMuxer,
+		sourceAudioTrackSettingsByClip?: Record<string, SourceAudioTrackSettings>,
+		defaultSourceAudioTrackSettings?: SourceAudioTrackSettings,
 	): Promise<void> {
 		const prepared = await this.prepareOfflineRender(
 			videoUrl,
@@ -649,6 +667,8 @@ export class AudioProcessor {
 			sourceAudioFallbackStartDelayMsByPath,
 			sourceAudioTrackSettings,
 			clipRegions,
+			sourceAudioTrackSettingsByClip,
+			defaultSourceAudioTrackSettings,
 		);
 		if (this.cancelled) return;
 		await this.renderAndEncodeChunked(prepared, muxer);
@@ -663,43 +683,37 @@ export class AudioProcessor {
 		sourceAudioFallbackStartDelayMsByPath?: Record<string, number>,
 		sourceAudioTrackSettings?: SourceAudioTrackSettings,
 		clipRegions?: ClipRegion[],
+		sourceAudioTrackSettingsByClip?: Record<string, SourceAudioTrackSettings>,
+		defaultSourceAudioTrackSettings?: SourceAudioTrackSettings,
 	): Promise<PreparedOfflineRender> {
 		if (this.cancelled) throw new Error("Export cancelled");
 		this.onProgress?.(0);
 
+		const envelope = {
+			sourceAudioTrackSettings,
+			sourceAudioTrackSettingsByClip,
+			defaultSourceAudioTrackSettings,
+			clipRegions,
+		};
+		const defaults = sourceAudioDefaults(envelope);
 		const resolvedPlan = buildResolvedAudioPlan({
 			videoResource: videoUrl,
 			sourceAudioFallbackPaths,
 			audioRegions,
-			sourceTrackGainById: {
-				mic: resolveSourceTrackGain(sourceAudioTrackSettings, "mic"),
-				system: resolveSourceTrackGain(sourceAudioTrackSettings, "system"),
-				mixed: resolveSourceTrackGain(sourceAudioTrackSettings, "mixed"),
-			},
-			embeddedGain: Math.max(
-				0,
-				Math.min(
-					2,
-					sourceAudioTrackSettings?.mixed
-						? resolveSourceTrackGain(sourceAudioTrackSettings, "mixed")
-						: sourceAudioTrackSettings?.system
-							? resolveSourceTrackGain(sourceAudioTrackSettings, "system")
-							: 1,
-				),
-			),
 		});
 
 		// Decode embedded source audio separately from companion sidecars.
 		const mainBuffer = resolvedPlan.includeEmbeddedInExport
 			? await this.decodeAudioFromUrl(videoUrl)
 			: null;
-		const mainBufferGain = resolveSourceTrackGain(sourceAudioTrackSettings, "mixed");
-		const mainBufferEntry = mainBuffer ? { buffer: mainBuffer, gain: mainBufferGain } : null;
+		const mainBufferGain = resolveSourceAudioGain(defaults, "embedded");
+		const mainBufferEntry: PreparedOfflineRender["mainBufferEntry"] = mainBuffer
+			? { buffer: mainBuffer, gain: mainBufferGain }
+			: null;
 		if (this.cancelled) throw new Error("Export cancelled");
 
 		// Decode companion / sidecar audio files
-		const companionEntries: Array<{ buffer: AudioBuffer; startDelaySec: number; gain: number }> =
-			[];
+		const companionEntries: PreparedOfflineRender["companionEntries"] = [];
 		const refDuration =
 			mainBuffer?.duration ??
 			(resolvedPlan.playbackPaths.length > 0 ? await this.getMediaDurationSec(videoUrl) : 0);
@@ -710,10 +724,8 @@ export class AudioProcessor {
 
 			companionEntries.push({
 				buffer,
-				gain: resolveSourceTrackGain(
-					sourceAudioTrackSettings,
-					getSourceTrackIdFromPath(audioPath),
-				),
+				trackId: getSourceTrackIdFromPath(audioPath),
+				gain: resolveSourceAudioGain(defaults, getSourceTrackIdFromPath(audioPath)),
 				startDelaySec: estimateCompanionAudioStartDelaySeconds(
 					refDuration,
 					buffer.duration,
@@ -764,24 +776,15 @@ export class AudioProcessor {
 		}
 
 		const numChannels = Math.min(primaryBuffer?.numberOfChannels ?? 2, 2);
-		const mutedSourceOutputRangesSec = (clipRegions ?? [])
-			.filter(
-				(clip) =>
-					Boolean(clip.muted) &&
-					Number.isFinite(clip.startMs) &&
-					Number.isFinite(clip.endMs) &&
-					clip.endMs > clip.startMs,
-			)
-			.map((clip) => ({
-				startSec: Math.max(0, clip.startMs / 1000),
-				endSec: Math.max(0, clip.endMs / 1000),
-			}));
+		if (mainBufferEntry)
+			mainBufferEntry.gainRanges = buildSourceAudioGainRanges(slices, "embedded", envelope);
+		for (const entry of companionEntries)
+			entry.gainRanges = buildSourceAudioGainRanges(slices, entry.trackId, envelope);
 
 		return {
 			mainBufferEntry,
 			companionEntries,
 			regionEntries,
-			mutedSourceOutputRangesSec,
 			slices,
 			outputDurationMs,
 			numChannels,
@@ -915,7 +918,7 @@ export class AudioProcessor {
 					prepared.mainBufferEntry.gain,
 					outputOffsetSec,
 					chunkSec,
-					prepared.mutedSourceOutputRangesSec,
+					prepared.mainBufferEntry.gainRanges,
 				);
 			}
 
@@ -929,7 +932,7 @@ export class AudioProcessor {
 					entry.gain,
 					outputOffsetSec,
 					chunkSec,
-					prepared.mutedSourceOutputRangesSec,
+					entry.gainRanges,
 				);
 			}
 
@@ -1391,7 +1394,7 @@ export class AudioProcessor {
 		gain = 1,
 		chunkOutputStartSec = 0,
 		chunkDurationSec = Number.POSITIVE_INFINITY,
-		mutedOutputRangesSec: Array<{ startSec: number; endSec: number }> = [],
+		gainRanges?: SourceAudioGainRange[],
 	): void {
 		let outputOffsetSec = 0;
 
@@ -1455,30 +1458,14 @@ export class AudioProcessor {
 				continue;
 			}
 
-			const audibleRanges: Array<{ startSec: number; endSec: number }> = [
-				{
-					startSec: localOutputStartSec + chunkOutputStartSec,
-					endSec:
-						localOutputStartSec + chunkOutputStartSec + effectiveSourceDurationSec / slice.speed,
-				},
-			];
-			for (const mutedRange of mutedOutputRangesSec) {
-				for (let rangeIndex = audibleRanges.length - 1; rangeIndex >= 0; rangeIndex -= 1) {
-					const current = audibleRanges[rangeIndex];
-					const overlapStart = Math.max(current.startSec, mutedRange.startSec);
-					const overlapEnd = Math.min(current.endSec, mutedRange.endSec);
-					if (overlapEnd <= overlapStart) {
-						continue;
-					}
-					audibleRanges.splice(rangeIndex, 1);
-					if (current.startSec < overlapStart) {
-						audibleRanges.push({ startSec: current.startSec, endSec: overlapStart });
-					}
-					if (overlapEnd < current.endSec) {
-						audibleRanges.push({ startSec: overlapEnd, endSec: current.endSec });
-					}
-				}
-			}
+			const audibleRanges = intersectSourceAudioGainRanges(
+				localOutputStartSec + chunkOutputStartSec,
+				localOutputStartSec +
+					chunkOutputStartSec +
+					effectiveSourceDurationSec / slice.speed,
+				gainRanges,
+				gain,
+			);
 
 			for (const audibleRange of audibleRanges) {
 				const audibleDurationSec = audibleRange.endSec - audibleRange.startSec;
@@ -1487,11 +1474,12 @@ export class AudioProcessor {
 				}
 				const source = ctx.createBufferSource();
 				const gainNode = ctx.createGain();
-				gainNode.gain.value = Math.max(0, Math.min(2, gain));
+				gainNode.gain.value = Math.max(0, Math.min(2, audibleRange.gain));
 
 				const sourceOffsetSec =
 					effectiveBufferStartSec +
-					(audibleRange.startSec - (localOutputStartSec + chunkOutputStartSec)) * slice.speed;
+					(audibleRange.startSec - (localOutputStartSec + chunkOutputStartSec)) *
+						slice.speed;
 				const localStartSec = audibleRange.startSec - chunkOutputStartSec;
 				const sourceDurationSec = audibleDurationSec * slice.speed;
 
@@ -1543,7 +1531,9 @@ export class AudioProcessor {
 			if (copyLength > 0) {
 				for (let c = 0; c < channels; c++) {
 					outBuffer.copyToChannel(
-						originalBuffer.getChannelData(c).subarray(startSample, startSample + copyLength),
+						originalBuffer
+							.getChannelData(c)
+							.subarray(startSample, startSample + copyLength),
 						c,
 					);
 				}
@@ -1559,7 +1549,7 @@ export class AudioProcessor {
 
 		const workStartIn = Math.max(0, startSample - paddingInSamples);
 		const workEndIn = Math.min(originalBuffer.length, endSample + paddingInSamples);
-		
+
 		const actualPaddingInStart = startSample - workStartIn;
 		// We expect the output offset for the requested start to be roughly:
 		const actualPaddingOutStart = Math.floor(actualPaddingInStart / speed);
@@ -1572,8 +1562,12 @@ export class AudioProcessor {
 		const workOutSamples = Math.floor((workEndIn - workStartIn) / speed) + windowSize * 2;
 		const workOutBuffer = ctx.createBuffer(channels, workOutSamples, sampleRate);
 
-		const inDataByChannel = Array.from({ length: channels }, (_, c) => originalBuffer.getChannelData(c));
-		const workOutDataByChannel = Array.from({ length: channels }, (_, c) => workOutBuffer.getChannelData(c));
+		const inDataByChannel = Array.from({ length: channels }, (_, c) =>
+			originalBuffer.getChannelData(c),
+		);
+		const workOutDataByChannel = Array.from({ length: channels }, (_, c) =>
+			workOutBuffer.getChannelData(c),
+		);
 
 		const window = new Float32Array(windowSize);
 		for (let i = 0; i < windowSize; i++) {
@@ -1587,7 +1581,8 @@ export class AudioProcessor {
 		for (let i = 0; i < windowSize; i++) {
 			if (inOffset + i < workEndIn && outOffset + i < workOutSamples) {
 				for (let c = 0; c < channels; c++) {
-					workOutDataByChannel[c][outOffset + i] += inDataByChannel[c][inOffset + i] * window[i];
+					workOutDataByChannel[c][outOffset + i] +=
+						inDataByChannel[c][inOffset + i] * window[i];
 				}
 			}
 		}
@@ -1609,7 +1604,9 @@ export class AudioProcessor {
 					for (let i = 0; i < hopOut; i += 4) {
 						if (outOffset + i < workOutSamples && testOffset + i < workEndIn) {
 							for (let c = 0; c < channels; c++) {
-								corr += workOutDataByChannel[c][outOffset + i] * inDataByChannel[c][testOffset + i];
+								corr +=
+									workOutDataByChannel[c][outOffset + i] *
+									inDataByChannel[c][testOffset + i];
 							}
 						}
 					}
@@ -1624,7 +1621,8 @@ export class AudioProcessor {
 			for (let i = 0; i < windowSize; i++) {
 				if (bestOffset + i < workEndIn && outOffset + i < workOutSamples) {
 					for (let c = 0; c < channels; c++) {
-						workOutDataByChannel[c][outOffset + i] += inDataByChannel[c][bestOffset + i] * window[i];
+						workOutDataByChannel[c][outOffset + i] +=
+							inDataByChannel[c][bestOffset + i] * window[i];
 					}
 				}
 			}

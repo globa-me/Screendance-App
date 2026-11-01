@@ -322,14 +322,15 @@ ipcMain.on("hud-overlay-hide", () => {
 	}
 });
 
-ipcMain.handle("get-hud-overlay-capture-protection", () => {
+export function getHudOverlayCaptureProtection() {
 	const enabled = loadHudOverlayCaptureProtectionSetting();
 
 	return {
 		success: true,
 		enabled,
 	};
-});
+}
+ipcMain.handle("get-hud-overlay-capture-protection", getHudOverlayCaptureProtection);
 
 ipcMain.handle("get-hud-overlay-mouse-passthrough-supported", () => {
 	return {
@@ -338,7 +339,7 @@ ipcMain.handle("get-hud-overlay-mouse-passthrough-supported", () => {
 	};
 });
 
-ipcMain.handle("set-hud-overlay-capture-protection", (_event, enabled: boolean) => {
+export function setHudOverlayCaptureProtection(enabled: boolean) {
 	loadHudOverlayCaptureProtectionSetting();
 	hudOverlayHiddenFromCapture = Boolean(enabled);
 	persistHudOverlayCaptureProtectionSetting(hudOverlayHiddenFromCapture);
@@ -355,9 +356,15 @@ ipcMain.handle("set-hud-overlay-capture-protection", (_event, enabled: boolean) 
 		success: true,
 		enabled: hudOverlayHiddenFromCapture,
 	};
-});
+}
+ipcMain.handle("set-hud-overlay-capture-protection", (_event, enabled: boolean) =>
+	setHudOverlayCaptureProtection(enabled),
+);
 
-export function createHudOverlayWindow(): BrowserWindow {
+export function createHudOverlayWindow(
+	automation = process.argv.includes("--automation") ||
+		process.env.SCREENDANCE_AUTOMATION === "1",
+): BrowserWindow {
 	loadHudOverlayCaptureProtectionSetting();
 	const initialBounds = getHudOverlayBounds();
 	let hasShownHudWindow = false;
@@ -501,11 +508,12 @@ export function createHudOverlayWindow(): BrowserWindow {
 		}
 	});
 
+	const hudQuery = { windowType: "hud-overlay", ...(automation ? { automation: "1" } : {}) };
 	if (VITE_DEV_SERVER_URL) {
-		win.loadURL(VITE_DEV_SERVER_URL + "?windowType=hud-overlay");
+		win.loadURL(`${VITE_DEV_SERVER_URL}?${new URLSearchParams(hudQuery).toString()}`);
 	} else {
 		win.loadFile(path.join(RENDERER_DIST, "index.html"), {
-			query: { windowType: "hud-overlay" },
+			query: hudQuery,
 		});
 	}
 

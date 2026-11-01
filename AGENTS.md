@@ -1,5 +1,71 @@
 # Agent Notes
 
+## CLI/MCP automation
+
+Stages 1–6 are implemented in source for 1.6.0: 84 commands registered through
+`shared/automation.ts` and the editor/job/system contracts. Read
+`docs/automation/README.md`, `coverage.md` and `validation.md` before extending it.
+Both arm64/x64 apps passed all 16 packaged scenarios with bundled CLI/MCP; x64
+ran via Rosetta on this Apple Silicon Mac. Both apps/DMGs are G2 signed, notarized,
+stapled and Gatekeeper-verified; post-staple ZIP/mounted-DMG QA and all nine final
+checksums passed. The local 1.6.0 build is not published/installed over the user
+app. Read `docs/releases/v1.6.0.md`, automation validation and release-signing
+notes before changing artifacts. Never modify/re-sign a notarized bundle in place.
+
+The live editor owns persisted state. Use `editor.get` snapshots, revision and
+`documentId`; mutations share the UI document controller/full undo history and
+require the expected revision. Pass expected document identity when available.
+Validate/prepare the entire batch before committing once; source-media coordinates
+and clip display spans differ with speed. Path-based saves use main-only prepared
+targets and atomic writes. Only the captured persisted snapshot becomes the saved
+baseline; later edits stay dirty. Preserve legacy project migration, session
+cursor override, current webcam media/offset and preset semantics below.
+
+Export/caption/model jobs are app-owned, durable and independent of MCP clients.
+Freeze document/export/source-audio/media state before work; use the dedicated
+frozen export renderer. Per-clip audio maps must not depend on current selection.
+Caption application checks originating document ID/source/revision and enables
+captions atomically. Restart marks unfinished jobs interrupted; retry is explicit.
+Do not auto-retry ambiguous mutations or overwrite a competing output. Keep the
+retained finished artifact available when publication fails, for `export.save`.
+
+Recorder controls must reuse the complete `useScreenRecorder` pipeline, including
+mic/webcam finalization/recovery, rather than native capture IPC alone. Keep the
+HUD alive after editor handoff. Stop/recover reconcile an existing editor; inspect
+`editor.opened` and warnings. Countdown cancellation settles start even while its
+window loads. Native start returns its owned path; discard-stop preserves prior
+project context and deletes only that take. Automation launches disable passive
+mic/camera previews/prompts; explicit start/permission requests may acquire devices.
+
+System commands reuse direct services/narrow renderer bridges, never arbitrary
+IPC/JS evaluation. Preferences and declared extension settings synchronize live
+windows. Preserve transactional extension install/rollback, trusted marketplace
+archive checks and typed registered setting validation. Hidden marketplace admin
+review endpoints are outside the app-user contract. Close/quit/update installation
+must inspect live dirty/loading/saving/export/caption/recording/job state.
+
+The host is opt-in (`--automation` or `SCREENDANCE_AUTOMATION=1`); development uses
+`npm run dev:automation`. Build the Node22+ development bundle using
+`npm run build:automation`. The packaged universal native launcher at
+`Contents/MacOS/screendance` runs the bundled Electron runtime without external
+Node; `install` creates only its own user symlink and `setup` prints client
+registration commands without applying them. Maintain both macOS architectures.
+
+Real smoke uses generated media and isolated profiles: `npm run smoke:automation`
+and `node scripts/smoke-automation-upgrade.mjs`. Packaged smoke uses
+`SCREENDANCE_SMOKE_APP=/absolute/path/App.app` with restricted CLI/MCP PATH;
+x64 on this Apple Silicon Mac is Rosetta evidence, not physical Intel coverage.
+Never use a person's live profile/projects or log/commit endpoint tokens. Claude
+MCP-only connection/discovery was verified at the user's choice without login;
+model-driven Claude calls were not tested. Upgrade caption smoke uses an explicitly
+fake speech runtime; physical mic/camera/recognition accuracy are separate tests.
+
+When changing automation, run TypeScript and relevant contract/host/editor/jobs/
+recorder/system tests; meaningful export changes require the regression suites
+below. Full current check: `npm test` (1121 tests/107 files at documented run).
+The static PNG uses FrameRenderer: retain source-time/compositor limitations;
+do not claim sequential spring/motion-blur equivalence from a PNG.
+
 ## ProRes Alpha Export Guardrail
 
 Do not change ProRes alpha export without re-checking macOS Quick Look/Finder
@@ -83,3 +149,8 @@ Webcam preset application must preserve the current video's `sourcePath` and
 `timeOffsetMs`; never carry camera media from the video where the preset was
 created. Session-level `hideOverlayCursorByDefault` also remains stronger than a
 preset so native recordings do not display a duplicate cursor.
+
+
+## Local artifact cleanup — 2026-10-27
+
+Owner authorized removing old builds. Unpacked mac/mac-arm64 in notarized-v1.6.0-automation were byte-exact duplicates of retained final ZIPs and were removed; restore both from ZIP before rerunning release finalization. All final ZIP/DMG/blockmaps/update metadata/checksums, installed app and old 1.5 ZIP/DMG remain. Old unpacked1.5 G2 candidates were removed (arm64 was ad hoc packaging output). Removed only exact Chromium cache children under 20 synthetic QA profiles and .tmp FFmpeg/FFprobe staging; profile state, recordings/jobs/reports and canonical node_modules runtimes remain. Source/retained files SHA-verified, installed deep/strict signature passed. Private inventory/recovery: ~/Documents/Codex/maintenance/cleanup-20261027/README.md. Never replay historical cleanup scripts.

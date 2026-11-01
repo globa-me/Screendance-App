@@ -190,6 +190,66 @@ interface RendererNativeVideoMetadataProbe {
 
 interface Window {
 	electronAPI: {
+		onAutomationRequest: (
+			callback: (request: import("../shared/automation").AutomationRequest) => void,
+		) => () => void;
+		sendAutomationResponse: (
+			response: import("../shared/automation").AutomationResponse,
+		) => void;
+		onSystemAutomationRequest: (
+			callback: (request: import("../shared/automation").AutomationRequest) => void,
+		) => () => void;
+		onSystemAutomationSync: (
+			callback: (payload: Record<string, unknown>) => void,
+		) => () => void;
+		automationSystemReady: () => void;
+		onAutomationJobRequest: (
+			callback: (
+				request: import("../shared/jobAutomation").AutomationJobRendererRequest,
+			) => void,
+		) => () => void;
+		sendAutomationJobEvent: (
+			event: import("../shared/jobAutomation").AutomationJobRendererEvent,
+		) => void;
+		automationJobsReady: () => void;
+		onAutomationJobsChanged: (callback: () => void) => () => void;
+		getAutomationJobs: () => Promise<{
+			jobs: import("../shared/jobAutomation").AutomationJobView[];
+		}>;
+		cancelAutomationJob: (
+			jobId: string,
+		) => Promise<import("../shared/jobAutomation").AutomationJobView>;
+		retryAutomationJob: (
+			jobId: string,
+		) => Promise<import("../shared/jobAutomation").AutomationJobView>;
+		saveAutomationJob: (
+			jobId: string,
+		) => Promise<import("../shared/jobAutomation").AutomationJobView | { canceled: true }>;
+		automationReady: () => void;
+		automationRecorderReady: () => void;
+		automationSaveProject: (
+			requestId: string,
+			project: unknown,
+			thumbnail?: string | null,
+		) => Promise<{
+			success: boolean;
+			path?: string;
+			projectId?: string;
+			code?: string;
+			message?: string;
+			details?: unknown;
+		}>;
+		automationOpenProject: (
+			requestId: string,
+			filePath: string,
+		) => Promise<{
+			success: boolean;
+			path?: string;
+			project?: unknown;
+			code?: string;
+			message?: string;
+			error?: string;
+		}>;
 		hudOverlaySetIgnoreMouse: (ignore: boolean) => void;
 		hudOverlayDrag: (phase: "start" | "move" | "end", screenX: number, screenY: number) => void;
 		hudOverlayHide: () => void;
@@ -231,7 +291,7 @@ interface Window {
 			userNotified?: boolean;
 			microphoneFallbackRequired?: boolean;
 		}>;
-		stopNativeScreenRecording: () => Promise<{
+		stopNativeScreenRecording: (options?: { discard?: boolean }) => Promise<{
 			success: boolean;
 			path?: string;
 			message?: string;

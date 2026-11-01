@@ -5,6 +5,31 @@ the fork, see [Recordly](https://github.com/webadderallorg/Recordly/commits/main
 For the complete, browseable history after the fork, see the
 [Screendance commit log](https://github.com/globa-me/Screendance-App/commits/screendance/macos-apple-silicon).
 
+## October 25, 2026 — 1.6.0 (local build)
+
+- Added an opt-in CLI and MCP server with 84 typed commands for recording,
+  project saving, full editor changes, presets, playback, export, captions,
+  speech models, settings, extensions and diagnostics.
+- Bundled a universal native CLI launcher that uses the app's runtime, with
+  user-local installation and Codex/Claude Code setup commands.
+- Added atomic editor batches with revision and document checks, and shared
+  complete undo/redo behavior between UI controls and automation.
+- Added durable background jobs with progress, cancellation, explicit retry
+  and recovery of a completed export when its destination changes. Jobs remain
+  independent of CLI/MCP connections and are visible in the editor footer.
+- Fixed per-clip source audio gain, mute and normalization across trims, speed
+  changes and output chunks. Export no longer depends on the selected clip.
+- Preserved custom motion settings and caption fonts when reopening projects.
+  Caption generation now enables captions when applying its result and refuses
+  to overwrite a changed document.
+- Made extension replacement transactional and guarded marketplace archives,
+  output publication and log reads against path and replacement races.
+- Fixed recording countdown cancellation, finalization/recovery and project
+  handoff behavior while adding automation coverage.
+
+This build has not been published. Build artifacts, validation results and
+remaining manual checks are recorded in [`docs/releases/v1.6.0.md`](docs/releases/v1.6.0.md).
+
 ## September 23, 2026 — 1.5.0
 
 This release is available from the

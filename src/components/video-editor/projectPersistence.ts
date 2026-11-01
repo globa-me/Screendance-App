@@ -19,7 +19,7 @@ import {
 } from "@/lib/exporter/temporalMotionBlur";
 import { DEFAULT_WALLPAPER_PATH } from "@/lib/wallpapers";
 import { ASPECT_RATIOS, type AspectRatio, isCustomAspectRatio } from "@/utils/aspectRatioUtils";
-import { CURSOR_MOTION_PRESETS, resolveCursorMotionPresetId } from "./cursorMotionPresets";
+import { CURSOR_MOTION_PRESETS } from "./cursorMotionPresets";
 import type { SourceAudioTrackSettings } from "@/components/video-editor/audio/audioTypes";
 import {
 	type AnnotationRegion,
@@ -328,7 +328,8 @@ export function validateProjectData(candidate: unknown): candidate is EditorProj
 }
 
 export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): ProjectEditorState {
-	const normalizeTemporalBlurSampleCount = (value: unknown): number => {
+	const normalizeTemporalBlurSampleCount = (value: unknown): number | null => {
+		if (value === null) return null;
 		if (!isFiniteNumber(value)) {
 			return TEMPORAL_MOTION_BLUR_DEFAULT_SAMPLE_COUNT;
 		}
@@ -404,7 +405,7 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 	const normalizedZoomMotionBlurSampleCount = normalizeTemporalBlurSampleCount(
 		(editor as Partial<ProjectEditorState>).zoomMotionBlurSampleCount,
 	);
-	const normalizedZoomMotionBlurShutterFraction = isFiniteNumber(
+	const normalizedZoomMotionBlurShutterFraction = editor.zoomMotionBlurShutterFraction === null ? null : isFiniteNumber(
 		(editor as Partial<ProjectEditorState>).zoomMotionBlurShutterFraction,
 	)
 		? clamp(
@@ -418,7 +419,7 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 		: DEFAULT_MOTION_PRESET.zoomInDurationMs;
 	const normalizedZoomInOverlapMs = isFiniteNumber(editor.zoomInOverlapMs)
 		? clamp(editor.zoomInOverlapMs, 0, normalizedZoomInDurationMs)
-		: DEFAULT_ZOOM_IN_OVERLAP_MS;
+		: Math.min(DEFAULT_ZOOM_IN_OVERLAP_MS, normalizedZoomInDurationMs);
 	const normalizedZoomOutDurationMs = isFiniteNumber(editor.zoomOutDurationMs)
 		? clamp(editor.zoomOutDurationMs, 60, 4000)
 		: DEFAULT_MOTION_PRESET.zoomOutDurationMs;
@@ -752,7 +753,9 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 			rawAutoCaptionSettings.language.trim()
 				? rawAutoCaptionSettings.language.trim()
 				: DEFAULT_AUTO_CAPTION_SETTINGS.language,
-		fontFamily: getDefaultCaptionFontFamily(),
+		fontFamily: typeof rawAutoCaptionSettings.fontFamily === "string" && rawAutoCaptionSettings.fontFamily.trim()
+			? rawAutoCaptionSettings.fontFamily
+			: getDefaultCaptionFontFamily(),
 		fontSize: isFiniteNumber(rawAutoCaptionSettings.fontSize)
 			? clamp(rawAutoCaptionSettings.fontSize, 16, 72)
 			: DEFAULT_AUTO_CAPTION_SETTINGS.fontSize,
@@ -856,8 +859,7 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 				)
 			: DEFAULT_MOTION_PRESET.cursorClickBounceDuration,
 	};
-	const normalizedMotionPreset =
-		CURSOR_MOTION_PRESETS[resolveCursorMotionPresetId(normalizedMotionValues)];
+
 
 	return {
 		wallpaper: typeof editor.wallpaper === "string" ? editor.wallpaper : DEFAULT_WALLPAPER_PATH,
@@ -869,9 +871,9 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 		zoomMotionBlurSampleCount: normalizedZoomMotionBlurSampleCount,
 		zoomMotionBlurShutterFraction: normalizedZoomMotionBlurShutterFraction,
 		connectZooms: typeof editor.connectZooms === "boolean" ? editor.connectZooms : true,
-		zoomInDurationMs: normalizedMotionPreset.zoomInDurationMs,
+		zoomInDurationMs: normalizedMotionValues.zoomInDurationMs,
 		zoomInOverlapMs: normalizedZoomInOverlapMs,
-		zoomOutDurationMs: normalizedMotionPreset.zoomOutDurationMs,
+		zoomOutDurationMs: normalizedMotionValues.zoomOutDurationMs,
 		connectedZoomGapMs: normalizedConnectedZoomGapMs,
 		connectedZoomDurationMs: normalizedConnectedZoomDurationMs,
 		zoomInEasing: normalizeZoomTransitionEasing(editor.zoomInEasing, DEFAULT_ZOOM_IN_EASING),
@@ -883,11 +885,11 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 		showCursor: typeof editor.showCursor === "boolean" ? editor.showCursor : true,
 		loopCursor: typeof editor.loopCursor === "boolean" ? editor.loopCursor : false,
 		cursorStyle: normalizedCursorStyle,
-		cursorSize: normalizedMotionPreset.cursorSize,
-		cursorSmoothing: normalizedMotionPreset.cursorSmoothing,
-		cursorSpringStiffnessMultiplier: normalizedMotionPreset.cursorSpringStiffnessMultiplier,
-		cursorSpringDampingMultiplier: normalizedMotionPreset.cursorSpringDampingMultiplier,
-		cursorSpringMassMultiplier: normalizedMotionPreset.cursorSpringMassMultiplier,
+		cursorSize: normalizedMotionValues.cursorSize,
+		cursorSmoothing: normalizedMotionValues.cursorSmoothing,
+		cursorSpringStiffnessMultiplier: normalizedMotionValues.cursorSpringStiffnessMultiplier,
+		cursorSpringDampingMultiplier: normalizedMotionValues.cursorSpringDampingMultiplier,
+		cursorSpringMassMultiplier: normalizedMotionValues.cursorSpringMassMultiplier,
 		cameraSpringStiffnessMultiplier: isFiniteNumber(editor.cameraSpringStiffnessMultiplier)
 			? clamp(editor.cameraSpringStiffnessMultiplier, 0.25, 3)
 			: 1,
@@ -900,9 +902,9 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 		zoomSmoothness: normalizedMotionValues.zoomSmoothness,
 		zoomClassicMode:
 			typeof editor.zoomClassicMode === "boolean" ? editor.zoomClassicMode : false,
-		cursorMotionBlur: normalizedMotionPreset.cursorMotionBlur,
-		cursorClickBounce: normalizedMotionPreset.cursorClickBounce,
-		cursorClickBounceDuration: normalizedMotionPreset.cursorClickBounceDuration,
+		cursorMotionBlur: normalizedMotionValues.cursorMotionBlur,
+		cursorClickBounce: normalizedMotionValues.cursorClickBounce,
+		cursorClickBounceDuration: normalizedMotionValues.cursorClickBounceDuration,
 		cursorSway: isFiniteNumber((editor as Partial<ProjectEditorState>).cursorSway)
 			? clamp((editor as Partial<ProjectEditorState>).cursorSway as number, 0, 2)
 			: DEFAULT_CURSOR_SWAY,

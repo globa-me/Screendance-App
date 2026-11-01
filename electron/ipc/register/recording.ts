@@ -648,7 +648,7 @@ export function registerRecordingHandlers(
 						microphonePath,
 						processOutput: captureOutput.trim() || undefined,
 					});
-					return { success: true, microphoneFallbackRequired };
+					return { success: true, path: outputPath, microphoneFallbackRequired };
 				} catch (error) {
 					recordNativeCaptureDiagnostics({
 						backend: "windows-wgc",
@@ -844,7 +844,7 @@ export function registerRecordingHandlers(
 					microphonePath: nativeCaptureMicrophonePath,
 					processOutput: captureOutput.trim() || undefined,
 				});
-				return { success: true, microphoneFallbackRequired: micUnavailableNatively };
+				return { success: true, path: outputPath, microphoneFallbackRequired: micUnavailableNatively };
 			} catch (error) {
 				console.error("Failed to start native ScreenCaptureKit recording:", error);
 				const errorStr = String(error);
@@ -955,7 +955,7 @@ export function registerRecordingHandlers(
 		},
 	);
 
-	ipcMain.handle("stop-native-screen-recording", async () => {
+	ipcMain.handle("stop-native-screen-recording", async (_event, options?: { discard?: boolean }) => {
 		const start = Date.now();
 		console.log("[PERF:MAIN] Handler: stop-native-screen-recording: STARTED");
 		try {
@@ -1223,7 +1223,7 @@ export function registerRecordingHandlers(
 					console.log("[stop-native] No separate audio tracks to mux");
 				}
 
-				return await finalizeStoredVideo(finalVideoPath);
+				return await finalizeStoredVideo(finalVideoPath, { preserveProjectContext: options?.discard === true });
 			} catch (error) {
 				console.error("Failed to stop native ScreenCaptureKit recording:", error);
 				const fallbackPath = nativeCaptureTargetPath;
@@ -1280,7 +1280,7 @@ export function registerRecordingHandlers(
 								);
 							}
 						}
-						return await finalizeStoredVideo(fallbackPath);
+						return await finalizeStoredVideo(fallbackPath, { preserveProjectContext: options?.discard === true });
 					} catch {
 						// File doesn't exist or isn't accessible
 					}

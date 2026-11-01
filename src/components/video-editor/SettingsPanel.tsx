@@ -999,6 +999,11 @@ export function SettingsPanel({
 	const [customImages, setCustomImages] = useState<string[]>(
 		initialEditorPreferences.customWallpapers,
 	);
+	useEffect(() => {
+		const refresh = () => setCustomImages(loadEditorPreferences().customWallpapers);
+		window.addEventListener("screendance:assets-changed", refresh);
+		return () => window.removeEventListener("screendance:assets-changed", refresh);
+	}, []);
 	const removeBackgroundStateRef = useRef<{
 		aspectRatio: AspectRatio;
 		padding: Padding;

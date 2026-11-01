@@ -1,13 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
-import { app, ipcMain, clipboard } from "electron";
+import { app, clipboard, ipcMain } from "electron";
 
 let logFilePath: string | null = null;
 let originalLog: typeof console.log;
 let originalWarn: typeof console.warn;
 let originalError: typeof console.error;
 
-function getLogFilePath(): string {
+export function getLogFilePath(): string {
 	if (!logFilePath) {
 		logFilePath = path.join(app.getPath("userData"), "screendance.log");
 	}
@@ -19,7 +19,11 @@ export function initializeLogger() {
 
 	// Clear the log file on startup to prevent it from growing indefinitely
 	try {
-		fs.writeFileSync(logFile, `=== Screendance App Logs Started at ${new Date().toISOString()} ===\n`, "utf-8");
+		fs.writeFileSync(
+			logFile,
+			`=== Screendance App Logs Started at ${new Date().toISOString()} ===\n`,
+			"utf-8",
+		);
 	} catch (err) {
 		process.stderr.write(`Failed to initialize log file at ${logFile}: ${err}\n`);
 	}
@@ -92,21 +96,34 @@ export function registerLoggingIpcHandlers() {
 		}
 	});
 
-	ipcMain.handle("clear-app-logs", async () => {
-		const logFile = getLogFilePath();
-		try {
-			await fs.promises.writeFile(
-				logFile,
-				`=== Logs Cleared at ${new Date().toISOString()} ===\n`,
-				"utf-8",
-			);
-			return { success: true };
-		} catch (err) {
-			return { success: false, error: String(err) };
-		}
-	});
+	ipcMain.handle("clear-app-logs", clearAppLogs);
 
 	ipcMain.handle("write-clipboard-text", async (_, text: string) => {
 		clipboard.writeText(text);
 	});
+}
+
+export async function clearAppLogs() {
+	try {
+		const file = await fs.promises.open(
+			getLogFilePath(),
+			fs.constants.O_WRONLY |
+				fs.constants.O_CREAT |
+				fs.constants.O_NOFOLLOW |
+				fs.constants.O_NONBLOCK,
+			0o600,
+		);
+		try {
+			if (!(await file.stat()).isFile())
+				throw new Error("Application log is not a regular file.");
+			await file.truncate(0);
+			await file.writeFile(`=== Logs Cleared at ${new Date().toISOString()} ===\n`, "utf8");
+			await file.sync();
+		} finally {
+			await file.close();
+		}
+		return { success: true };
+	} catch (error) {
+		return { success: false, error: String(error) };
+	}
 }

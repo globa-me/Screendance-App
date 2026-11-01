@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { verifyG2Signature } from "./macos-g2-signing.mjs";
 
 const require = createRequire(import.meta.url);
 const yaml = require("js-yaml");
@@ -27,6 +28,8 @@ if (candidates.length === 0) {
 
 // Fail closed: never generate release metadata for an unnotarized candidate.
 for (const { app, dmg } of candidates) {
+	verifyG2Signature(app);
+	verifyG2Signature(dmg);
 	run("codesign", ["--verify", "--deep", "--strict", app]);
 	run("codesign", ["--verify", "--strict", dmg]);
 	for (const file of [app, dmg]) run("xcrun", ["stapler", "validate", file]);

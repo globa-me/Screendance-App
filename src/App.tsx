@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useSystemAutomation } from "./automation/useSystemAutomation";
+import { JobsPanel } from "./components/automation/JobsPanel";
 import { CountdownOverlay } from "./components/countdown/CountdownOverlay";
 import { LaunchWindow } from "./components/launch/LaunchWindow";
 import { SourceSelector } from "./components/launch/SourceSelector";
@@ -11,6 +13,15 @@ import { ShortcutsProvider } from "./contexts/ShortcutsContext";
 import { loadAllCustomFonts } from "./lib/customFonts";
 
 export default function App() {
+	return (
+		<ShortcutsProvider>
+			<AppContent />
+		</ShortcutsProvider>
+	);
+}
+
+function AppContent() {
+	useSystemAutomation();
 	const [windowType, setWindowType] = useState("");
 	const { t } = useI18n();
 	const isMacOS = /mac/i.test(navigator.platform);
@@ -47,7 +58,7 @@ export default function App() {
 		loadAllCustomFonts().catch((error) => {
 			console.error("Failed to load custom fonts:", error);
 		});
-	}, []);
+	}, [isMacOS]);
 
 	useEffect(() => {
 		document.title =
@@ -72,10 +83,13 @@ export default function App() {
 			return <UpdateToastWindow />;
 		case "editor":
 			return (
-				<ShortcutsProvider>
-					<VideoEditor />
+				<div className="flex h-screen min-h-0 flex-col overflow-hidden">
+					<div className="min-h-0 flex-1">
+						<VideoEditor />
+					</div>
 					<ShortcutsConfigDialog />
-				</ShortcutsProvider>
+					<JobsPanel />
+				</div>
 			);
 		default:
 			return (

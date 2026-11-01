@@ -128,6 +128,15 @@ export function useLaunchWindowSystemState(
 			setHideHudFromCapture(!nextValue);
 		}
 	}, [hideHudFromCapture]);
+	useEffect(() => {
+		const onChange = (event: Event) => {
+			const value = (event as CustomEvent<{ captureProtection: unknown }>).detail
+				?.captureProtection;
+			if (typeof value === "boolean") setHideHudFromCapture(value);
+		};
+		window.addEventListener("screendance:hud-settings", onChange);
+		return () => window.removeEventListener("screendance:hud-settings", onChange);
+	}, []);
 
 	return {
 		recordingsDirectory,

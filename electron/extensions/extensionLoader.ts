@@ -9,10 +9,12 @@
  * permission-gated host API exposed by the renderer.
  */
 
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { app } from "electron";
+import { replaceExtensionDirectory } from "./atomicInstall";
 import type { ExtensionInfo, ExtensionManifest, ExtensionStatus } from "./extensionTypes";
 
 const EXTENSIONS_DIR_NAME = "extensions";
@@ -79,7 +81,19 @@ async function writePersistedExtensionStatuses(
 ): Promise<void> {
 	const stateFile = getExtensionStateFilePath();
 	await fs.mkdir(path.dirname(stateFile), { recursive: true });
-	await fs.writeFile(stateFile, JSON.stringify(statuses, null, 2), "utf-8");
+	const temporary = path.join(path.dirname(stateFile), `.extension-state-${randomUUID()}.tmp`);
+	try {
+		const file = await fs.open(temporary, "wx", 0o600);
+		try {
+			await file.writeFile(JSON.stringify(statuses, null, 2), "utf8");
+			await file.sync();
+		} finally {
+			await file.close();
+		}
+		await fs.rename(temporary, stateFile);
+	} finally {
+		await fs.rm(temporary, { force: true });
+	}
 }
 
 async function updatePersistedExtensionStatus(
@@ -183,6 +197,7 @@ async function scanExtensionsIn(directory: string, builtin: boolean): Promise<Ex
 	}
 
 	for (const entry of entries) {
+		if (entry.startsWith(".")) continue;
 		const extDir = path.join(directory, entry);
 
 		// Skip non-directories (lstat — don't follow symlinks)
@@ -350,13 +365,7 @@ export async function installExtensionFromPath(sourcePath: string): Promise<Exte
 	if (!manifest) return null;
 
 	const targetDir = path.join(getExtensionsDirectory(), manifest.id);
-
-	// Remove existing version if present
-	if (existsSync(targetDir)) {
-		await fs.rm(targetDir, { recursive: true, force: true });
-	}
-
-	await fs.cp(sourcePath, targetDir, { recursive: true });
+	await fs.mkdir(getExtensionsDirectory(), { recursive: true });
 
 	const info: ExtensionInfo = {
 		manifest,
@@ -364,8 +373,25 @@ export async function installExtensionFromPath(sourcePath: string): Promise<Exte
 		path: targetDir,
 	};
 
-	extensionRegistry.set(manifest.id, info);
-	await updatePersistedExtensionStatus(manifest.id, "installed");
+	await replaceExtensionDirectory(
+		sourcePath,
+		targetDir,
+		async (staging) => {
+			const stagedManifest = validateManifest(
+				JSON.parse(await fs.readFile(path.join(staging, MANIFEST_FILE_NAME), "utf8")),
+				staging,
+			);
+			if (!stagedManifest || stagedManifest.id !== manifest.id)
+				throw new Error("Extension manifest changed during installation.");
+			const entry = await fs.lstat(path.resolve(staging, stagedManifest.main));
+			if (!entry.isFile() || entry.isSymbolicLink())
+				throw new Error("Extension entry point must be a regular file.");
+		},
+		async () => {
+			await updatePersistedExtensionStatus(manifest.id, "installed");
+			extensionRegistry.set(manifest.id, info);
+		},
+	);
 	return info;
 }
 

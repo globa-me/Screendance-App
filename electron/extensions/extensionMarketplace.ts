@@ -8,7 +8,7 @@
 import { createWriteStream, existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { Readable } from "node:stream";
+import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import { app } from "electron";
@@ -34,10 +34,18 @@ const REQUEST_TIMEOUT_MS = 15_000;
 // real path escapes the root.
 // ---------------------------------------------------------------------------
 
-async function assertNoEscapedFiles(dir: string, root: string): Promise<void> {
+async function assertNoEscapedFiles(
+	dir: string,
+	root: string,
+	totals = { files: 0, bytes: 0 },
+): Promise<void> {
 	const entries = await fs.readdir(dir, { withFileTypes: true });
 	for (const entry of entries) {
 		const entryPath = path.join(dir, entry.name);
+		const stat = await fs.lstat(entryPath);
+		totals.bytes += stat.isFile() ? stat.size : 0;
+		if (++totals.files > 10000 || totals.bytes > 512 * 1024 * 1024)
+			throw new Error("Extracted extension exceeds its file-count or 512 MiB size limit.");
 		const real = await fs.realpath(entryPath);
 		if (!real.startsWith(root + path.sep) && real !== root) {
 			// Nuke the escaped file/symlink and throw
@@ -47,7 +55,7 @@ async function assertNoEscapedFiles(dir: string, root: string): Promise<void> {
 			);
 		}
 		if (entry.isDirectory()) {
-			await assertNoEscapedFiles(entryPath, root);
+			await assertNoEscapedFiles(entryPath, root, totals);
 		}
 	}
 }
@@ -176,21 +184,24 @@ export async function downloadAndInstallExtension(
 	extensionId: string,
 	downloadUrl: string,
 ): Promise<{ success: boolean; error?: string }> {
+	if (!/^[a-z0-9][a-z0-9._-]{0,199}$/i.test(extensionId))
+		return { success: false, error: "Invalid extension id." };
+	let allowedOrigins: string[];
 	try {
 		// Validate download URL against allowed marketplace origins
-		const allowedOrigins = [
+		allowedOrigins = [
 			getMarketplaceOrigin(),
 			...(app.isPackaged ? [] : ["http://localhost:3001"]),
 		];
 		const url = new URL(downloadUrl);
-		if (!allowedOrigins.some((o) => url.origin === o)) {
+		if (url.username || url.password || !allowedOrigins.some((o) => url.origin === o)) {
 			return { success: false, error: `Untrusted download origin: ${url.origin}` };
 		}
 	} catch (error) {
 		return { success: false, error: getErrorMessage(error) || "Invalid download URL" };
 	}
 
-	const tempDir = path.join(app.getPath("temp"), `recordly-ext-${extensionId}-${Date.now()}`);
+	const tempDir = await fs.mkdtemp(path.join(app.getPath("temp"), "recordly-ext-"));
 	const zipPath = path.join(tempDir, "extension.zip");
 
 	try {
@@ -201,29 +212,52 @@ export async function downloadAndInstallExtension(
 		const controller = new AbortController();
 		const timeoutId = setTimeout(() => controller.abort(), 60_000);
 
-		let response: Response;
 		try {
-			response = await fetch(downloadUrl, {
-				signal: controller.signal,
-				headers: {
-					"X-Screendance-Version": app.getVersion(),
+			let currentUrl = downloadUrl;
+			let response: Response | undefined;
+			for (let redirects = 0; redirects <= 3; redirects++) {
+				response = await fetch(currentUrl, {
+					signal: controller.signal,
+					redirect: "manual",
+					headers: { "X-Screendance-Version": app.getVersion() },
+				});
+				if (![301, 302, 303, 307, 308].includes(response.status)) break;
+				const location = response.headers.get("location");
+				if (!location || redirects === 3)
+					throw new Error("Invalid or excessive marketplace redirects.");
+				const redirect = new URL(location, currentUrl);
+				if (
+					redirect.username ||
+					redirect.password ||
+					!allowedOrigins.includes(redirect.origin)
+				)
+					throw new Error("Marketplace download redirected to an untrusted origin.");
+				currentUrl = redirect.href;
+			}
+			if (!response?.ok) throw new Error(`Download failed with status ${response?.status}`);
+			if (!response.body) throw new Error("Download response has no body");
+			if (Number(response.headers.get("content-length")) > 128 * 1024 * 1024)
+				throw new Error("Extension archive exceeds 128 MiB.");
+			let bytes = 0;
+			const limit = new Transform({
+				transform(chunk: Buffer, _encoding, callback) {
+					bytes += chunk.length;
+					callback(
+						bytes > 128 * 1024 * 1024
+							? new Error("Extension archive exceeds 128 MiB.")
+							: null,
+						chunk,
+					);
 				},
 			});
+			await pipeline(
+				Readable.fromWeb(response.body as NodeReadableStream),
+				limit,
+				createWriteStream(zipPath, { flags: "wx", mode: 0o600 }),
+			);
 		} finally {
 			clearTimeout(timeoutId);
 		}
-
-		if (!response.ok) {
-			throw new Error(`Download failed with status ${response.status}`);
-		}
-
-		if (!response.body) {
-			throw new Error("Download response has no body");
-		}
-
-		// Write to disk
-		const fileStream = createWriteStream(zipPath);
-		await pipeline(Readable.fromWeb(response.body as NodeReadableStream), fileStream);
 
 		// Extract the zip — use the built-in decompress or shell unzip
 		const extractDir = path.join(tempDir, "extracted");
@@ -231,6 +265,40 @@ export async function downloadAndInstallExtension(
 
 		// Use Node's built-in unzip capability via child_process (execFile — no shell)
 		const { execFile } = await import("node:child_process");
+		if (process.platform !== "win32") {
+			const inspect = (flag: string) =>
+				new Promise<string>((resolve, reject) =>
+					execFile(
+						"unzip",
+						["-Z", flag, zipPath],
+						{
+							timeout: 15000,
+							maxBuffer: 4 * 1024 * 1024,
+							env: { ...process.env, LC_ALL: "C" },
+						},
+						(error, stdout) => (error ? reject(error) : resolve(String(stdout))),
+					),
+				);
+			const listing = await inspect("-l");
+			const summary = listing.match(/(\d+)\s+files?,\s+(\d+)\s+bytes uncompressed/i);
+			if (!summary || Number(summary[1]) > 10000 || Number(summary[2]) > 512 * 1024 * 1024)
+				throw new Error(
+					"Extension archive exceeds its file-count/512 MiB limit or has no valid inventory.",
+				);
+			if (/^[lbcps][rwxstST-]{9}\s/m.test(listing))
+				throw new Error("Extension archives may not contain symlinks or special files.");
+			for (const entry of (await inspect("-1")).split(/\r?\n/).filter(Boolean)) {
+				const normalized = entry.replace(/\\/g, "/");
+				if (
+					normalized.startsWith("/") ||
+					/^[a-z]:/i.test(normalized) ||
+					normalized.split("/").includes("..")
+				)
+					throw new Error(
+						"Extension archive contains a path outside its extraction directory.",
+					);
+			}
+		}
 		await new Promise<void>((resolve, reject) => {
 			if (process.platform === "win32") {
 				// Use -LiteralPath to avoid PowerShell injection via single-quote in paths
@@ -253,10 +321,15 @@ export async function downloadAndInstallExtension(
 					},
 				);
 			} else {
-				execFile("unzip", ["-o", zipPath, "-d", extractDir], (error) => {
-					if (error) reject(error);
-					else resolve();
-				});
+				execFile(
+					"unzip",
+					["-q", "-o", zipPath, "-d", extractDir],
+					{ timeout: 60_000 },
+					(error) => {
+						if (error) reject(error);
+						else resolve();
+					},
+				);
 			}
 		});
 
@@ -284,6 +357,11 @@ export async function downloadAndInstallExtension(
 				"Downloaded extension does not contain a recordly-extension.json manifest",
 			);
 		}
+		const manifest = JSON.parse(
+			await fs.readFile(path.join(manifestDir, "recordly-extension.json"), "utf8"),
+		) as { id?: unknown };
+		if (manifest?.id !== extensionId)
+			throw new Error("Downloaded extension id does not match the selected catalog entry.");
 
 		// Install from the extracted directory
 		const info = await installExtensionFromPath(manifestDir);

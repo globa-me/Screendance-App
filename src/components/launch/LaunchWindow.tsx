@@ -12,7 +12,7 @@ import {
 	XIcon,
 } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { RxDragHandleDots2 } from "react-icons/rx";
 import { Separator } from "@/components/ui/separator";
 import { useScopedT } from "../../contexts/I18nContext";
@@ -20,6 +20,7 @@ import { useMicrophoneDevices } from "../../hooks/useMicrophoneDevices";
 import { useScreenRecorder } from "../../hooks/useScreenRecorder";
 import { useVideoDevices } from "../../hooks/useVideoDevices";
 import { Button } from "../ui/button";
+import { useRecorderAutomation } from "./automation/useRecorderAutomation";
 import { HudInteractionContext } from "./contexts/HudInteractionContext";
 import { canToggleFloatingWebcamPreview } from "./floatingWebcamPreview";
 import { useHudBarDrag } from "./hooks/useHudBarDrag";
@@ -55,6 +56,10 @@ export function LaunchWindow() {
 function LaunchWindowContent() {
 	const t = useScopedT("launch");
 	const { openId, requestClose, requestOpen } = useLaunchPopoverCoordinator();
+	const [automationControlled] = useState(
+		() => new URLSearchParams(window.location.search).get("automation") === "1",
+	);
+	const recorder = useScreenRecorder();
 
 	const {
 		recording,
@@ -80,7 +85,7 @@ function LaunchWindowContent() {
 		countdownDelay,
 		setCountdownDelay,
 		preparePermissions,
-	} = useScreenRecorder();
+	} = recorder;
 
 	const { elapsed, formatTime } = useRecordingTimer(recording, paused);
 	const hudContentRef = useRef<HTMLDivElement>(null);
@@ -97,16 +102,26 @@ function LaunchWindowContent() {
 		refreshProjectLibrary,
 	} = useLaunchWindowActions();
 
-	const showWebcamControls = webcamEnabled && !recording;
+	useRecorderAutomation({
+		recorder,
+		onSelectedSource: syncSelectedSource,
+		controlledInitially: automationControlled,
+	});
+	const prepareLaunchPermissions = useCallback(
+		(options: { startup?: boolean }) =>
+			automationControlled ? Promise.resolve(true) : preparePermissions(options),
+		[automationControlled, preparePermissions],
+	);
+	const showWebcamControls = webcamEnabled && !recording && !automationControlled;
 	const { devices, selectedDeviceId, setSelectedDeviceId } = useMicrophoneDevices(
-		microphoneEnabled || openId === "mic",
+		!automationControlled && (microphoneEnabled || openId === "mic"),
 		microphoneDeviceId,
 	);
 	const {
 		devices: videoDevices,
 		selectedDeviceId: selectedVideoDeviceId,
 		setSelectedDeviceId: setSelectedVideoDeviceId,
-	} = useVideoDevices(webcamEnabled || openId === "webcam");
+	} = useVideoDevices(!automationControlled && (webcamEnabled || openId === "webcam"));
 
 	const {
 		hudOverlayMousePassthroughSupported,
@@ -115,23 +130,23 @@ function LaunchWindowContent() {
 		hideHudFromCapture,
 		chooseRecordingsDirectory,
 		toggleHudCaptureProtection,
-	} = useLaunchWindowSystemState(preparePermissions);
+	} = useLaunchWindowSystemState(prepareLaunchPermissions);
 
 	const supportsHudCaptureProtection = platform !== "linux";
 
 	useEffect(() => {
-		if (!selectedDeviceId) {
+		if (automationControlled || !selectedDeviceId) {
 			return;
 		}
 
 		setMicrophoneDeviceId(selectedDeviceId === "default" ? undefined : selectedDeviceId);
-	}, [selectedDeviceId, setMicrophoneDeviceId]);
+	}, [automationControlled, selectedDeviceId, setMicrophoneDeviceId]);
 
 	useEffect(() => {
-		if (selectedVideoDeviceId && selectedVideoDeviceId !== "default") {
+		if (!automationControlled && selectedVideoDeviceId && selectedVideoDeviceId !== "default") {
 			setWebcamDeviceId(selectedVideoDeviceId);
 		}
-	}, [selectedVideoDeviceId, setWebcamDeviceId]);
+	}, [automationControlled, selectedVideoDeviceId, setWebcamDeviceId]);
 
 	const {
 		showFloatingWebcamPreview,
@@ -147,7 +162,7 @@ function LaunchWindowContent() {
 		setWebcamPreviewNode,
 		setRecordingWebcamPreviewNode,
 	} = useWebcamPreviewOverlay({
-		webcamEnabled,
+		webcamEnabled: webcamEnabled && !automationControlled,
 		webcamDeviceId,
 		showWebcamControls,
 		webcamPopoverOpen: openId === "webcam",

@@ -80,7 +80,10 @@ export function AnnotationSettingsPanel({
 
 	// Load custom fonts on mount
 	useEffect(() => {
-		setCustomFonts(getCustomFonts());
+		const refresh = () => setCustomFonts(getCustomFonts());
+		refresh();
+		window.addEventListener("screendance:assets-changed", refresh);
+		return () => window.removeEventListener("screendance:assets-changed", refresh);
 	}, []);
 
 	const colorPalette = [

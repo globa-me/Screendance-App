@@ -16,6 +16,7 @@ import {
 	Tray,
 } from "electron";
 import { RECORDINGS_DIR } from "./appPaths";
+import { createAutomationHost } from "./automation/host";
 import { showCursor } from "./cursorHider";
 import { registerExtensionIpcHandlers } from "./extensions/extensionIpc";
 import { getGpuSwitches } from "./gpuSwitches";
@@ -149,6 +150,19 @@ let isCreatingMainWindow = false;
 let isCreatingEditorWindow = false;
 let activeUpdateNotification: Notification | null = null;
 let activeUpdateNotificationKey: string | null = null;
+const automationHost = createAutomationHost({
+	getMainWindow: () => mainWindow,
+	openWindow: (kind) => { const window = kind === "editor" ? createEditorWindowWrapper() : kind === "sources" ? createSourceSelectorWindowWrapper() : getOrCreateHudWindow(true); window.show(); window.focus(); return { id: window.id }; },
+	quit: () => app.quit(),
+	sendUpdate: sendUpdateToastToWindows,
+	broadcastJobs: () => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send("automation:jobs-changed"); },
+	broadcastSystem: (payload) => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send("screendance:system-sync", payload); },
+	getEditor: getExistingEditorWindow,
+	createEditor: createEditorWindowWrapper,
+	getRecorder: getHudOverlayWindow,
+	createRecorder: () => getOrCreateHudWindow(true),
+	hasUnsavedChanges: () => editorHasUnsavedChanges,
+});
 const shouldEnforceSingleInstanceLock = !IS_DEV;
 const hasSingleInstanceLock = shouldEnforceSingleInstanceLock
 	? app.requestSingleInstanceLock()
@@ -879,13 +893,15 @@ function createSourceSelectorWindowWrapper() {
 	return sourceSelectorWindow;
 }
 
-function getOrCreateHudWindow() {
+function getOrCreateHudWindow(automation = false) {
 	const existingHud = getHudOverlayWindow();
 	if (existingHud && !existingHud.isDestroyed()) {
 		return existingHud;
 	}
 
-	const hud = createHudOverlayWindow();
+	const hud = createHudOverlayWindow(
+		automation || process.argv.includes("--automation") || process.env.SCREENDANCE_AUTOMATION === "1",
+	);
 	if (!mainWindow || mainWindow.isDestroyed()) {
 		mainWindow = hud;
 	}
@@ -954,6 +970,11 @@ app.on("before-quit", () => {
 	void cleanupAllExportStreams();
 });
 
+// before-quit can be cancelled by the editor's unsaved-changes dialog.
+app.on("will-quit", () => {
+	void automationHost.close().catch((error) => console.warn("[automation] Cleanup failed:", error));
+});
+
 app.on("window-all-closed", () => {
 	if (IS_SMOKE_EXPORT || process.platform !== "darwin") {
 		app.quit();
@@ -966,7 +987,11 @@ app.on("activate", () => {
 	focusOrCreateMainWindow();
 });
 
-app.on("second-instance", () => {
+app.on("second-instance", (_event, argv) => {
+	if (argv.includes("--automation")) {
+		void app.whenReady().then(() => automationHost.start()).catch((error) => console.error("[automation] Could not enable local API:", error));
+		return;
+	}
 	focusOrCreateMainWindow();
 });
 
@@ -1073,6 +1098,10 @@ app.whenReady().then(async () => {
 	registerExtensionIpcHandlers();
 	registerLoggingIpcHandlers();
 	registerGlobalRecordingShortcuts();
+	if (process.argv.includes("--automation") || process.env.SCREENDANCE_AUTOMATION === "1") {
+		try { await automationHost.start(); }
+		catch (error) { console.error("[automation] Could not start local API:", error); }
+	}
 
 	if (IS_SMOKE_EXPORT || process.env.RECORDLY_DEV_OPEN_RECORDING_INPUT) {
 		await logSmokeExportGpuDiagnostics();

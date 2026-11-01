@@ -23,7 +23,7 @@
 		"noUnusedParameters": true,
 		"noFallthroughCasesInSwitch": true
 	},
-	"include": ["src", "electron"],
+	"include": ["src", "electron", "shared", "cli"],
 	"exclude": ["**/*.test.ts", "**/*.test.tsx"],
 	"references": [{ "path": "./tsconfig.node.json" }]
 }
