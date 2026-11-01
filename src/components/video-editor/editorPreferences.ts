@@ -272,6 +272,7 @@ function normalizeEditorPresetSnapshot(candidate: unknown): EditorPresetSnapshot
 			...normalizedControls.webcam,
 			sourcePath: null,
 			timeOffsetMs: 0,
+			hiddenRanges: undefined,
 		},
 		autoApplyFreshRecordingAutoZooms: normalizeBoolean(
 			raw.autoApplyFreshRecordingAutoZooms,
@@ -684,5 +685,6 @@ export function mergeEditorPresetWebcamSettings(
 		enabled: preset.enabled && Boolean(current.sourcePath),
 		sourcePath: current.sourcePath,
 		timeOffsetMs: current.timeOffsetMs,
+		hiddenRanges: current.hiddenRanges,
 	};
 }

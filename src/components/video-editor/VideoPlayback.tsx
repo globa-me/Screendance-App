@@ -127,6 +127,7 @@ import { applyCanvasSceneTransform } from "@/lib/extensions/sceneTransform";
 import { getSquircleSvgPath } from "@/lib/geometry/squircle";
 import { type AspectRatio, formatAspectRatioForCSS } from "@/utils/aspectRatioUtils";
 import { AnnotationOverlay } from "./AnnotationOverlay";
+import { isTimeInRanges } from "../../../shared/timeRanges";
 import { ContentHighlightEditor } from "./ContentHighlightEditor";
 import { drawContentHighlights, isContentHighlight } from "./videoPlayback/contentHighlights";
 import type { CursorViewportRect } from "./videoPlayback/cursorViewport";
@@ -505,6 +506,8 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 		const focusIndicatorRef = useRef<HTMLDivElement | null>(null);
 		const webcamVideoRef = useRef<HTMLVideoElement | null>(null);
 		const webcamBubbleRef = useRef<HTMLDivElement | null>(null);
+		const webcamHiddenRangesRef = useRef(webcam?.hiddenRanges);
+		webcamHiddenRangesRef.current = webcam?.hiddenRanges;
 		const webcamBubbleInnerRef = useRef<HTMLDivElement | null>(null);
 		const [webcamVideoDimensions, setWebcamVideoDimensions] = useState<{
 			width: number;
@@ -784,7 +787,15 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 				const bubble = webcamBubbleRef.current;
 				const bubbleInner = webcamBubbleInnerRef.current;
 				const overlay = overlayRef.current;
-				if (!bubble || !bubbleInner || !overlay || !webcamEnabled || !webcamVideoPath) {
+				if (
+					!bubble ||
+					!bubbleInner ||
+					!overlay ||
+					!webcamEnabled ||
+					!webcamVideoPath ||
+					// The webcam was switched off during this part of the recording.
+					isTimeInRanges(currentTimeRef.current, webcamHiddenRangesRef.current)
+				) {
 					if (bubble) {
 						bubble.style.display = "none";
 					}

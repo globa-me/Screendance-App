@@ -1,4 +1,5 @@
 import { Application, Container, Graphics, Rectangle, Sprite, Texture } from "pixi.js";
+import { isTimeInRanges } from "../../../shared/timeRanges";
 import { drawContentHighlights } from "@/components/video-editor/videoPlayback/contentHighlights";
 import { MotionBlurFilter } from "pixi-filters/motion-blur";
 import { ZoomBlurFilter } from "pixi-filters/zoom-blur";
@@ -2362,6 +2363,10 @@ export class FrameRenderer {
 		const webcamDecodedFrame = this.webcamDecodedFrame;
 		const webcamVideo = this.webcamVideoElement;
 		if (!webcam?.enabled || (!webcamDecodedFrame && !webcamVideo)) {
+			return;
+		}
+		// The webcam was switched off during this part of the recording.
+		if (isTimeInRanges(this.currentVideoTime * 1000, webcam.hiddenRanges)) {
 			return;
 		}
 

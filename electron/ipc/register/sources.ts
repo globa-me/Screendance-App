@@ -113,7 +113,7 @@ function normalizeDesktopSourceName(value: string) {
 	return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-function broadcastSelectedSourceChange() {
+export function broadcastSelectedSourceChange() {
 	for (const window of BrowserWindow.getAllWindows()) {
 		if (!window.isDestroyed()) {
 			window.webContents.send("selected-source-changed", selectedSource);

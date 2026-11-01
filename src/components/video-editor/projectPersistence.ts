@@ -72,6 +72,7 @@ import {
 	type ZoomRegion,
 	type ZoomTransitionEasing,
 } from "./types";
+import { normalizeTimeRanges } from "../../../shared/timeRanges";
 import { normalizeWebcamCropRegion } from "./webcamOverlay";
 
 export const PROJECT_VERSION = 1;
@@ -1033,6 +1034,9 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 			timeOffsetMs: isFiniteNumber(webcam.timeOffsetMs)
 				? Math.round(webcam.timeOffsetMs)
 				: DEFAULT_WEBCAM_TIME_OFFSET_MS,
+			...(Array.isArray(webcam.hiddenRanges) && webcam.hiddenRanges.length > 0
+				? { hiddenRanges: normalizeTimeRanges(webcam.hiddenRanges) }
+				: {}),
 			margin: isFiniteNumber(webcam.margin)
 				? clamp(webcam.margin, 0, 96)
 				: DEFAULT_WEBCAM_MARGIN,

@@ -26,6 +26,7 @@ import {
 	saveProjectThumbnail,
 	saveRecentProjectPaths,
 } from "../project/manager";
+import { normalizeTimeRanges } from "../../../shared/timeRanges";
 import { persistRecordingSessionManifest, resolveRecordingSession } from "../project/session";
 import {
 	currentProjectPath,
@@ -652,6 +653,7 @@ export function registerProjectHandlers() {
 				videoPath: string;
 				webcamPath?: string | null;
 				timeOffsetMs?: number;
+				webcamHiddenRanges?: Array<{ startMs: number; endMs: number }>;
 				hideOverlayCursorByDefault?: boolean;
 				assetStatus?: "assembling" | "ready" | "degraded";
 				assetMessage?: string | null;
@@ -665,6 +667,7 @@ export function registerProjectHandlers() {
 				videoPath: normalizedVideoPath,
 				webcamPath: normalizeVideoSourcePath(session.webcamPath ?? null),
 				timeOffsetMs: normalizeRecordingTimeOffsetMs(session.timeOffsetMs),
+				webcamHiddenRanges: normalizeTimeRanges(session.webcamHiddenRanges),
 				hideOverlayCursorByDefault: normalizeBoolean(session.hideOverlayCursorByDefault),
 				assetStatus:
 					session.assetStatus === "assembling" || session.assetStatus === "degraded"

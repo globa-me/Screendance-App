@@ -33,6 +33,7 @@ import { activeCursorSamples, setActiveCursorSamples, setCursorCaptureStartTimeM
 import {
 	getCursorCaptureElapsedMs,
 	normalizeCursorTelemetrySamples,
+	applyCursorContentViewport,
 	pauseCursorCapture,
 	pauseCursorCaptureAtBoundary,
 	pushCursorSample,
@@ -118,5 +119,23 @@ describe("cursor telemetry pause clock", () => {
 
 		expect(rm).toHaveBeenCalledWith("/tmp/recording.cursor.json", { force: true });
 		expect(writeFile).not.toHaveBeenCalled();
+	});
+});
+
+describe("applyCursorContentViewport", () => {
+	it("maps source-normalized points into a letterboxed frame", () => {
+		const viewport = { x: 0.25, y: 0, width: 0.5, height: 1 };
+		expect(applyCursorContentViewport({ cx: 0, cy: 0.5 }, viewport)).toEqual({
+			cx: 0.25,
+			cy: 0.5,
+		});
+		expect(applyCursorContentViewport({ cx: 1, cy: 1 }, viewport)).toEqual({ cx: 0.75, cy: 1 });
+	});
+
+	it("passes points through when the source fills the frame", () => {
+		expect(applyCursorContentViewport({ cx: 0.3, cy: 0.7 }, null)).toEqual({
+			cx: 0.3,
+			cy: 0.7,
+		});
 	});
 });

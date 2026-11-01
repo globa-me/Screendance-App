@@ -12,6 +12,7 @@ import {
 	XIcon,
 } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
+import { toast } from "sonner";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RxDragHandleDots2 } from "react-icons/rx";
 import { Separator } from "@/components/ui/separator";
@@ -85,6 +86,7 @@ function LaunchWindowContent() {
 		countdownDelay,
 		setCountdownDelay,
 		preparePermissions,
+		liveCapture,
 	} = recorder;
 
 	const { elapsed, formatTime } = useRecordingTimer(recording, paused);
@@ -242,8 +244,127 @@ function LaunchWindowContent() {
 		ease: [0.22, 1, 0.36, 1] as const,
 	};
 
+	const applyLiveCaptureChange = useCallback(
+		async (change: () => Promise<{ success: boolean; message?: string }>) => {
+			const result = await change();
+			if (!result.success) {
+				toast.error(t("recording.liveChangeFailed"), {
+					description: result.message,
+				});
+			}
+			return result.success;
+		},
+		[t],
+	);
+
+	// While a macOS recording is paused, the source, microphone and webcam can
+	// change without ending the take (see useScreenRecorder.liveCapture).
+	const pausedCaptureControls = liveCapture.available ? (
+		<>
+			<SourcePopover
+				selectedSource={selectedSource}
+				selectedSourceId={selectedSourceId}
+				onSourceSelect={async (source) => {
+					const switched = await applyLiveCaptureChange(() =>
+						liveCapture.switchSource(source),
+					);
+					if (switched) {
+						toast.success(t("recording.liveChangeSwitchedSource"), {
+							description: source.appName
+								? `${source.appName} — ${source.name}`
+								: source.name,
+						});
+					}
+				}}
+				onOpen={beginInteractiveHudAction}
+				trigger={
+					<Button
+						variant="ghost"
+						size="icon"
+						iconSize="lg"
+						title={t("recording.switchSourceWhilePaused")}
+						aria-label={t("recording.switchSourceWhilePaused")}
+					>
+						<MonitorIcon size={18} />
+					</Button>
+				}
+			/>
+			<MicPopover
+				systemAudioEnabled={systemAudioEnabled}
+				microphoneEnabled={microphoneEnabled}
+				onDisableMicrophone={() => {
+					void applyLiveCaptureChange(() => liveCapture.setMicrophone(false));
+				}}
+				devices={devices}
+				microphoneDeviceId={microphoneDeviceId}
+				selectedDeviceId={selectedDeviceId}
+				onSelectDevice={(deviceId) => {
+					setSelectedDeviceId(deviceId);
+					void applyLiveCaptureChange(() => liveCapture.setMicrophone(true, deviceId));
+				}}
+				trigger={
+					<Button
+						variant="ghost"
+						size="icon"
+						iconSize="lg"
+						title={
+							microphoneEnabled
+								? t("recording.disableMicrophone")
+								: t("recording.enableMicrophone")
+						}
+						className={microphoneEnabled ? styles.ibActive : ""}
+					>
+						{microphoneEnabled ? (
+							<MicrophoneIcon size={18} />
+						) : (
+							<MicrophoneSlashIcon size={18} />
+						)}
+					</Button>
+				}
+			/>
+			<WebcamPopover
+				webcamEnabled={webcamEnabled}
+				onDisableWebcam={() => {
+					void applyLiveCaptureChange(() => liveCapture.setWebcam(false));
+				}}
+				canToggleFloatingPreview={false}
+				showFloatingWebcamPreview={showFloatingWebcamPreview}
+				onToggleFloatingPreview={() => setShowFloatingWebcamPreview((current) => !current)}
+				showWebcamControls={false}
+				setWebcamPreviewNode={setWebcamPreviewNode}
+				videoDevices={videoDevices}
+				webcamDeviceId={webcamDeviceId}
+				selectedVideoDeviceId={selectedVideoDeviceId}
+				onSelectVideoDevice={(deviceId) => {
+					setSelectedVideoDeviceId(deviceId);
+					void applyLiveCaptureChange(() => liveCapture.setWebcam(true, deviceId));
+				}}
+				trigger={
+					<Button
+						variant="ghost"
+						size="icon"
+						iconSize="lg"
+						title={
+							webcamEnabled
+								? t("recording.disableWebcam")
+								: t("recording.enableWebcam")
+						}
+						className={webcamEnabled ? styles.ibActive : ""}
+					>
+						{webcamEnabled ? (
+							<VideoCameraIcon size={18} />
+						) : (
+							<VideoCameraSlashIcon size={18} />
+						)}
+					</Button>
+				}
+			/>
+		</>
+	) : null;
+
 	const recordingControls = (
 		<RecordingControls
+			pausedCaptureControls={pausedCaptureControls}
 			paused={paused}
 			microphoneEnabled={microphoneEnabled}
 			systemAudioEnabled={systemAudioEnabled}

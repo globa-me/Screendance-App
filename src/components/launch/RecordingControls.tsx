@@ -8,7 +8,7 @@ import {
 	SquareIcon,
 	XIcon,
 } from "@phosphor-icons/react";
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useScopedT } from "@/contexts/I18nContext";
@@ -17,6 +17,8 @@ import styles from "./LaunchWindow.module.css";
 
 interface RecordingControlsProps {
 	paused: boolean;
+	/** Source/microphone/webcam pickers shown while a change-capable take is paused. */
+	pausedCaptureControls?: ReactNode;
 	microphoneEnabled: boolean;
 	systemAudioEnabled: boolean;
 	recordingAudioSources: RecordingAudioSources;
@@ -32,6 +34,7 @@ interface RecordingControlsProps {
 
 export const RecordingControls = ({
 	paused,
+	pausedCaptureControls,
 	microphoneEnabled,
 	systemAudioEnabled,
 	recordingAudioSources,
@@ -127,23 +130,27 @@ export const RecordingControls = ({
 
 				<Separator orientation="vertical" className="mx-[5px] h-6" />
 
-				<span title={t("recording.micToggleDisabledTip")}>
-					<Button
-						variant="ghost"
-						size="icon"
-						iconSize="lg"
-						className={microphoneEnabled ? styles.ibActive : ""}
-						aria-label={t("recording.micToggleDisabledTip")}
-						disabled
-						onClick={onToggleMicrophone}
-					>
-						{microphoneEnabled ? (
-							<MicrophoneIcon size={18} />
-						) : (
-							<MicrophoneSlashIcon size={18} />
-						)}
-					</Button>
-				</span>
+				{paused && pausedCaptureControls ? (
+					pausedCaptureControls
+				) : (
+					<span title={t("recording.micToggleDisabledTip")}>
+						<Button
+							variant="ghost"
+							size="icon"
+							iconSize="lg"
+							className={microphoneEnabled ? styles.ibActive : ""}
+							aria-label={t("recording.micToggleDisabledTip")}
+							disabled
+							onClick={onToggleMicrophone}
+						>
+							{microphoneEnabled ? (
+								<MicrophoneIcon size={18} />
+							) : (
+								<MicrophoneSlashIcon size={18} />
+							)}
+						</Button>
+					</span>
+				)}
 
 				<Separator orientation="vertical" className="mx-[5px] h-6" />
 
@@ -200,6 +207,7 @@ export const RecordingControls = ({
 		);
 	}, [
 		paused,
+		pausedCaptureControls,
 		microphoneEnabled,
 		systemAudioEnabled,
 		recordingAudioSources,

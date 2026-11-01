@@ -321,6 +321,26 @@ interface Window {
 			message?: string;
 			error?: string;
 		}>;
+		/** macOS, paused only: letterboxes another window/display into the running take. */
+		switchNativeScreenRecordingSource: (source: ProcessedDesktopSource) => Promise<{
+			success: boolean;
+			viewport?: { x: number; y: number; width: number; height: number } | null;
+			message?: string;
+			error?: string;
+		}>;
+		/** macOS, paused only: enables, mutes or re-routes the native microphone. */
+		setNativeScreenRecordingMicrophone: (options: {
+			enabled: boolean;
+			microphoneDeviceId?: string;
+			microphoneLabel?: string;
+		}) => Promise<{
+			success: boolean;
+			enabled?: boolean;
+			microphonePath?: string | null;
+			microphoneUnavailable?: boolean;
+			message?: string;
+			error?: string;
+		}>;
 		pauseCursorCapture: (pausedAtMs?: number) => Promise<{
 			success: boolean;
 			message?: string;
@@ -747,6 +767,7 @@ interface Window {
 				videoPath: string;
 				webcamPath?: string | null;
 				timeOffsetMs?: number;
+				webcamHiddenRanges?: Array<{ startMs: number; endMs: number }>;
 				hideOverlayCursorByDefault?: boolean;
 				assetStatus?: "assembling" | "ready" | "degraded";
 				assetMessage?: string | null;
@@ -759,6 +780,7 @@ interface Window {
 				videoPath: string;
 				webcamPath?: string | null;
 				timeOffsetMs?: number;
+				webcamHiddenRanges?: Array<{ startMs: number; endMs: number }>;
 				hideOverlayCursorByDefault?: boolean;
 				assetStatus?: "assembling" | "ready" | "degraded";
 				assetMessage?: string | null;

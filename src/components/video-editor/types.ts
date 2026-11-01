@@ -94,6 +94,11 @@ export interface WebcamOverlaySettings {
 	cornerRadius: number;
 	shadow: number;
 	margin: number;
+	/**
+	 * Source-time spans where the webcam was turned off during recording.
+	 * The overlay is hidden there. Owned by the recording, never by presets.
+	 */
+	hiddenRanges?: Array<{ startMs: number; endMs: number }>;
 }
 
 export const DEFAULT_CURSOR_SIZE = 3.0;

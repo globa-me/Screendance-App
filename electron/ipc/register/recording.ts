@@ -32,6 +32,14 @@ import {
 	getWindowsCaptureExePath,
 } from "../paths/binaries";
 import { rememberApprovedLocalReadPath } from "../project/manager";
+import { broadcastSelectedSourceChange } from "./sources";
+import {
+	deriveMicrophoneSidecarPath,
+	handleNativeLiveCommandLine,
+	parseSourceSwitchViewport,
+	rejectPendingNativeLiveCommands,
+	sendNativeLiveCommand,
+} from "../recording/macLiveControl";
 import {
 	getBrowserMicSidecarFilters,
 	shouldKeepRecordingAudioSidecars,
@@ -89,6 +97,7 @@ import {
 	nativeScreenRecordingActive,
 	selectedSource,
 	setActiveCursorSamples,
+	setSelectedSource,
 	setCachedSystemCursorAssets,
 	setCachedSystemCursorAssetsSourceMtimeMs,
 	setCursorCaptureStartTimeMs,
@@ -98,6 +107,7 @@ import {
 	setFfmpegScreenRecordingActive,
 	setIsCursorCaptureActive,
 	setLastLeftClick,
+	setCursorContentViewport,
 	setLinuxCursorScreenPoint,
 	setNativeCaptureMicrophonePath,
 	setNativeCaptureOutputBuffer,
@@ -432,6 +442,11 @@ function processNativeCaptureOutputLines(
 	while (newlineIndex >= 0) {
 		const line = lineBuffer.value.slice(0, newlineIndex).trim();
 		lineBuffer.value = lineBuffer.value.slice(newlineIndex + 1);
+
+		if (handleNativeLiveCommandLine(line)) {
+			newlineIndex = lineBuffer.value.indexOf("\n");
+			continue;
+		}
 
 		if (line.startsWith("AUDIO_LEVEL ")) {
 			try {
@@ -804,6 +819,9 @@ export function registerRecordingHandlers(
 				});
 				setNativeCaptureProcess(captProc);
 				attachNativeCaptureLifecycle(captProc);
+				captProc.once("close", () =>
+					rejectPendingNativeLiveCommands("The recorder stopped before applying the change."),
+				);
 				const nativeLineBuffer = { value: "" };
 
 				captProc.stdout.on("data", (chunk: Buffer) => {
@@ -1425,6 +1443,125 @@ export function registerRecordingHandlers(
 		}
 	});
 
+	ipcMain.handle(
+		"switch-native-screen-recording-source",
+		async (_, source: SelectedSource) => {
+			if (process.platform !== "darwin") {
+				return { success: false, message: "Switching sources is only available on macOS." };
+			}
+			if (!nativeScreenRecordingActive || !nativeCaptureProcess) {
+				return { success: false, message: "No native screen recording is active." };
+			}
+			if (!nativeCapturePaused) {
+				return { success: false, message: "Pause the recording before switching sources." };
+			}
+			if (!source || typeof source.id !== "string") {
+				return { success: false, message: "Invalid source." };
+			}
+
+			const appName = normalizeDesktopSourceName(String(source.appName ?? ""));
+			const ownAppName = normalizeDesktopSourceName(app.getName());
+			if (
+				!ALLOW_RECORDLY_WINDOW_CAPTURE &&
+				source.id.startsWith("window:") &&
+				appName &&
+				(appName === ownAppName || appName === "recordly")
+			) {
+				return {
+					success: false,
+					message: "Cannot record Screendance App windows. Please select another app window.",
+				};
+			}
+
+			const windowId = parseWindowId(source.id);
+			const displayId = Number(source.display_id);
+			const payload: Record<string, unknown> =
+				windowId && source.id.startsWith("window:")
+					? { windowId }
+					: {
+							displayId:
+								Number.isFinite(displayId) && displayId > 0
+									? displayId
+									: Number(getScreen().getPrimaryDisplay().id),
+						};
+
+			try {
+				const response = await sendNativeLiveCommand(
+					nativeCaptureProcess.stdin,
+					"source",
+					payload,
+				);
+				const viewport = parseSourceSwitchViewport(response);
+				setSelectedSource(source);
+				setCursorContentViewport(viewport);
+				broadcastSelectedSourceChange();
+				startWindowBoundsCapture();
+				return { success: true, viewport };
+			} catch (error) {
+				return {
+					success: false,
+					message: "Failed to switch the recording source",
+					error: error instanceof Error ? error.message : String(error),
+				};
+			}
+		},
+	);
+
+	ipcMain.handle(
+		"set-native-screen-recording-microphone",
+		async (
+			_,
+			options: { enabled?: boolean; microphoneDeviceId?: string; microphoneLabel?: string },
+		) => {
+			if (process.platform !== "darwin") {
+				return { success: false, message: "Live microphone changes are only available on macOS." };
+			}
+			if (!nativeScreenRecordingActive || !nativeCaptureProcess) {
+				return { success: false, message: "No native screen recording is active." };
+			}
+			if (!nativeCapturePaused) {
+				return { success: false, message: "Pause the recording before changing the microphone." };
+			}
+
+			const enabled = Boolean(options?.enabled);
+			if (enabled) {
+				const micStatus = systemPreferences.getMediaAccessStatus("microphone");
+				if (micStatus !== "granted" && !(await systemPreferences.askForMediaAccess("microphone"))) {
+					return { success: false, message: "Microphone permission was not granted." };
+				}
+			}
+
+			const microphoneOutputPath =
+				nativeCaptureMicrophonePath ??
+				(nativeCaptureTargetPath ? deriveMicrophoneSidecarPath(nativeCaptureTargetPath) : null);
+
+			try {
+				const response = (await sendNativeLiveCommand(nativeCaptureProcess.stdin, "microphone", {
+					enabled,
+					microphoneDeviceId: options?.microphoneDeviceId,
+					microphoneLabel: options?.microphoneLabel,
+					microphoneOutputPath,
+				})) as { enabled?: string; path?: string } | null;
+				if (typeof response?.path === "string" && response.path) {
+					setNativeCaptureMicrophonePath(response.path);
+				}
+				return {
+					success: true,
+					enabled: response?.enabled === "true",
+					microphonePath: response?.path ?? null,
+				};
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				return {
+					success: false,
+					message: "Failed to change the microphone",
+					error: message,
+					microphoneUnavailable: message.includes("MICROPHONE_CAPTURE_UNAVAILABLE"),
+				};
+			}
+		},
+	);
+
 	ipcMain.handle("get-system-cursor-assets", async () => {
 		try {
 			return { success: true, cursors: await getSystemCursorAssets() };
@@ -1870,6 +2007,7 @@ export function registerRecordingHandlers(
 
 	ipcMain.handle("set-recording-state", (_, recording: boolean) => {
 		if (recording) {
+			setCursorContentViewport(null);
 			stopCursorCapture();
 			stopInteractionCapture();
 			startWindowBoundsCapture();

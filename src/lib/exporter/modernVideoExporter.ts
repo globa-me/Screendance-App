@@ -1958,6 +1958,9 @@ export class ModernVideoExporter {
 		if (this.config.webcam?.enabled && !this.getNativeWebcamSourcePath()) {
 			reasons.push("unsupported-webcam-source");
 		}
+		if (this.config.webcam?.enabled && (this.config.webcam.hiddenRanges?.length ?? 0) > 0) {
+			reasons.push("unsupported-webcam-hidden-ranges");
+		}
 
 		if (this.config.frame) {
 			reasons.push("unsupported-frame-overlay");

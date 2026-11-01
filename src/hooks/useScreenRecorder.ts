@@ -20,6 +20,7 @@ import {
 	selectRecordingMimeType,
 	selectWebcamRecordingMimeType,
 } from "./recordingMimeType";
+import { HiddenRangeTracker, LiveWebcamCompositor, type TimeRange } from "./liveWebcamCompositor";
 import { createMicrophoneDeviceOptions } from "./useMicrophoneDevices";
 
 const TARGET_FRAME_RATE = 60;
@@ -49,6 +50,18 @@ const WEBCAM_BITRATE = 8_000_000;
 const WEBCAM_WIDTH = 1280;
 const WEBCAM_HEIGHT = 720;
 const WEBCAM_FRAME_RATE = 30;
+
+function buildWebcamConstraints(deviceId: string | undefined): MediaStreamConstraints {
+	const video = {
+		width: { ideal: WEBCAM_WIDTH },
+		height: { ideal: WEBCAM_HEIGHT },
+		frameRate: { ideal: WEBCAM_FRAME_RATE, max: WEBCAM_FRAME_RATE },
+	};
+	return {
+		video: deviceId ? { ...video, deviceId: { exact: deviceId } } : video,
+		audio: false,
+	};
+}
 const WEBCAM_SUFFIX = "-webcam";
 const MICROPHONE_FALLBACK_ERROR_TOAST_ID = "recording-microphone-fallback-error";
 const MICROPHONE_SIDECAR_ERROR_TOAST_ID = "recording-microphone-sidecar-error";
@@ -182,6 +195,18 @@ export type UseScreenRecorderReturn = {
 	setWebcamDeviceId: (deviceId: string | undefined) => void;
 	countdownDelay: number;
 	setCountdownDelay: (delay: number) => void;
+	/** Changes applied to a paused macOS recording without ending the take. */
+	liveCapture: LiveCaptureControls;
+};
+
+export type LiveCaptureResult = { success: boolean; message?: string };
+
+export type LiveCaptureControls = {
+	/** True while a native macOS recording is paused and can be changed. */
+	available: boolean;
+	switchSource: (source: ProcessedDesktopSource) => Promise<LiveCaptureResult>;
+	setMicrophone: (enabled: boolean, deviceId?: string) => Promise<LiveCaptureResult>;
+	setWebcam: (enabled: boolean, deviceId?: string) => Promise<LiveCaptureResult>;
 };
 
 export type RecordingAudioLevels = {
@@ -360,6 +385,9 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	const screenStream = useRef<MediaStream | null>(null);
 	const microphoneStream = useRef<MediaStream | null>(null);
 	const webcamStream = useRef<MediaStream | null>(null);
+	const webcamCompositor = useRef<LiveWebcamCompositor | null>(null);
+	const webcamHiddenRanges = useRef(new HiddenRangeTracker());
+	const webcamHiddenRangesAtStop = useRef<TimeRange[]>([]);
 	const mixingContext = useRef<AudioContext | null>(null);
 	const audioLevelContext = useRef<AudioContext | null>(null);
 	const audioLevelMonitorStream = useRef<MediaStream | null>(null);
@@ -550,31 +578,43 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 		micFallbackPauseIntervals.current = [];
 	}, []);
 
-	const preparePermissions = useCallback(async (options: { startup?: boolean } = {}) => {
-		const platform = await window.electronAPI.getPlatform();
-		if (platform !== "darwin") {
-			return true;
-		}
+	const preparePermissions = useCallback(
+		async (options: { startup?: boolean } = {}) => {
+			const platform = await window.electronAPI.getPlatform();
+			if (platform !== "darwin") {
+				return true;
+			}
 
-		const accessibilityPermission = await window.electronAPI.getAccessibilityPermissionStatus();
-		if (!accessibilityPermission.success) {
+			const accessibilityPermission =
+				await window.electronAPI.getAccessibilityPermissionStatus();
+			if (!accessibilityPermission.success) {
+				return false;
+			}
+
+			if (accessibilityPermission.trusted) {
+				return true;
+			}
+
+			const requestedAccessibility =
+				await window.electronAPI.requestAccessibilityPermission();
+			if (requestedAccessibility.success && requestedAccessibility.trusted) {
+				return true;
+			}
+
+			await window.electronAPI.openAccessibilityPreferences();
+			toast.error(
+				tLaunch(
+					options.startup
+						? "permissions.accessibilityNeeded"
+						: "permissions.accessibilityMissing",
+				),
+				{ duration: 12000 },
+			);
+
 			return false;
-		}
-
-		if (accessibilityPermission.trusted) {
-			return true;
-		}
-
-		const requestedAccessibility = await window.electronAPI.requestAccessibilityPermission();
-		if (requestedAccessibility.success && requestedAccessibility.trusted) {
-			return true;
-		}
-
-		await window.electronAPI.openAccessibilityPreferences();
-		toast.error(tLaunch(options.startup ? "permissions.accessibilityNeeded" : "permissions.accessibilityMissing"), { duration: 12000 });
-
-		return false;
-	}, [tLaunch]);
+		},
+		[tLaunch],
+	);
 
 	const selectMimeType = useCallback(() => {
 		return selectRecordingMimeType();
@@ -741,6 +781,8 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 			webcamStream.current.getTracks().forEach((track) => track.stop());
 			webcamStream.current = null;
 		}
+		webcamCompositor.current?.dispose();
+		webcamCompositor.current = null;
 
 		if (mixingContext.current) {
 			mixingContext.current.close().catch(() => undefined);
@@ -862,6 +904,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 					videoPath,
 					webcamPath,
 					timeOffsetMs: webcamTimeOffsetMs.current,
+					webcamHiddenRanges: webcamHiddenRangesAtStop.current,
 					hideOverlayCursorByDefault: shouldHideOverlayCursor,
 					assetStatus,
 					assetMessage: null,
@@ -1161,36 +1204,11 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	);
 
 	/**
-	 * Acquire the webcam stream and prepare the MediaRecorder, but do NOT start
-	 * recording yet. Call {@link beginWebcamCapture} after the main recording
-	 * has started so both begin at approximately the same time.
+	 * Builds the webcam MediaRecorder for `recordStream` and wires its stop
+	 * handler, which stores the file and resolves the pending webcam path.
 	 */
-	const prepareWebcamRecorder = useCallback(async () => {
-		if (!webcamEnabled) {
-			resolvedWebcamPath.current = null;
-			pendingWebcamPathPromise.current = Promise.resolve(null);
-			webcamStartTime.current = null;
-			webcamTimeOffsetMs.current = 0;
-			return;
-		}
-
-		try {
-			webcamStream.current = await navigator.mediaDevices.getUserMedia({
-				video: webcamDeviceId
-					? {
-							deviceId: { exact: webcamDeviceId },
-							width: { ideal: WEBCAM_WIDTH },
-							height: { ideal: WEBCAM_HEIGHT },
-							frameRate: { ideal: WEBCAM_FRAME_RATE, max: WEBCAM_FRAME_RATE },
-						}
-					: {
-							width: { ideal: WEBCAM_WIDTH },
-							height: { ideal: WEBCAM_HEIGHT },
-							frameRate: { ideal: WEBCAM_FRAME_RATE, max: WEBCAM_FRAME_RATE },
-						},
-				audio: false,
-			});
-
+	const attachWebcamRecorder = useCallback(
+		(recordStream: MediaStream) => {
 			const mimeType = selectWebcamMimeType();
 			webcamChunks.current = [];
 			resolvedWebcamPath.current = null;
@@ -1199,7 +1217,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 			});
 			pendingWebcamPathPromise.current = webcamStopPromise.current;
 
-			const recorder = new MediaRecorder(webcamStream.current, {
+			const recorder = new MediaRecorder(recordStream, {
 				videoBitsPerSecond: WEBCAM_BITRATE,
 				...(mimeType ? { mimeType } : {}),
 			});
@@ -1257,12 +1275,63 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 					webcamStopResolver.current = null;
 					webcamRecorder.current = null;
 					webcamStartTime.current = null;
+					webcamCompositor.current?.dispose();
+					webcamCompositor.current = null;
 					if (webcamStream.current) {
 						webcamStream.current.getTracks().forEach((track) => track.stop());
 						webcamStream.current = null;
 					}
 				}
 			};
+			return recorder;
+		},
+		[getRecordingDurationMs, selectWebcamMimeType],
+	);
+
+	/**
+	 * Wraps a camera stream in the canvas compositor used on macOS, where the
+	 * camera can change while a native recording is paused.
+	 */
+	const createWebcamCompositorStream = useCallback(async (cameraStream: MediaStream) => {
+		const settings = cameraStream.getVideoTracks()[0]?.getSettings() ?? {};
+		const compositor = new LiveWebcamCompositor(
+			settings.width ?? WEBCAM_WIDTH,
+			settings.height ?? WEBCAM_HEIGHT,
+			WEBCAM_FRAME_RATE,
+		);
+		await compositor.setCamera(cameraStream);
+		webcamCompositor.current = compositor;
+		return compositor.start();
+	}, []);
+
+	/**
+	 * Acquire the webcam stream and prepare the MediaRecorder, but do NOT start
+	 * recording yet. Call {@link beginWebcamCapture} after the main recording
+	 * has started so both begin at approximately the same time.
+	 */
+	const prepareWebcamRecorder = useCallback(async () => {
+		webcamHiddenRanges.current = new HiddenRangeTracker();
+		webcamHiddenRangesAtStop.current = [];
+		if (!webcamEnabled) {
+			resolvedWebcamPath.current = null;
+			pendingWebcamPathPromise.current = Promise.resolve(null);
+			webcamStartTime.current = null;
+			webcamTimeOffsetMs.current = 0;
+			return;
+		}
+
+		try {
+			webcamStream.current = await navigator.mediaDevices.getUserMedia(
+				buildWebcamConstraints(webcamDeviceId),
+			);
+			// On macOS the camera is recorded through a canvas compositor so it
+			// can be switched or turned off while the recording is paused. The
+			// compositor owns the camera stream from here on.
+			const recordStream = isMacOS
+				? await createWebcamCompositorStream(webcamStream.current)
+				: webcamStream.current;
+			if (isMacOS) webcamStream.current = null;
+			attachWebcamRecorder(recordStream);
 		} catch (error) {
 			recordingWarnings.current.push(`Webcam unavailable: ${getErrorMessage(error)}`);
 			console.warn(
@@ -1275,12 +1344,20 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 			webcamRecorder.current = null;
 			webcamStartTime.current = null;
 			webcamTimeOffsetMs.current = 0;
+			webcamCompositor.current?.dispose();
+			webcamCompositor.current = null;
 			if (webcamStream.current) {
 				webcamStream.current.getTracks().forEach((track) => track.stop());
 				webcamStream.current = null;
 			}
 		}
-	}, [getRecordingDurationMs, selectWebcamMimeType, webcamDeviceId, webcamEnabled]);
+	}, [
+		attachWebcamRecorder,
+		createWebcamCompositorStream,
+		isMacOS,
+		webcamDeviceId,
+		webcamEnabled,
+	]);
 
 	/** Start the prepared webcam MediaRecorder. Call after main recording begins. */
 	const beginWebcamCapture = useCallback(() => {
@@ -1295,6 +1372,8 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 				);
 				webcamStream.current?.getTracks().forEach((track) => track.stop());
 				webcamStream.current = null;
+				webcamCompositor.current?.dispose();
+				webcamCompositor.current = null;
 				webcamRecorder.current = null;
 				webcamStopResolver.current?.(null);
 				webcamStopResolver.current = null;
@@ -1324,6 +1403,8 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 				const stoppedAtMs = Date.now();
 				markRecordingResumed(stoppedAtMs);
 				const expectedDurationMs = getRecordingDurationMs(stoppedAtMs);
+				webcamHiddenRangesAtStop.current =
+					webcamHiddenRanges.current.finish(expectedDurationMs);
 				const micFallbackBlobPromise = stopMicFallbackRecorder();
 				const webcamPathPromise = stopWebcamRecorder();
 				const isNativeWindows = nativeWindowsRecording.current;
@@ -1410,6 +1491,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 							videoPath: finalPath,
 							webcamPath,
 							timeOffsetMs: webcamTimeOffsetMs.current,
+							webcamHiddenRanges: webcamHiddenRangesAtStop.current,
 							hideOverlayCursorByDefault: hideEditorOverlayCursorByDefault.current,
 							assetStatus: recordingWarnings.current.length ? "degraded" : "ready",
 							assetMessage: recordingWarnings.current.length
@@ -1426,6 +1508,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 							videoPath: finalPath,
 							webcamPath: null,
 							timeOffsetMs: webcamTimeOffsetMs.current,
+							webcamHiddenRanges: webcamHiddenRangesAtStop.current,
 							hideOverlayCursorByDefault: hideEditorOverlayCursorByDefault.current,
 							assetStatus: "degraded",
 							assetMessage:
@@ -1465,6 +1548,9 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 					console.warn("Failed to resume recorder before stopping:", error);
 				}
 			}
+			webcamHiddenRangesAtStop.current = webcamHiddenRanges.current.finish(
+				getRecordingDurationMs(Date.now()),
+			);
 			pendingWebcamPathPromise.current = stopWebcamRecorder();
 			pendingBrowserMicSidecarBlobPromise.current = stopMicFallbackRecorder();
 			try {
@@ -1966,7 +2052,9 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 							"System audio capture failed, falling back to video-only:",
 							audioError,
 						);
-						toast.warning(tLaunch("permissions.systemAudioUnavailable"), { duration: 10000 });
+						toast.warning(tLaunch("permissions.systemAudioUnavailable"), {
+							duration: 10000,
+						});
 						screenMediaStream = useLinuxPortal
 							? await acquireLinuxPortalStream(false)
 							: await mediaDevices.getUserMedia({
@@ -2170,6 +2258,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 									videoPath: finalVideoPath,
 									webcamPath,
 									timeOffsetMs: webcamTimeOffsetMs.current,
+									webcamHiddenRanges: webcamHiddenRangesAtStop.current,
 									hideOverlayCursorByDefault:
 										hideEditorOverlayCursorByDefault.current,
 									assetStatus: recordingWarnings.current.length
@@ -2184,6 +2273,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 									videoPath: finalVideoPath,
 									webcamPath: null,
 									timeOffsetMs: webcamTimeOffsetMs.current,
+									webcamHiddenRanges: webcamHiddenRangesAtStop.current,
 									hideOverlayCursorByDefault:
 										hideEditorOverlayCursorByDefault.current,
 									assetStatus: "degraded",
@@ -2351,6 +2441,167 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 		}
 	}, [markRecordingResumed, resumeMicFallbackRecorder, setPaused]);
 
+	const canChangeCaptureWhilePaused = useCallback(
+		() =>
+			isMacOS &&
+			nativeScreenRecording.current &&
+			!nativeWindowsRecording.current &&
+			recorderStateRef.current.recording &&
+			recorderStateRef.current.paused &&
+			captureMutation.current === null,
+		[isMacOS],
+	);
+
+	const pausedOnlyResult: LiveCaptureResult = {
+		success: false,
+		message: "Pause the recording to change sources or devices.",
+	};
+
+	const switchSourceWhilePaused = useCallback(
+		async (source: ProcessedDesktopSource): Promise<LiveCaptureResult> => {
+			if (!canChangeCaptureWhilePaused()) return pausedOnlyResult;
+			const result = await window.electronAPI.switchNativeScreenRecordingSource(source);
+			if (!result.success) {
+				return { success: false, message: result.error || result.message };
+			}
+			return { success: true };
+		},
+		// biome-ignore lint/correctness/useExhaustiveDependencies: constant result object.
+		[canChangeCaptureWhilePaused],
+	);
+
+	const setMicrophoneWhilePaused = useCallback(
+		async (enabled: boolean, deviceId?: string): Promise<LiveCaptureResult> => {
+			if (!canChangeCaptureWhilePaused()) return pausedOnlyResult;
+			const requestedDeviceId = deviceId === "default" ? undefined : deviceId;
+
+			// Browser fallback sidecar: the take keeps recording the same device,
+			// muting by disabling its track (MediaRecorder then writes silence).
+			const fallbackRecorder = micFallbackRecorder.current;
+			if (fallbackRecorder) {
+				if (enabled && requestedDeviceId && requestedDeviceId !== microphoneDeviceId) {
+					return {
+						success: false,
+						message: "This recording cannot switch microphones; it can only mute or unmute.",
+					};
+				}
+				for (const track of fallbackRecorder.stream.getAudioTracks()) {
+					track.enabled = enabled;
+				}
+				persistMicrophoneEnabled(enabled);
+				setRecordingAudioSources((previous) => ({ ...previous, microphoneEnabled: enabled }));
+				return { success: true };
+			}
+
+			const device = enabled
+				? await resolveRecordingMicrophoneDevice(requestedDeviceId ?? microphoneDeviceId).catch(
+						() => null,
+					)
+				: null;
+			const result = await window.electronAPI.setNativeScreenRecordingMicrophone({
+				enabled,
+				microphoneDeviceId: device?.deviceId ?? requestedDeviceId,
+				microphoneLabel: device?.label,
+			});
+			if (!result.success) {
+				return {
+					success: false,
+					message: result.microphoneUnavailable
+						? "Native microphone capture is unavailable for this recording."
+						: result.error || result.message,
+				};
+			}
+			persistMicrophoneEnabled(enabled);
+			if (enabled && requestedDeviceId) persistMicrophoneDeviceId(requestedDeviceId);
+			setRecordingAudioSources((previous) => ({
+				...previous,
+				microphoneEnabled: enabled,
+				...(enabled && device
+					? { microphoneDeviceId: device.deviceId, microphoneLabel: device.label }
+					: {}),
+			}));
+			return { success: true };
+		},
+		// biome-ignore lint/correctness/useExhaustiveDependencies: constant result object.
+		[
+			canChangeCaptureWhilePaused,
+			microphoneDeviceId,
+			persistMicrophoneDeviceId,
+			persistMicrophoneEnabled,
+		],
+	);
+
+	const setWebcamWhilePaused = useCallback(
+		async (enabled: boolean, deviceId?: string): Promise<LiveCaptureResult> => {
+			if (!canChangeCaptureWhilePaused()) return pausedOnlyResult;
+			const recordedMs = getRecordingDurationMs(Date.now());
+			const compositor = webcamCompositor.current;
+
+			if (!enabled) {
+				if (compositor?.hasCamera) {
+					await compositor.setCamera(null);
+					webcamHiddenRanges.current.hide(recordedMs);
+				}
+				setWebcamEnabled(false);
+				return { success: true };
+			}
+
+			const requestedDeviceId = deviceId ?? webcamDeviceId;
+			let camera: MediaStream;
+			try {
+				camera = await navigator.mediaDevices.getUserMedia(
+					buildWebcamConstraints(requestedDeviceId),
+				);
+			} catch (error) {
+				return { success: false, message: `Webcam unavailable: ${getErrorMessage(error)}` };
+			}
+
+			if (compositor) {
+				await compositor.setCamera(camera);
+				webcamHiddenRanges.current.show(recordedMs);
+			} else if (webcamRecorder.current) {
+				for (const track of camera.getTracks()) track.stop();
+				return { success: false, message: "This recording cannot change its webcam." };
+			} else {
+				// First webcam use in this take: the webcam file starts here and the
+				// editor hides the overlay before it.
+				try {
+					const recordStream = await createWebcamCompositorStream(camera);
+					const recorder = attachWebcamRecorder(recordStream);
+					webcamTimeOffsetMs.current = recordedMs;
+					webcamHiddenRanges.current.hide(0);
+					webcamHiddenRanges.current.show(recordedMs);
+					webcamStartTime.current = Date.now();
+					recorder.start(RECORDER_TIMESLICE_MS);
+					// Resumes together with the screen recording.
+					recorder.pause();
+				} catch (error) {
+					for (const track of camera.getTracks()) track.stop();
+					webcamCompositor.current?.dispose();
+					webcamCompositor.current = null;
+					webcamRecorder.current = null;
+					webcamStopResolver.current?.(null);
+					webcamStopResolver.current = null;
+					webcamStopPromise.current = Promise.resolve(null);
+					pendingWebcamPathPromise.current = Promise.resolve(null);
+					return { success: false, message: `Webcam unavailable: ${getErrorMessage(error)}` };
+				}
+			}
+
+			setWebcamEnabled(true);
+			if (deviceId) setWebcamDeviceId(deviceId);
+			return { success: true };
+		},
+		// biome-ignore lint/correctness/useExhaustiveDependencies: constant result object.
+		[
+			attachWebcamRecorder,
+			canChangeCaptureWhilePaused,
+			createWebcamCompositorStream,
+			getRecordingDurationMs,
+			webcamDeviceId,
+		],
+	);
+
 	const cancelRecording = useCallback(async () => {
 		if (!recorderStateRef.current.recording)
 			throw new AutomationError("NOT_RECORDING", "No recording is active.");
@@ -2361,7 +2612,9 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 		try {
 			const retainedPaths: string[] = [];
 			if (nativeScreenRecording.current) {
-				const result = await window.electronAPI.stopNativeScreenRecording({ discard: true });
+				const result = await window.electronAPI.stopNativeScreenRecording({
+					discard: true,
+				});
 				if (!result.success)
 					throw new AutomationError(
 						"CANCEL_FAILED",
@@ -2631,5 +2884,11 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 		setWebcamDeviceId,
 		countdownDelay,
 		setCountdownDelay,
+		liveCapture: {
+			available: paused && isMacOS && nativeScreenRecording.current && !nativeWindowsRecording.current,
+			switchSource: switchSourceWhilePaused,
+			setMicrophone: setMicrophoneWhilePaused,
+			setWebcam: setWebcamWhilePaused,
+		},
 	};
 }

@@ -4,7 +4,7 @@
 		"enableSystemAudio": "Enable system audio",
 		"disableMicrophone": "Disable microphone",
 		"enableMicrophone": "Enable microphone",
-		"micToggleDisabledTip": "Microphone cannot be toggled during recording",
+		"micToggleDisabledTip": "Pause the recording to change the microphone",
 		"disableWebcam": "Disable webcam overlay",
 		"enableWebcam": "Enable webcam overlay",
 		"countdownDelay": "Countdown delay",
@@ -57,7 +57,10 @@
 		"audioMonitor": "Recording audio",
 		"systemAudioSource": "System",
 		"microphoneSource": "Microphone",
-		"noAudioSource": "No audio"
+		"noAudioSource": "No audio",
+		"switchSourceWhilePaused": "Switch window or screen",
+		"liveChangeFailed": "Couldn't apply the change",
+		"liveChangeSwitchedSource": "Recording source switched"
 	},
 	"sourceSelector": {
 		"loadingSources": "Loading sources...",

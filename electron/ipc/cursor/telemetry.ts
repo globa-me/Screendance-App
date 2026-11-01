@@ -16,6 +16,7 @@ import {
 	pendingCursorSamples,
 	selectedSource,
 	selectedWindowBounds,
+	cursorContentViewport,
 	setActiveCursorSamples,
 	setCursorCaptureAccumulatedPausedMs,
 	setCursorCaptureInterval,
@@ -170,7 +171,25 @@ export function getCursorCaptureElapsedMs(nowMs = Date.now()) {
 	);
 }
 
+/** Maps a point normalized to the capture source into the recorded frame. */
+export function applyCursorContentViewport(
+	point: { cx: number; cy: number },
+	viewport: { x: number; y: number; width: number; height: number } | null,
+): { cx: number; cy: number } {
+	if (!viewport) {
+		return point;
+	}
+	return {
+		cx: clamp(viewport.x + point.cx * viewport.width, 0, 1),
+		cy: clamp(viewport.y + point.cy * viewport.height, 0, 1),
+	};
+}
+
 export function getNormalizedCursorPoint() {
+	return applyCursorContentViewport(getSourceNormalizedCursorPoint(), cursorContentViewport);
+}
+
+function getSourceNormalizedCursorPoint() {
 	const fallbackCursor = getScreen().getCursorScreenPoint();
 	const linuxCursorCache = process.platform === "linux" ? linuxCursorScreenPoint : null;
 	const isLinuxCacheFresh = !!linuxCursorCache && Date.now() - linuxCursorCache.updatedAt <= 1000;

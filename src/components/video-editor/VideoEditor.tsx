@@ -2228,6 +2228,7 @@ export default function VideoEditor() {
 						videoPath: sourcePath,
 						webcamPath,
 						timeOffsetMs: webcam.timeOffsetMs,
+						webcamHiddenRanges: webcam.hiddenRanges,
 					},
 					{
 						preserveProjectPath: Boolean(currentProjectPath),
@@ -2240,7 +2241,7 @@ export default function VideoEditor() {
 				preserveProjectPath: Boolean(currentProjectPath),
 			});
 		},
-		[currentProjectPath, webcam.timeOffsetMs],
+		[currentProjectPath, webcam.hiddenRanges, webcam.timeOffsetMs],
 	);
 
 	const handleUploadWebcam = useCallback(async () => {
@@ -2255,6 +2256,7 @@ export default function VideoEditor() {
 			enabled: true,
 			sourcePath: result.path ?? null,
 			timeOffsetMs: DEFAULT_WEBCAM_TIME_OFFSET_MS,
+			hiddenRanges: undefined,
 		}));
 
 		await syncRecordingSessionWebcam(result.path, DEFAULT_WEBCAM_TIME_OFFSET_MS);
@@ -2268,6 +2270,7 @@ export default function VideoEditor() {
 			enabled: false,
 			sourcePath: null,
 			timeOffsetMs: DEFAULT_WEBCAM_TIME_OFFSET_MS,
+			hiddenRanges: undefined,
 		}));
 
 		await syncRecordingSessionWebcam(null);
@@ -2420,6 +2423,9 @@ export default function VideoEditor() {
 						sourcePath: sessionResult.session?.webcamPath ?? null,
 						timeOffsetMs:
 							sessionResult.session?.timeOffsetMs ?? DEFAULT_WEBCAM_TIME_OFFSET_MS,
+						hiddenRanges: sessionResult.session?.webcamPath
+							? sessionResult.session.webcamHiddenRanges
+							: undefined,
 					}));
 					return;
 				}
@@ -2495,6 +2501,9 @@ export default function VideoEditor() {
 				timeOffsetMs: session.webcamPath
 					? (session.timeOffsetMs ?? prev.timeOffsetMs)
 					: DEFAULT_WEBCAM_TIME_OFFSET_MS,
+				hiddenRanges: session.webcamPath
+					? (session.webcamHiddenRanges ?? prev.hiddenRanges)
+					: undefined,
 			}));
 		});
 	}, [applySessionPresentation, videoSourcePath]);
@@ -5619,6 +5628,7 @@ export default function VideoEditor() {
 				enabled: shouldEnableWebcam && Boolean(freshSession?.webcamPath),
 				sourcePath: freshSession?.webcamPath ?? null,
 				timeOffsetMs: freshSession?.timeOffsetMs ?? DEFAULT_WEBCAM_TIME_OFFSET_MS,
+				hiddenRanges: freshSession?.webcamPath ? freshSession.webcamHiddenRanges : undefined,
 			}));
 			pendingFreshRecordingAutoZoomPathRef.current =
 				(freshPreset?.autoApplyFreshRecordingAutoZooms ??

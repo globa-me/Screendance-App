@@ -4,7 +4,7 @@
 		"enableSystemAudio": "Включить системные звуки",
 		"disableMicrophone": "Отключить микрофон",
 		"enableMicrophone": "Включить микрофон",
-		"micToggleDisabledTip": "Нельзя переключать микрофон во время записи",
+		"micToggleDisabledTip": "Поставьте запись на паузу, чтобы сменить микрофон",
 		"disableWebcam": "Отключить наложение веб-камеры",
 		"enableWebcam": "Включить наложение веб-камеры",
 		"countdownDelay": "Обратный отсчёт",
@@ -57,7 +57,10 @@
 		"audioMonitor": "Записываемый звук",
 		"systemAudioSource": "Система",
 		"microphoneSource": "Микрофон",
-		"noAudioSource": "Без звука"
+		"noAudioSource": "Без звука",
+		"switchSourceWhilePaused": "Сменить окно или экран",
+		"liveChangeFailed": "Не удалось применить изменение",
+		"liveChangeSwitchedSource": "Источник записи изменён"
 	},
 	"sourceSelector": {
 		"loadingSources": "Загрузка источников...",

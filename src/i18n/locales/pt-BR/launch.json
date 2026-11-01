@@ -57,7 +57,10 @@
 		"audioMonitor": "Recording audio",
 		"systemAudioSource": "System",
 		"microphoneSource": "Microphone",
-		"noAudioSource": "No audio"
+		"noAudioSource": "No audio",
+		"switchSourceWhilePaused": "Switch window or screen",
+		"liveChangeFailed": "Couldn't apply the change",
+		"liveChangeSwitchedSource": "Recording source switched"
 	},
 	"sourceSelector": {
 		"loadingSources": "Carregando fontes...",

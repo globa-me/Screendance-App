@@ -86,6 +86,13 @@ export let hasLoggedInteractionHookFailure = false;
 export let lastLeftClick: { timeMs: number; cx: number; cy: number } | null = null;
 export let linuxCursorScreenPoint: { x: number; y: number; updatedAt: number } | null = null;
 export let selectedWindowBounds: WindowBounds | null = null;
+/**
+ * Normalized rect of the current capture source inside the recorded frame.
+ * `null` means the source fills the frame. Set when a paused recording is
+ * switched to a source with a different aspect ratio (letterboxed).
+ */
+export let cursorContentViewport: { x: number; y: number; width: number; height: number } | null =
+	null;
 export let windowBoundsCaptureInterval: NodeJS.Timeout | null = null;
 
 // ── Native macOS window source cache ─────────────────────────────────────────
@@ -268,6 +275,11 @@ export function setLinuxCursorScreenPoint(v: { x: number; y: number; updatedAt: 
 }
 export function setSelectedWindowBounds(v: WindowBounds | null) {
 	selectedWindowBounds = v;
+}
+export function setCursorContentViewport(
+	v: { x: number; y: number; width: number; height: number } | null,
+) {
+	cursorContentViewport = v;
 }
 export function setWindowBoundsCaptureInterval(v: NodeJS.Timeout | null) {
 	windowBoundsCaptureInterval = v;

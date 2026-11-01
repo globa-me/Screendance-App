@@ -72,6 +72,10 @@ const webcam = z
 			)
 			.nullable(),
 		timeOffsetMs: z.number().finite().int(),
+		hiddenRanges: z
+			.array(z.object({ startMs: n(0).int(), endMs: n(0).int() }).strict())
+			.max(500)
+			.optional(),
 		mirror: z.boolean(),
 		cropRegion: crop,
 		corner: z.enum(["top-left", "top-right", "bottom-left", "bottom-right"]),

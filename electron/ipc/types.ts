@@ -53,6 +53,8 @@ export type RecordingSessionData = {
 	videoPath: string;
 	webcamPath?: string | null;
 	timeOffsetMs?: number;
+	/** Recording-time spans where the webcam was turned off during the take. */
+	webcamHiddenRanges?: Array<{ startMs: number; endMs: number }>;
 	hideOverlayCursorByDefault?: boolean;
 	assetStatus?: "assembling" | "ready" | "degraded";
 	assetMessage?: string | null;
@@ -68,6 +70,7 @@ export type RecordingSessionManifest = {
 	videoFileName: string;
 	webcamFileName?: string | null;
 	timeOffsetMs?: number;
+	webcamHiddenRanges?: Array<{ startMs: number; endMs: number }>;
 };
 
 export type ProjectLibraryEntry = {

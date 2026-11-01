@@ -23,7 +23,8 @@ export function MicPopover({
 	trigger: ReactElement;
 	disabled?: boolean;
 	systemAudioEnabled: boolean;
-	onToggleSystemAudio: () => void;
+	/** Omit to hide the system audio toggle (it cannot change mid-recording). */
+	onToggleSystemAudio?: () => void;
 	microphoneEnabled: boolean;
 	onDisableMicrophone: () => void;
 	devices: DeviceOption[];
@@ -52,15 +53,19 @@ export function MicPopover({
 			align="start"
 		>
 			<div className={styles.ddLabel}>{t("recording.microphone")}</div>
-			<DropdownItem
-				icon={systemAudioEnabled ? <SpeakerHighIcon size={16} /> : <SpeakerXIcon size={16} />}
-				selected={systemAudioEnabled}
-				onClick={onToggleSystemAudio}
-			>
-				{systemAudioEnabled
-					? t("recording.disableSystemAudio")
-					: t("recording.enableSystemAudio")}
-			</DropdownItem>
+			{onToggleSystemAudio ? (
+				<DropdownItem
+					icon={
+						systemAudioEnabled ? <SpeakerHighIcon size={16} /> : <SpeakerXIcon size={16} />
+					}
+					selected={systemAudioEnabled}
+					onClick={onToggleSystemAudio}
+				>
+					{systemAudioEnabled
+						? t("recording.disableSystemAudio")
+						: t("recording.enableSystemAudio")}
+				</DropdownItem>
+			) : null}
 			{microphoneEnabled && (
 				<DropdownItem
 					icon={<MicrophoneSlashIcon size={16} />}

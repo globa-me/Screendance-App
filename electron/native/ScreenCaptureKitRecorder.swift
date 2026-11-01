@@ -16,6 +16,27 @@ struct CaptureConfig: Codable {
 	let microphoneOutputPath: String?
 }
 
+/// Paused-only command: point the running stream at another window or display.
+struct SourceSwitchConfig: Codable {
+	let displayId: CGDirectDisplayID?
+	let windowId: UInt32?
+}
+
+/// Paused-only command: enable, mute or re-route the native microphone.
+struct MicrophoneUpdateConfig: Codable {
+	let enabled: Bool
+	let microphoneDeviceId: String?
+	let microphoneLabel: String?
+	let microphoneOutputPath: String?
+}
+
+struct NormalizedViewport: Codable {
+	let x: Double
+	let y: Double
+	let width: Double
+	let height: Double
+}
+
 let targetCaptureFPS = 60
 let maxInlineAudioTailExtension = CMTime(seconds: 2.0, preferredTimescale: 600)
 
@@ -56,6 +77,12 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	private var latestSystemAudioLevel = 0.0
 	private var latestMicrophoneAudioLevel = 0.0
 	private var lastAudioLevelEmitTime = CFAbsoluteTimeGetCurrent()
+	private var streamConfiguration: SCStreamConfiguration?
+	private var outputPixelWidth = 0
+	private var outputPixelHeight = 0
+	private var microphoneMuted = false
+	private var activeMicrophoneDeviceId: String?
+	private var reportedMicrophoneWriterFailure = false
 
 	private let microphoneOutputTypeRawValue = 2
 
@@ -260,6 +287,12 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
 		let stream = SCStream(filter: filter, configuration: streamConfig, delegate: self)
 		self.stream = stream
+		streamConfiguration = streamConfig
+		outputPixelWidth = outputWidth
+		outputPixelHeight = outputHeight
+		microphoneMuted = false
+		activeMicrophoneDeviceId = resolvedMicrophoneDeviceId
+		reportedMicrophoneWriterFailure = false
 		try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
 		if capturesSystemAudio {
 			try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
@@ -317,6 +350,225 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		pendingResumeAdjustment = true
 	}
 
+	/// Fits a content size into the fixed output frame, centered, preserving
+	/// aspect ratio. Returns the rect in output pixels.
+	static func letterboxRect(contentWidth: Double, contentHeight: Double, outputWidth: Double, outputHeight: Double) -> CGRect {
+		guard contentWidth > 0, contentHeight > 0, outputWidth > 0, outputHeight > 0 else {
+			return CGRect(x: 0, y: 0, width: outputWidth, height: outputHeight)
+		}
+		let scale = min(outputWidth / contentWidth, outputHeight / contentHeight)
+		let width = (contentWidth * scale).rounded()
+		let height = (contentHeight * scale).rounded()
+		return CGRect(
+			x: ((outputWidth - width) / 2).rounded(),
+			y: ((outputHeight - height) / 2).rounded(),
+			width: width,
+			height: height
+		)
+	}
+
+	/// Points the running stream at another window or display while paused.
+	/// The output resolution stays fixed; the new content is letterboxed into it.
+	func switchSource(configJSON: String) async throws -> NormalizedViewport {
+		guard isRecording, isPaused, let stream, let streamConfiguration else {
+			throw NSError(domain: "RecordlyCapture", code: 30, userInfo: [NSLocalizedDescriptionKey: "Source can only be switched while the recording is paused"])
+		}
+		guard let data = configJSON.data(using: .utf8) else {
+			throw NSError(domain: "RecordlyCapture", code: 31, userInfo: [NSLocalizedDescriptionKey: "Invalid JSON input"])
+		}
+		let config = try JSONDecoder().decode(SourceSwitchConfig.self, from: data)
+		let availableContent = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+
+		let filter: SCContentFilter
+		let contentWidth: Double
+		let contentHeight: Double
+		let nextTrackedWindowId: UInt32?
+		if let windowId = config.windowId {
+			guard let window = availableContent.windows.first(where: { $0.windowID == windowId }) else {
+				throw NSError(domain: "RecordlyCapture", code: 3, userInfo: [NSLocalizedDescriptionKey: "Window not found"])
+			}
+			filter = SCContentFilter(desktopIndependentWindow: window)
+			let candidateDisplay = availableContent.displays.first(where: {
+				$0.frame.intersects(window.frame) || $0.frame.contains(CGPoint(x: window.frame.midX, y: window.frame.midY))
+			})
+			let scaleFactor = Double(ScreenCaptureRecorder.scaleFactor(for: candidateDisplay?.displayID ?? CGMainDisplayID()))
+			contentWidth = Double(window.frame.width) * scaleFactor
+			contentHeight = Double(window.frame.height) * scaleFactor
+			nextTrackedWindowId = windowId
+		} else {
+			let displayId = config.displayId ?? CGMainDisplayID()
+			guard let display = availableContent.displays.first(where: { $0.displayID == displayId }) else {
+				throw NSError(domain: "RecordlyCapture", code: 4, userInfo: [NSLocalizedDescriptionKey: "Display not found"])
+			}
+			filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
+			let displayBounds = CGDisplayBounds(display.displayID)
+			let scaleFactor = Double(ScreenCaptureRecorder.scaleFactor(for: display.displayID))
+			contentWidth = Double(displayBounds.width) * scaleFactor
+			contentHeight = Double(displayBounds.height) * scaleFactor
+			nextTrackedWindowId = nil
+		}
+
+		let outputWidth = Double(outputPixelWidth)
+		let outputHeight = Double(outputPixelHeight)
+		let destination = Self.letterboxRect(
+			contentWidth: contentWidth,
+			contentHeight: contentHeight,
+			outputWidth: outputWidth,
+			outputHeight: outputHeight
+		)
+		streamConfiguration.width = outputPixelWidth
+		streamConfiguration.height = outputPixelHeight
+		streamConfiguration.scalesToFit = true
+		streamConfiguration.destinationRect = destination
+		if #available(macOS 14.0, *) {
+			streamConfiguration.preservesAspectRatio = true
+			streamConfiguration.ignoreShadowsSingleWindow = nextTrackedWindowId != nil
+		}
+
+		try await stream.updateContentFilter(filter)
+		try await stream.updateConfiguration(streamConfiguration)
+
+		trackedWindowId = nextTrackedWindowId
+		startWindowValidationIfNeeded()
+
+		return NormalizedViewport(
+			x: destination.origin.x / outputWidth,
+			y: destination.origin.y / outputHeight,
+			width: destination.width / outputWidth,
+			height: destination.height / outputHeight
+		)
+	}
+
+	/// Enables, mutes or re-routes the native microphone while paused. A muted
+	/// microphone keeps writing silence so the companion track stays aligned.
+	func updateMicrophone(configJSON: String) async throws -> (enabled: Bool, path: String?) {
+		guard isRecording, isPaused, let stream, let streamConfiguration else {
+			throw NSError(domain: "RecordlyCapture", code: 40, userInfo: [NSLocalizedDescriptionKey: "Microphone can only be changed while the recording is paused"])
+		}
+		guard let data = configJSON.data(using: .utf8) else {
+			throw NSError(domain: "RecordlyCapture", code: 41, userInfo: [NSLocalizedDescriptionKey: "Invalid JSON input"])
+		}
+		let config = try JSONDecoder().decode(MicrophoneUpdateConfig.self, from: data)
+
+		guard config.enabled else {
+			microphoneMuted = true
+			return (false, microphoneOutputURL?.path)
+		}
+
+		guard supportsNativeMicrophoneCapture(streamConfig: streamConfiguration) else {
+			throw NSError(domain: "RecordlyCapture", code: 42, userInfo: [NSLocalizedDescriptionKey: "MICROPHONE_CAPTURE_UNAVAILABLE"])
+		}
+
+		let requestedDeviceId = Self.resolveMicrophoneCaptureDeviceID(
+			config: CaptureConfig(
+				fps: nil,
+				displayId: nil,
+				windowId: nil,
+				outputPath: nil,
+				capturesSystemAudio: nil,
+				capturesMicrophone: true,
+				systemAudioOutputPath: nil,
+				microphoneDeviceId: config.microphoneDeviceId,
+				microphoneLabel: config.microphoneLabel,
+				microphoneOutputPath: nil
+			)
+		)
+
+		if !capturesMicrophone {
+			guard let microphoneOutputPath = config.microphoneOutputPath, !microphoneOutputPath.isEmpty else {
+				throw NSError(domain: "RecordlyCapture", code: 43, userInfo: [NSLocalizedDescriptionKey: "Missing microphone output path for microphone capture"])
+			}
+			guard let microphoneOutputType = SCStreamOutputType(rawValue: microphoneOutputTypeRawValue) else {
+				throw NSError(domain: "RecordlyCapture", code: 17, userInfo: [NSLocalizedDescriptionKey: "Microphone stream output type is unavailable"])
+			}
+
+			let microphoneURL = URL(fileURLWithPath: microphoneOutputPath)
+			let microphoneWriter = try AVAssetWriter(url: microphoneURL, fileType: .m4a)
+			let microphoneInput = AVAssetWriterInput(mediaType: .audio, outputSettings: Self.audioOutputSettings(bitRate: 128_000))
+			microphoneInput.expectsMediaDataInRealTime = true
+			guard microphoneWriter.canAdd(microphoneInput) else {
+				throw NSError(domain: "RecordlyCapture", code: 15, userInfo: [NSLocalizedDescriptionKey: "Unable to add microphone writer input"])
+			}
+			microphoneWriter.add(microphoneInput)
+			guard microphoneWriter.startWriting() else {
+				throw NSError(domain: "RecordlyCapture", code: 16, userInfo: [NSLocalizedDescriptionKey: microphoneWriter.error?.localizedDescription ?? "Unable to start microphone audio writing"])
+			}
+			// Same time base as the video: the first sample lands at the current
+			// recording position, leaving leading silence before it.
+			microphoneWriter.startSession(atSourceTime: .zero)
+
+			streamConfiguration.capturesAudio = true
+			streamConfiguration.setValue(true, forKey: "captureMicrophone")
+			if let requestedDeviceId {
+				streamConfiguration.setValue(requestedDeviceId, forKey: "microphoneCaptureDeviceID")
+			}
+			try stream.addStreamOutput(self, type: microphoneOutputType, sampleHandlerQueue: queue)
+			try await stream.updateConfiguration(streamConfiguration)
+
+			queue.sync {
+				self.microphoneOnlyWriter = microphoneWriter
+				self.microphoneOnlyInput = microphoneInput
+				self.microphoneOutputURL = microphoneURL
+				self.firstMicrophoneSampleTime = nil
+				self.capturesMicrophone = true
+				self.writesMicrophoneToSeparateTrack = true
+				self.microphoneMuted = false
+				self.activeMicrophoneDeviceId = requestedDeviceId
+			}
+			return (true, microphoneURL.path)
+		}
+
+		if let requestedDeviceId, requestedDeviceId != activeMicrophoneDeviceId {
+			streamConfiguration.setValue(requestedDeviceId, forKey: "microphoneCaptureDeviceID")
+			try await stream.updateConfiguration(streamConfiguration)
+			activeMicrophoneDeviceId = requestedDeviceId
+		}
+		microphoneMuted = false
+		return (true, microphoneOutputURL?.path)
+	}
+
+	/// Copy of an LPCM audio buffer with identical format/timing and zeroed samples.
+	private static func silencedAudioCopy(of sampleBuffer: CMSampleBuffer) -> CMSampleBuffer? {
+		guard let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer),
+		      let sourceBlock = CMSampleBufferGetDataBuffer(sampleBuffer) else {
+			return nil
+		}
+		let length = CMBlockBufferGetDataLength(sourceBlock)
+		guard length > 0 else { return nil }
+
+		var silentBlock: CMBlockBuffer?
+		guard CMBlockBufferCreateWithMemoryBlock(
+			allocator: kCFAllocatorDefault,
+			memoryBlock: nil,
+			blockLength: length,
+			blockAllocator: kCFAllocatorDefault,
+			customBlockSource: nil,
+			offsetToData: 0,
+			dataLength: length,
+			flags: kCMBlockBufferAssureMemoryNowFlag,
+			blockBufferOut: &silentBlock
+		) == kCMBlockBufferNoErr, let silentBlock else {
+			return nil
+		}
+		guard CMBlockBufferFillDataBytes(with: 0, blockBuffer: silentBlock, offsetIntoDestination: 0, dataLength: length) == kCMBlockBufferNoErr else {
+			return nil
+		}
+
+		var silentBuffer: CMSampleBuffer?
+		guard CMAudioSampleBufferCreateReadyWithPacketDescriptions(
+			allocator: kCFAllocatorDefault,
+			dataBuffer: silentBlock,
+			formatDescription: formatDescription,
+			sampleCount: CMSampleBufferGetNumSamples(sampleBuffer),
+			presentationTimeStamp: sampleBuffer.presentationTimeStamp,
+			packetDescriptions: nil,
+			sampleBufferOut: &silentBuffer
+		) == noErr else {
+			return nil
+		}
+		return silentBuffer
+	}
+
 	func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of outputType: SCStreamOutputType) {
 		guard sessionStarted, sampleBuffer.isValid, isRecording else { return }
 		guard let presentationTime = adjustedPresentationTime(for: sampleBuffer, outputType: outputType) else { return }
@@ -360,13 +612,24 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		}
 
 		if outputType.rawValue == microphoneOutputTypeRawValue {
-			latestMicrophoneAudioLevel = Self.normalizedAudioLevel(for: sampleBuffer)
+			// A muted microphone keeps a continuous, silent track so later
+			// unmuted speech stays in sync with the video timeline.
+			let microphoneBuffer = microphoneMuted ? (Self.silencedAudioCopy(of: sampleBuffer) ?? sampleBuffer) : sampleBuffer
+			latestMicrophoneAudioLevel = microphoneMuted ? 0 : Self.normalizedAudioLevel(for: sampleBuffer)
 			emitAudioLevelsIfNeeded()
+			if microphoneMuted && microphoneBuffer === sampleBuffer {
+				return
+			}
 			if let microphoneOnlyInput {
-				appendAudioSampleBuffer(sampleBuffer, to: microphoneOnlyInput, firstSampleTime: &firstMicrophoneSampleTime, presentationTime: presentationTime)
+				appendAudioSampleBuffer(microphoneBuffer, to: microphoneOnlyInput, firstSampleTime: &firstMicrophoneSampleTime, presentationTime: presentationTime)
+				if microphoneOnlyWriter?.status == .failed && !reportedMicrophoneWriterFailure {
+					reportedMicrophoneWriterFailure = true
+					fputs("MICROPHONE_WRITER_FAILED \(microphoneOnlyWriter?.error?.localizedDescription ?? "unknown")\n", stderr)
+					fflush(stderr)
+				}
 			}
 			if !writesMicrophoneToSeparateTrack, let inlineAudioInput, inlineAudioInput.isReadyForMoreMediaData {
-				appendAudioSampleBuffer(sampleBuffer, to: inlineAudioInput, firstSampleTime: &firstInlineAudioSampleTime, presentationTime: presentationTime)
+				appendAudioSampleBuffer(microphoneBuffer, to: inlineAudioInput, firstSampleTime: &firstInlineAudioSampleTime, presentationTime: presentationTime)
 			}
 			return
 		}
@@ -442,6 +705,11 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		accumulatedPausedDuration = .zero
 		capturesSystemAudio = false
 		capturesMicrophone = false
+		streamConfiguration = nil
+		outputPixelWidth = 0
+		outputPixelHeight = 0
+		microphoneMuted = false
+		activeMicrophoneDeviceId = nil
 		writesSystemAudioToSeparateTrack = false
 		writesMicrophoneToSeparateTrack = false
 		latestSystemAudioLevel = 0
@@ -744,6 +1012,40 @@ final class RecorderService {
 		}
 	}
 
+	func switchSource(configJSON: String) {
+		queue.async {
+			Task {
+				do {
+					let viewport = try await self.recorder.switchSource(configJSON: configJSON)
+					let data = try JSONEncoder().encode(["viewport": viewport])
+					print("SOURCE_SWITCHED \(String(data: data, encoding: .utf8) ?? "{}")")
+				} catch {
+					print("SOURCE_SWITCH_FAILED \(error.localizedDescription)")
+				}
+				fflush(stdout)
+			}
+		}
+	}
+
+	func updateMicrophone(configJSON: String) {
+		queue.async {
+			Task {
+				do {
+					let result = try await self.recorder.updateMicrophone(configJSON: configJSON)
+					var payload: [String: String] = ["enabled": result.enabled ? "true" : "false"]
+					if let path = result.path {
+						payload["path"] = path
+					}
+					let data = try JSONEncoder().encode(payload)
+					print("MICROPHONE_UPDATED \(String(data: data, encoding: .utf8) ?? "{}")")
+				} catch {
+					print("MICROPHONE_UPDATE_FAILED \(error.localizedDescription)")
+				}
+				fflush(stdout)
+			}
+		}
+	}
+
 	func waitUntilFinished() {
 		completionGroup.wait()
 	}
@@ -800,7 +1102,19 @@ let service = RecorderService()
 service.start(configJSON: CommandLine.arguments[1])
 
 DispatchQueue.global(qos: .utility).async {
-	while let input = readLine(strippingNewline: true)?.lowercased() {
+	while let rawInput = readLine(strippingNewline: true) {
+		let input = rawInput.lowercased()
+		// JSON payload commands keep their original case (paths, device ids).
+		if input.hasPrefix("switch_source ") {
+			service.switchSource(configJSON: String(rawInput.dropFirst("switch_source ".count)))
+			continue
+		}
+
+		if input.hasPrefix("set_microphone ") {
+			service.updateMicrophone(configJSON: String(rawInput.dropFirst("set_microphone ".count)))
+			continue
+		}
+
 		if input == "pause" {
 			service.pause()
 			continue

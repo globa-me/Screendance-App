@@ -1,6 +1,7 @@
 import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { normalizeTimeRanges } from "../../../shared/timeRanges";
 import { RECORDING_SESSION_MANIFEST_SUFFIX } from "../constants";
 import type { RecordingSessionData, RecordingSessionManifest } from "../types";
 import { normalizeVideoSourcePath, parseJsonWithByteOrderMark } from "../utils";
@@ -34,6 +35,9 @@ export async function persistRecordingSessionManifest(session: RecordingSessionD
 		videoFileName: path.basename(normalizedVideoPath),
 		webcamFileName: path.basename(normalizedWebcamPath),
 		timeOffsetMs: normalizeRecordingTimeOffsetMs(session.timeOffsetMs),
+		...(session.webcamHiddenRanges?.length
+			? { webcamHiddenRanges: normalizeTimeRanges(session.webcamHiddenRanges) }
+			: {}),
 	};
 
 	await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf-8");
@@ -80,6 +84,7 @@ export async function resolveRecordingSessionManifest(
 			videoPath: normalizedVideoPath,
 			webcamPath: webcamExists ? webcamPath : null,
 			timeOffsetMs: normalizeRecordingTimeOffsetMs(parsed.timeOffsetMs),
+			webcamHiddenRanges: normalizeTimeRanges(parsed.webcamHiddenRanges),
 		};
 	} catch {
 		return null;

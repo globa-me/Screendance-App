@@ -567,6 +567,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	resumeNativeScreenRecording: () => {
 		return ipcRenderer.invoke("resume-native-screen-recording");
 	},
+	switchNativeScreenRecordingSource: (source: ProcessedDesktopSource) => {
+		return ipcRenderer.invoke("switch-native-screen-recording-source", source);
+	},
+	setNativeScreenRecordingMicrophone: (options: {
+		enabled: boolean;
+		microphoneDeviceId?: string;
+		microphoneLabel?: string;
+	}) => {
+		return ipcRenderer.invoke("set-native-screen-recording-microphone", options);
+	},
 	pauseCursorCapture: (pausedAtMs?: number) => {
 		return ipcRenderer.invoke("pause-cursor-capture", pausedAtMs);
 	},
@@ -768,6 +778,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 			videoPath: string;
 			webcamPath?: string | null;
 			timeOffsetMs?: number;
+			webcamHiddenRanges?: Array<{ startMs: number; endMs: number }>;
 			hideOverlayCursorByDefault?: boolean;
 			assetStatus?: "assembling" | "ready" | "degraded";
 			assetMessage?: string | null;
