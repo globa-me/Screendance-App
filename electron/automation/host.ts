@@ -467,9 +467,11 @@ export function createAutomationHost(options: {
 						false,
 					)) as typeof inspection;
 				} catch (error) {
+					// The editor window may still be opening after a recording that
+					// started without one (fresh app, HUD only): keep waiting.
 					if (
 						!(error instanceof AutomationError) ||
-						error.code !== "BUSY" ||
+						!["BUSY", "EDITOR_NOT_OPEN"].includes(error.code) ||
 						Date.now() >= deadline
 					)
 						throw error;

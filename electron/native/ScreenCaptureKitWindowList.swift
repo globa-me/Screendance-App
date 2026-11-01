@@ -181,22 +181,25 @@ func captureThumbnails() async -> [String: String] {
 	}
 }
 
-if CommandLine.arguments.contains("--thumbnails") {
-	var thumbnails: [String: String] = [:]
-	if #available(macOS 14.0, *) {
-		let semaphore = DispatchSemaphore(value: 0)
-		Task {
-			thumbnails = await captureThumbnails()
-			semaphore.signal()
-		}
-		semaphore.wait()
-	}
+func writeThumbnailsAndExit(_ thumbnails: [String: String]) -> Never {
 	let thumbnailEncoder = JSONEncoder()
 	thumbnailEncoder.outputFormatting = [.sortedKeys]
 	if let data = try? thumbnailEncoder.encode(thumbnails) {
 		FileHandle.standardOutput.write(data)
 	}
 	exit(0)
+}
+
+if CommandLine.arguments.contains("--thumbnails") {
+	if #available(macOS 14.0, *) {
+		// Keep the main queue serviceable: ScreenCaptureKit and main-actor work
+		// must not wait on a blocked main thread.
+		Task.detached {
+			writeThumbnailsAndExit(await captureThumbnails())
+		}
+		dispatchMain()
+	}
+	writeThumbnailsAndExit([:])
 }
 
 let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]

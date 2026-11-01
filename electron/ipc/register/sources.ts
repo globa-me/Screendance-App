@@ -37,6 +37,8 @@ let sourceThumbnailCache: {
  * source list itself carries no thumbnails, so the editor fetches them
  * lazily through ScreenCaptureKit after the list renders.
  */
+let thumbnailHelperQueue: Promise<void> = Promise.resolve();
+
 export async function getCaptureSourceThumbnails(opts: {
 	sources: SourceThumbnailRequest[];
 	thumbnailSize?: { width: number; height: number };
@@ -67,6 +69,14 @@ export async function getCaptureSourceThumbnails(opts: {
 			: null;
 
 	if (!thumbnails) {
+		// Concurrent ScreenCaptureKit screenshot helpers deadlock each other
+		// (verified: two parallel runs both hit the timeout), so run one at a time.
+		const previousRun = thumbnailHelperQueue;
+		let releaseQueue: () => void = () => {};
+		thumbnailHelperQueue = new Promise<void>((resolve) => {
+			releaseQueue = resolve;
+		});
+		await previousRun;
 		try {
 			const binaryPath = await ensureNativeWindowListBinary();
 			const { stdout } = await execFileAsync(
@@ -79,7 +89,7 @@ export async function getCaptureSourceThumbnails(opts: {
 					String(process.pid),
 					...nativeIds,
 				],
-				{ timeout: 15000, maxBuffer: 64 * 1024 * 1024 },
+				{ timeout: 8000, maxBuffer: 64 * 1024 * 1024 },
 			);
 			const parsed = JSON.parse(stdout) as unknown;
 			thumbnails = {};
@@ -98,6 +108,8 @@ export async function getCaptureSourceThumbnails(opts: {
 		} catch (error) {
 			console.warn("Failed to capture source thumbnails:", error);
 			return {};
+		} finally {
+			releaseQueue();
 		}
 	}
 

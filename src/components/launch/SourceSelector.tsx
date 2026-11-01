@@ -142,7 +142,8 @@ function useSourceThumbnails(sources: DesktopSource[], enabled: boolean): Deskto
 		[sources],
 	);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: `sources` is represented by `missingKey`.
+	// Re-capture whenever the source list is refetched (each time the picker
+	// opens) so previews stay current; `missingKey` alone would skip that.
 	useEffect(() => {
 		if (!enabled || !missingKey || !window.electronAPI?.getSourceThumbnails) {
 			return;
@@ -168,7 +169,7 @@ function useSourceThumbnails(sources: DesktopSource[], enabled: boolean): Deskto
 		return () => {
 			cancelled = true;
 		};
-	}, [enabled, missingKey]);
+	}, [enabled, missingKey, sources]);
 
 	return useMemo(
 		() =>
