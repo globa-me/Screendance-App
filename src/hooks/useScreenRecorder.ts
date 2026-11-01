@@ -2466,7 +2466,6 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 			}
 			return { success: true };
 		},
-		// biome-ignore lint/correctness/useExhaustiveDependencies: constant result object.
 		[canChangeCaptureWhilePaused],
 	);
 
@@ -2522,7 +2521,6 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 			}));
 			return { success: true };
 		},
-		// biome-ignore lint/correctness/useExhaustiveDependencies: constant result object.
 		[
 			canChangeCaptureWhilePaused,
 			microphoneDeviceId,
@@ -2592,7 +2590,6 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 			if (deviceId) setWebcamDeviceId(deviceId);
 			return { success: true };
 		},
-		// biome-ignore lint/correctness/useExhaustiveDependencies: constant result object.
 		[
 			attachWebcamRecorder,
 			canChangeCaptureWhilePaused,

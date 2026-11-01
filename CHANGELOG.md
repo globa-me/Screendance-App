@@ -5,6 +5,26 @@ the fork, see [Recordly](https://github.com/webadderallorg/Recordly/commits/main
 For the complete, browseable history after the fork, see the
 [Screendance commit log](https://github.com/globa-me/Screendance-App/commits/screendance/macos-apple-silicon).
 
+## November 1, 2026 — 1.7.0 (source, not built)
+
+- The source picker shows live thumbnails of every window and screen (native
+  ScreenCaptureKit previews on macOS) in a grid with app icons. Windows with
+  the same title are no longer selected together.
+- While a recording is paused on macOS you can switch to another window or
+  screen and turn the microphone or webcam on, off or to another device, then
+  resume the same take. A source with another shape is letterboxed into the
+  original frame; the cursor follows it. Also available as `recording.adjust`
+  in the CLI/MCP (85 commands).
+- New highlight annotations — rectangle, ellipse and marker — are anchored to
+  the recorded content and stay on it through zooms, camera motion and crops,
+  in the preview and in every export path.
+- New recordings and imports reuse the background you chose last instead of
+  the last preset's background. Opening an old project no longer changes it.
+- Fixed an invisible HUD area that kept swallowing clicks where the recording
+  bar used to be after it was dragged, and after hiding the HUD.
+
+Details and verification: [`docs/releases/v1.7.0.md`](docs/releases/v1.7.0.md).
+
 ## October 25, 2026 — 1.6.0 (local build)
 
 - Added an opt-in CLI and MCP server with 84 typed commands for recording,

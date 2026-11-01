@@ -1,7 +1,7 @@
 # Automation coverage and continuation
 
 Status: October 25, 2026, Screendance App 1.6.0. Stages **1–6 are implemented in
-source**, with **84 registered commands** (21 original, 8 editor/preview, 11 job,
+source**, with **85 registered commands** (22 original — 1.7.0 added `recording.adjust` —, 8 editor/preview, 11 job,
 44 system). This covers ordinary application-user functions through typed
 operations; it is not a command-per-button mirror of internal IPC.
 `app.capabilities` and the shared schemas are authoritative. Both G2 signed/
@@ -14,7 +14,7 @@ performed. See [validation.md](validation.md) and [release record](../releases/v
 | --- | --- | --- |
 | App lifecycle | Launch/connect, status/capabilities, window inventory/actions, open editor/recorder/sources, safe quit | Exact app window IDs; close/quit/update install refuse unsaved or active work |
 | Sources/devices/TCC | Screens/windows list/select/highlight, passive microphone/camera listing, permission state/request | Exact IDs; explicit permission grants remain controlled by macOS |
-| Recording | Settings/countdown/start/pause/resume/stop/cancel/recover, awaited finalization/editor adoption | Complete shared recorder pipeline; hardware mic/camera/denied-permission matrix remains manual |
+| Recording | Settings/countdown/start/pause/resume/stop/cancel/recover, paused-only `recording.adjust` (macOS: switch source, mic/webcam on/off/device), awaited finalization/editor adoption | Complete shared recorder pipeline; hardware mic/camera/denied-permission matrix remains manual |
 | Project library | List/recent/open/video import/live inspect/save/save-as/rename | Captured live snapshot, atomic writes, trusted-current overwrite, explicit other-target overwrite, context/allowlist rollback |
 | Document/history | `editor.get/apply/undo/redo`, revision and document identity, validated atomic batches | UI and automation share full persisted-document history; transient selection/playback is separate |
 | Clips/trim/speed | Collection/region CRUD/reorder, split, resize, delete, speed/mute/source-audio fields | Integer millisecond editor coordinates; display span and source span differ with clip speed |

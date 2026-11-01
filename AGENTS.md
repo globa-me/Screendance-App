@@ -1,5 +1,16 @@
 # Agent Notes
 
+## 1.7.0 work in progress (branch `screendance/v1.7.0`)
+
+Read `docs/releases/v1.7.0.md` first: source thumbnails, paused-only live
+capture changes (`switch_source`/`set_microphone` helper commands, letterboxed
+source + `cursorContentViewport`, canvas webcam compositor + `webcam.hiddenRanges`),
+content-anchored `highlight` annotations (source-frame percentages, drawn in
+the camera container), last-wallpaper reuse and the HUD hit-zone fix. CLI/MCP
+now has 85 commands (`recording.adjust`). Not built/signed; the full-app manual
+checks listed there are still open. Keep highlights out of screen-space
+annotation paths and hidden ranges out of presets.
+
 ## CLI/MCP automation
 
 Stages 1–6 are implemented in source for 1.6.0: 84 commands registered through
@@ -141,7 +152,10 @@ options, caption styling, and default zoom-creation behavior.
 
 The ID of the last explicitly applied or newly saved preset is stored separately
 under `recordly.editor.lastPresetId`. Apply that preset to fresh recordings and
-newly imported videos only. A saved `.scrdance`/`.recordly` project remains the
+newly imported videos only. Since 1.7.0 the background is the exception: the
+wallpaper last chosen explicitly (panel or applied preset) is kept in
+`preferences.wallpaper` and wins for fresh videos; the auto-save effect must not
+write `wallpaper`, so loading a project never changes it. A saved `.scrdance`/`.recordly` project remains the
 authoritative source of its editor state and must not be overwritten by the last
 preset during load.
 

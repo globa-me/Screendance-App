@@ -229,6 +229,26 @@ export const AUTOMATION_COMMANDS = [
 		inputSchema: emptySchema,
 	},
 	{
+		name: "recording.adjust",
+		description:
+			"macOS, paused only: switch the capture source and/or turn the microphone or webcam on, off or to another device without ending the take. A new source is letterboxed into the original frame. Resume afterwards.",
+		readOnly: false,
+		inputSchema: {
+			type: "object",
+			properties: {
+				sourceId: {
+					...deviceIdSchema,
+					description: "Exact capture source ID returned by sources.list.",
+				},
+				microphoneEnabled: { type: "boolean" },
+				microphoneDeviceId: deviceIdSchema,
+				webcamEnabled: { type: "boolean" },
+				webcamDeviceId: deviceIdSchema,
+			},
+			additionalProperties: false,
+		},
+	},
+	{
 		name: "recording.stop",
 		description:
 			"Stop the recording and wait for audio, webcam and cursor finalization before returning the recording result. This can take time.",

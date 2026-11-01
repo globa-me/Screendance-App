@@ -135,15 +135,24 @@ export function parseArguments(argv: string[]): ParsedCommand {
 		}
 		return command(method, params);
 	}
-	if (group === "recording" && action === "configure") {
-		const flags: Record<string, { key: string; type: "boolean" | "string" | "integer" }> = {
-			"--microphone": { key: "microphoneEnabled", type: "boolean" },
-			"--microphone-device": { key: "microphoneDeviceId", type: "string" },
-			"--system-audio": { key: "systemAudioEnabled", type: "boolean" },
-			"--webcam": { key: "webcamEnabled", type: "boolean" },
-			"--webcam-device": { key: "webcamDeviceId", type: "string" },
-			"--countdown": { key: "countdownSeconds", type: "integer" },
-		};
+	if (group === "recording" && (action === "configure" || action === "adjust")) {
+		const flags: Record<string, { key: string; type: "boolean" | "string" | "integer" }> =
+			action === "adjust"
+				? {
+						"--source": { key: "sourceId", type: "string" },
+						"--microphone": { key: "microphoneEnabled", type: "boolean" },
+						"--microphone-device": { key: "microphoneDeviceId", type: "string" },
+						"--webcam": { key: "webcamEnabled", type: "boolean" },
+						"--webcam-device": { key: "webcamDeviceId", type: "string" },
+					}
+				: {
+						"--microphone": { key: "microphoneEnabled", type: "boolean" },
+						"--microphone-device": { key: "microphoneDeviceId", type: "string" },
+						"--system-audio": { key: "systemAudioEnabled", type: "boolean" },
+						"--webcam": { key: "webcamEnabled", type: "boolean" },
+						"--webcam-device": { key: "webcamDeviceId", type: "string" },
+						"--countdown": { key: "countdownSeconds", type: "integer" },
+					};
 		const params: Record<string, unknown> = {};
 		for (let index = 0; index < rest.length; index += 2) {
 			const flag = rest[index];
@@ -204,6 +213,8 @@ Commands:
   recording configure [--microphone true|false] [--microphone-device ID]
     [--system-audio true|false] [--webcam true|false] [--webcam-device ID]
     [--countdown 0..10]
+  recording adjust [--source ID] [--microphone true|false] [--microphone-device ID]
+                   [--webcam true|false] [--webcam-device ID]   (paused, macOS)
   recording start|pause|resume|stop|cancel|recover
   video open PATH
   preview render --time-ms N --output PATH

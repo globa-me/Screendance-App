@@ -143,6 +143,81 @@ export function useRecorderAutomation(options: RecorderAutomationOptions): void 
 			}
 			if (request.method === "permissions.request")
 				return requestPermission(request.params.kind);
+			if (request.method === "recording.adjust") {
+				const settings = request.params;
+				if (!recorder.liveCapture.available)
+					throw new AutomationError(
+						"INVALID_STATE",
+						"Pause a native macOS recording before adjusting it.",
+					);
+				const devices = await listDevices();
+				for (const [key, available] of [
+					["microphoneDeviceId", devices.microphones],
+					["webcamDeviceId", devices.cameras],
+				] as const) {
+					if (
+						settings[key] !== undefined &&
+						settings[key] !== "default" &&
+						!available.some((device) => device.deviceId === settings[key])
+					)
+						throw new AutomationError("DEVICE_NOT_FOUND", `${key} is not available.`);
+				}
+				const applied: Record<string, unknown> = {};
+				const apply = async (
+					key: string,
+					change: () => Promise<{ success: boolean; message?: string }>,
+				) => {
+					const result = await change();
+					if (!result.success)
+						throw new AutomationError(
+							"ADJUST_FAILED",
+							`${key}: ${result.message ?? "the change could not be applied."}`,
+						);
+					applied[key] = true;
+				};
+				if (typeof settings.sourceId === "string") {
+					const source = (await listSources()).sources.find(
+						(item) => item.id === settings.sourceId,
+					);
+					if (!source)
+						throw new AutomationError(
+							"SOURCE_NOT_FOUND",
+							"Select an exact sourceId returned by sources.list.",
+						);
+					await apply("source", () =>
+						latest.current.recorder.liveCapture.switchSource(source),
+					);
+					latest.current.onSelectedSource(source);
+				}
+				const microphoneDeviceId =
+					typeof settings.microphoneDeviceId === "string"
+						? settings.microphoneDeviceId
+						: undefined;
+				if (typeof settings.microphoneEnabled === "boolean" || microphoneDeviceId)
+					await apply("microphone", () =>
+						latest.current.recorder.liveCapture.setMicrophone(
+							typeof settings.microphoneEnabled === "boolean"
+								? settings.microphoneEnabled
+								: true,
+							microphoneDeviceId,
+						),
+					);
+				const webcamDeviceId =
+					typeof settings.webcamDeviceId === "string" &&
+					settings.webcamDeviceId !== "default"
+						? settings.webcamDeviceId
+						: undefined;
+				if (typeof settings.webcamEnabled === "boolean" || webcamDeviceId)
+					await apply("webcam", () =>
+						latest.current.recorder.liveCapture.setWebcam(
+							typeof settings.webcamEnabled === "boolean"
+								? settings.webcamEnabled
+								: true,
+							webcamDeviceId,
+						),
+					);
+				return { ...(await statusRef.current()), applied };
+			}
 			if (request.method === "recording.configure") {
 				assertRecorderTransition(recorder.automation.status(), "configure");
 				const settings = request.params;

@@ -1,8 +1,8 @@
 import { type MutableRefObject, useRef } from "react";
 import { Rnd } from "react-rnd";
 import type { AnnotationRegion } from "./types";
-import type { CursorViewportRect } from "./videoPlayback/cursorViewport";
 import { projectHighlightRect, unprojectHighlightRect } from "./videoPlayback/contentHighlights";
+import type { CursorViewportRect } from "./videoPlayback/cursorViewport";
 
 const HANDLE_STYLE = {
 	width: "12px",

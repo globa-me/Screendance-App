@@ -2,7 +2,7 @@
 
 ## Current scope
 
-Screendance App 1.6.0 implements stages 1–6 of the automation plan: **84 commands**
+Screendance App 1.6.0 implements stages 1–6 of the automation plan (1.7.0 source: **85 commands**, adding paused-only `recording.adjust`; the 1.6.0 build had 84)
 for recording, project/library operations, editor documents, preview, export,
 captions/models, durable jobs, preferences, extensions, windows and diagnostics.
 The authoritative command list and input schemas are `app.capabilities` (MCP
@@ -36,7 +36,7 @@ Normal launches expose no host. `--launch '/Applications/Screendance App.app'`
 allows the CLI to launch that application with automation enabled, or signal its
 existing instance. The app must contain this implementation.
 
-All 84 commands support `call METHOD --params JSON` and `call METHOD
+All registered commands support `call METHOD --params JSON` and `call METHOD
 --params-file PATH`; parameter files are bounded at 16 MiB. For example:
 
 ```sh

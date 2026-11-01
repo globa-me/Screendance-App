@@ -52,7 +52,7 @@ the result on a visual timeline, and export in the format your work needs.
 - **Flexible audio** — record system sound and an external microphone, with live level indicators and fallback recovery.
 - **Professional export** — MP4, GIF, transparent WebM, and Quick Look-safe ProRes 4444 workflows.
 - **Reusable projects** — save work as `.scrdance`; existing `.recordly` projects remain supported.
-- **CLI and MCP control** — let Codex, Claude Code or local scripts record, edit, save and export through 84 typed commands.
+- **CLI and MCP control** — let Codex, Claude Code or local scripts record, edit, save and export through 85 typed commands.
 - **Ten interface locales** — English, French, Italian, Spanish, Brazilian Portuguese, Dutch, Korean, Russian, Simplified Chinese, and Traditional Chinese.
 
 ## See it in action
@@ -169,7 +169,7 @@ and refreshed localization. See the [changelog](CHANGELOG.md) for the detailed h
 
 ## Agent automation
 
-The opt-in local CLI and MCP server expose 84 commands for recording, project
+The opt-in local CLI and MCP server expose 85 commands for recording, project
 management, timeline and presentation edits, presets, playback, export, captions,
 speech models, settings, extensions and diagnostics. Editor changes share the
 UI's undo history. Export and caption jobs survive a disconnected MCP client;
