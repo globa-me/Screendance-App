@@ -496,6 +496,8 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 		const overlayRef = useRef<HTMLDivElement | null>(null);
 		const highlightGraphicsRef = useRef<Graphics | null>(null);
 		const highlightLayerRef = useRef<HTMLDivElement | null>(null);
+		const selectedAnnotationIdRef = useRef(selectedAnnotationId);
+		selectedAnnotationIdRef.current = selectedAnnotationId;
 		const annotationRegionsRef = useRef<AnnotationRegion[]>(annotationRegions);
 		annotationRegionsRef.current = annotationRegions;
 		const hasContentHighlightsRef = useRef(false);
@@ -2296,6 +2298,7 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 							timeMs,
 							baseMaskRef.current,
 							stageSizeRef.current.width,
+							isPlayingRef.current ? null : selectedAnnotationIdRef.current,
 						);
 					} else if (highlightGraphics.context.instructions.length > 0) {
 						highlightGraphics.clear();

@@ -140,3 +140,24 @@ describe("drawContentHighlights", () => {
 		expect(graphics.fill).toHaveBeenCalledWith({ color: 0xffd60a, alpha: 0.4 });
 	});
 });
+
+describe("drawContentHighlights editing", () => {
+	it("keeps the highlight being edited visible outside its fade", () => {
+		const stroke = vi.fn();
+		const graphics = {
+			clear: vi.fn(),
+			roundRect: vi.fn(() => graphics),
+			ellipse: vi.fn(() => graphics),
+			fill: vi.fn(() => graphics),
+			stroke: vi.fn((...args: unknown[]) => {
+				stroke(...args);
+				return graphics;
+			}),
+		};
+		const region = highlight();
+		drawContentHighlights(graphics as never, [region], region.startMs, mask, 1920);
+		expect(stroke).not.toHaveBeenCalled();
+		drawContentHighlights(graphics as never, [region], region.startMs, mask, 1920, region.id);
+		expect(stroke).toHaveBeenCalledWith(expect.objectContaining({ alpha: 1 }));
+	});
+});

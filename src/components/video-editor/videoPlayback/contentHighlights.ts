@@ -126,6 +126,8 @@ export function drawContentHighlights(
 	timeMs: number,
 	maskRect: CursorViewportRect | null | undefined,
 	stageWidth: number,
+	/** Preview only: draws this highlight fully opaque even outside its span. */
+	editingId?: string | null,
 ): void {
 	graphics.clear();
 	if (!annotations || annotations.length === 0 || !maskRect) {
@@ -135,7 +137,10 @@ export function drawContentHighlights(
 	const strokeScale = stageWidth > 0 ? stageWidth / BASE_PREVIEW_WIDTH : 1;
 	const active = annotations
 		.filter(isContentHighlight)
-		.map((annotation) => ({ annotation, alpha: getHighlightFadeAlpha(annotation, timeMs) }))
+		.map((annotation) => ({
+			annotation,
+			alpha: annotation.id === editingId ? 1 : getHighlightFadeAlpha(annotation, timeMs),
+		}))
 		.filter((entry) => entry.alpha > 0)
 		.sort((left, right) => left.annotation.zIndex - right.annotation.zIndex);
 
