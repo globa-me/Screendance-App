@@ -318,6 +318,12 @@ ipcMain.on("hud-overlay-drag", (_event, phase: string, screenX: number, screenY:
 
 ipcMain.on("hud-overlay-hide", () => {
 	if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
+		// The hide button was just clicked, so the HUD is currently capturing the
+		// mouse. Restore passthrough first so the restored overlay never blocks
+		// clicks until the pointer happens to cross the bar again.
+		if (isHudOverlayMousePassthroughSupported()) {
+			hudOverlayWindow.setIgnoreMouseEvents(true, { forward: true });
+		}
 		hudOverlayWindow.minimize();
 	}
 });

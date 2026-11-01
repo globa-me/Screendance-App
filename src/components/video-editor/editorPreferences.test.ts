@@ -9,6 +9,7 @@ import {
 	loadEditorPresets,
 	loadLastSelectedEditorPresetId,
 	mergeEditorPresetWebcamSettings,
+	resolveFreshRecordingWallpaper,
 	normalizeEditorPreferences,
 	resolveLastSelectedEditorPreset,
 	saveEditorPreferences,
@@ -604,5 +605,22 @@ describe("editorPreferences", () => {
 		vi.stubGlobal("localStorage", localStorage);
 
 		expect(saveEditorPresets([])).toBe(false);
+	});
+});
+
+describe("resolveFreshRecordingWallpaper", () => {
+	it("keeps the last explicitly chosen background over the preset background", () => {
+		expect(
+			resolveFreshRecordingWallpaper({ wallpaper: "#123456" }, { wallpaper: "#abcdef" }),
+		).toBe("#123456");
+	});
+
+	it("falls back to the preset and then the default background", () => {
+		expect(resolveFreshRecordingWallpaper({ wallpaper: "" }, { wallpaper: "#abcdef" })).toBe(
+			"#abcdef",
+		);
+		expect(resolveFreshRecordingWallpaper({ wallpaper: "  " }, null)).toBe(
+			DEFAULT_EDITOR_PREFERENCES.wallpaper,
+		);
 	});
 });

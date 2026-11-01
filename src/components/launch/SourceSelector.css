@@ -23,8 +23,14 @@
 	color: var(--launch-accent);
 }
 
-.source-selector-thumb-fallback {
+.source-selector-thumb {
 	background: var(--launch-panel);
+	border: 1px solid var(--launch-border);
+}
+
+.source-selector-item-selected .source-selector-thumb {
+	border-color: var(--launch-accent);
+	box-shadow: 0 0 0 1px var(--launch-accent);
 }
 
 .source-selector-text {

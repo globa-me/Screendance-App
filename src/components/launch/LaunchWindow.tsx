@@ -93,6 +93,7 @@ function LaunchWindowContent() {
 
 	const {
 		selectedSource,
+		selectedSourceId,
 		hasSelectedSource,
 		projectLibraryEntries,
 		handleSourceSelect,
@@ -264,6 +265,7 @@ function LaunchWindowContent() {
 				<>
 					<SourcePopover
 						selectedSource={selectedSource}
+						selectedSourceId={selectedSourceId}
 						onSourceSelect={handleSourceSelect}
 						onOpen={beginInteractiveHudAction}
 						trigger={
@@ -487,13 +489,16 @@ function LaunchWindowContent() {
 					ref={hudContentRef}
 					className="flex items-center overflow-visible flex-col-reverse pointer-events-none"
 				>
-					<div
-						className="flex flex-col items-center pointer-events-auto p-2"
-						onMouseEnter={handleHudMouseEnter}
-						onMouseLeave={handleHudMouseLeave}
-					>
+					{/*
+					 * The wrapper stays put while the bar is translated during a
+					 * recording drag, so it must not capture the mouse: otherwise its
+					 * original footprint becomes an invisible click-eating zone. Only the
+					 * (translated) bar and the webcam preview are interactive.
+					 */}
+					<div className="flex flex-col items-center pointer-events-none p-2">
 						<div
 							ref={hudBarTransformRef}
+							data-testid="hud-bar-transform"
 							style={{
 								transform: `translate3d(${recordingHudOffset.x}px, ${recordingHudOffset.y}px, 0)`,
 							}}
@@ -502,7 +507,10 @@ function LaunchWindowContent() {
 								ref={hudBarRef}
 								layout={!showRecordingWebcamPreview && !isHudDragging}
 								transition={hudStateTransition}
-								className={`${styles.bar} launch-theme mb-2`}
+								className={`${styles.bar} launch-theme mb-2 pointer-events-auto`}
+								data-hud-interactive
+								onMouseEnter={handleHudMouseEnter}
+								onMouseLeave={handleHudMouseLeave}
 							>
 								<div
 									// On Linux (especially Wayland) the compositor owns window

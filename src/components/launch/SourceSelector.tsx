@@ -1,6 +1,14 @@
 import * as React from "react";
 import { MonitorIcon, AppWindowIcon, CaretUpIcon } from "@phosphor-icons/react";
-import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+	useCallback,
+	useContext,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { useScopedT } from "@/contexts/I18nContext";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -24,6 +32,8 @@ interface SourceSelectorProps {
 	windowSources?: DesktopSource[];
 	/** Currently selected source name */
 	selectedSource?: string;
+	/** Currently selected source id; preferred over the name when present */
+	selectedSourceId?: string | null;
 	/** Loading state */
 	loading?: boolean;
 	/** Callback when a source is selected */
@@ -75,21 +85,99 @@ export function MarqueeText({ text }: { text: string }) {
 
 function SourceThumbnail({ source }: { source: DesktopSource }) {
 	const [failed, setFailed] = useState(false);
-	return source.thumbnail && !failed ? (
-		<img
-			src={source.thumbnail}
-			alt=""
-			className="w-12 h-8 rounded-[8px] object-cover bg-black/50"
-			onError={() => setFailed(true)}
-		/>
-	) : (
-		<div className="source-selector-thumb-fallback w-12 h-8 rounded-[8px] flex items-center justify-center" aria-hidden="true">
-			{source.sourceType === "window" ? (
-				<AppWindowIcon className="w-5 h-5 source-selector-muted" />
+	const hasThumbnail = Boolean(source.thumbnail) && !failed;
+	return (
+		<div className="source-selector-thumb relative w-full aspect-video rounded-[9px] overflow-hidden flex items-center justify-center">
+			{hasThumbnail ? (
+				<img
+					src={source.thumbnail ?? undefined}
+					alt=""
+					draggable={false}
+					className="w-full h-full object-contain"
+					onError={() => setFailed(true)}
+				/>
+			) : source.sourceType === "window" && source.appIcon ? (
+				<img src={source.appIcon} alt="" draggable={false} className="w-9 h-9 opacity-80" />
+			) : source.sourceType === "window" ? (
+				<AppWindowIcon className="w-7 h-7 source-selector-muted" aria-hidden="true" />
 			) : (
-				<MonitorIcon className="w-5 h-5 source-selector-muted" />
+				<MonitorIcon className="w-7 h-7 source-selector-muted" aria-hidden="true" />
 			)}
+			{hasThumbnail && source.sourceType === "window" && source.appIcon ? (
+				<img
+					src={source.appIcon}
+					alt=""
+					draggable={false}
+					className="absolute left-1.5 bottom-1.5 w-5 h-5 drop-shadow"
+				/>
+			) : null}
 		</div>
+	);
+}
+
+export function isSourceSelected(
+	source: Pick<DesktopSource, "id" | "name">,
+	selectedSource: string,
+	selectedSourceId?: string | null,
+): boolean {
+	if (selectedSourceId) {
+		return source.id === selectedSourceId;
+	}
+	return selectedSource === source.name;
+}
+
+/**
+ * Lazily attaches native thumbnails to sources that arrived without one
+ * (macOS enumerates windows natively and captures previews separately).
+ */
+function useSourceThumbnails(sources: DesktopSource[], enabled: boolean): DesktopSource[] {
+	const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
+	const missingKey = useMemo(
+		() =>
+			sources
+				.filter((source) => !source.thumbnail)
+				.map((source) => source.id)
+				.sort()
+				.join("|"),
+		[sources],
+	);
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: `sources` is represented by `missingKey`.
+	useEffect(() => {
+		if (!enabled || !missingKey || !window.electronAPI?.getSourceThumbnails) {
+			return;
+		}
+		let cancelled = false;
+		const requested = sources
+			.filter((source) => !source.thumbnail)
+			.map((source) => ({
+				id: source.id,
+				display_id: source.display_id,
+				sourceType: source.sourceType,
+			}));
+		void window.electronAPI
+			.getSourceThumbnails({ sources: requested, thumbnailSize: { width: 320, height: 180 } })
+			.then((result) => {
+				if (!cancelled && result && Object.keys(result).length > 0) {
+					setThumbnails((previous) => ({ ...previous, ...result }));
+				}
+			})
+			.catch((error) => {
+				console.warn("Failed to load source thumbnails:", error);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [enabled, missingKey]);
+
+	return useMemo(
+		() =>
+			sources.map((source) =>
+				!source.thumbnail && thumbnails[source.id]
+					? { ...source, thumbnail: thumbnails[source.id] }
+					: source,
+			),
+		[sources, thumbnails],
 	);
 }
 
@@ -100,32 +188,47 @@ export const SourceSelectorContent = ({
 	screenSources = [],
 	windowSources = [],
 	selectedSource = "Screen",
+	selectedSourceId = null,
 	loading = false,
 	onSourceSelect = () => {},
-}: Pick<SourceSelectorProps, "screenSources" | "windowSources" | "selectedSource" | "loading" | "onSourceSelect">) => {
+}: Pick<
+	SourceSelectorProps,
+	| "screenSources"
+	| "windowSources"
+	| "selectedSource"
+	| "selectedSourceId"
+	| "loading"
+	| "onSourceSelect"
+>) => {
 	const t = useScopedT("launch");
 	const renderSourceItem = (source: DesktopSource, index: number) => {
-		const isSelected = selectedSource === source.name;
+		const isSelected = isSourceSelected(source, selectedSource, selectedSourceId);
+		const title = source.windowTitle || source.name;
+		const subtitle =
+			source.sourceType === "screen"
+				? t("recording.screen")
+				: source.appName && source.appName !== title
+					? source.appName
+					: t("recording.window");
 		return (
 			<button
 				key={`${source.id}-${index}`}
 				type="button"
+				title={source.appName ? `${source.appName} — ${title}` : title}
+				aria-pressed={isSelected}
 				className={cn(
-					"source-selector-item group min-h-[46px] w-full rounded-[11px] px-3 py-2.5 text-left font-medium flex items-center justify-start gap-3",
+					"source-selector-item group w-full min-w-0 rounded-[12px] p-1.5 text-left font-medium flex flex-col items-stretch gap-1.5",
 					isSelected && "source-selector-item-selected",
 				)}
 				onClick={() => onSourceSelect(source)}
 			>
-				<div className="relative flex-shrink-0">
-					<SourceThumbnail source={source} />
-				</div>
-
-					<div className="flex-1 min-w-0 flex flex-col items-start text-left">
-					<div className="text-sm font-medium source-selector-text w-full">
-						<MarqueeText text={source.windowTitle || source.name} />
+				<SourceThumbnail source={source} />
+				<div className="min-w-0 px-1 pb-0.5 flex flex-col items-start text-left">
+					<div className="text-[12px] font-medium source-selector-text w-full">
+						<MarqueeText text={title} />
 					</div>
-					<div className="text-xs source-selector-subtle truncate w-full text-left">
-						{source.sourceType === "screen" ? t("recording.screen") : t("recording.window")}
+					<div className="text-[10px] source-selector-subtle truncate w-full text-left">
+						{subtitle}
 					</div>
 				</div>
 			</button>
@@ -143,7 +246,7 @@ export const SourceSelectorContent = ({
 	}
 
 	return (
-		<div className="max-h-[320px] overflow-y-auto overflow-x-hidden p-2 source-selector-scroll">
+		<div className="max-h-[min(460px,70vh)] overflow-y-auto overflow-x-hidden p-2 source-selector-scroll">
 			{hasAnySources ? (
 				<>
 					{screenSources.length > 0 ? (
@@ -159,8 +262,10 @@ export const SourceSelectorContent = ({
 									{t("common.loading", "Refreshing...")}
 								</span>
 							</div>
-							<div className="space-y-0.5">
-								{screenSources.map((source, index) => renderSourceItem(source, index))}
+							<div className="grid grid-cols-2 gap-1">
+								{screenSources.map((source, index) =>
+									renderSourceItem(source, index),
+								)}
 							</div>
 						</div>
 					) : null}
@@ -169,8 +274,10 @@ export const SourceSelectorContent = ({
 							<div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] source-selector-label">
 								{t("recording.windows")}
 							</div>
-							<div className="space-y-0.5">
-								{windowSources.map((source, index) => renderSourceItem(source, index))}
+							<div className="grid grid-cols-2 gap-1">
+								{windowSources.map((source, index) =>
+									renderSourceItem(source, index),
+								)}
 							</div>
 						</div>
 					) : null}
@@ -192,6 +299,7 @@ export const SourceSelector = React.memo(function SourceSelector({
 	screenSources: propsScreenSources,
 	windowSources: propsWindowSources,
 	selectedSource: propsSelectedSource,
+	selectedSourceId: propsSelectedSourceId,
 	loading: propsLoading,
 	onSourceSelect: propsOnSourceSelect,
 	onFetchSources: propsOnFetchSources,
@@ -204,6 +312,7 @@ export const SourceSelector = React.memo(function SourceSelector({
 	const [internalSources, setInternalSources] = useState<DesktopSource[]>([]);
 	const [internalLoading, setInternalLoading] = useState(false);
 	const [internalSelectedSource, setInternalSelectedSource] = useState("Screen");
+	const [internalSelectedSourceId, setInternalSelectedSourceId] = useState<string | null>(null);
 
 	// Determine if we should use internal or external state/logic
 	const isAutonomous = propsOpen === undefined;
@@ -211,6 +320,8 @@ export const SourceSelector = React.memo(function SourceSelector({
 	const onOpenChange = propsOnOpenChange ?? setInternalOpen;
 	const loading = propsLoading ?? internalLoading;
 	const selectedSource = propsSelectedSource ?? internalSelectedSource;
+	const selectedSourceId =
+		propsSelectedSourceId !== undefined ? propsSelectedSourceId : internalSelectedSourceId;
 
 	// Default fetching logic
 	const defaultFetchSources = useCallback(async () => {
@@ -244,6 +355,7 @@ export const SourceSelector = React.memo(function SourceSelector({
 				const result = await window.electronAPI.selectSource(source);
 				if (result) {
 					setInternalSelectedSource(source.name);
+					setInternalSelectedSourceId(source.id);
 				}
 			} catch (error) {
 				console.error("Failed to select source:", error);
@@ -262,8 +374,8 @@ export const SourceSelector = React.memo(function SourceSelector({
 		[internalSources],
 	);
 
-	const screenSources = propsScreenSources ?? internalScreenSources;
-	const windowSources = propsWindowSources ?? internalWindowSources;
+	const screenSources = useSourceThumbnails(propsScreenSources ?? internalScreenSources, open);
+	const windowSources = useSourceThumbnails(propsWindowSources ?? internalWindowSources, open);
 
 	const hasPrefetchedRef = useRef(false);
 	const fetchInFlightRef = useRef(false);
@@ -352,7 +464,7 @@ export const SourceSelector = React.memo(function SourceSelector({
 		<Popover open={open} onOpenChange={onOpenChange} modal={false}>
 			<PopoverTrigger asChild>{trigger}</PopoverTrigger>
 			<PopoverContent
-				className="launch-theme w-80 p-0 source-selector-popover"
+				className="launch-theme w-[400px] max-w-[calc(100vw-20px)] p-0 source-selector-popover"
 				unstyled
 				align="start"
 				sideOffset={8}
@@ -367,6 +479,7 @@ export const SourceSelector = React.memo(function SourceSelector({
 					screenSources={screenSources}
 					windowSources={windowSources}
 					selectedSource={selectedSource}
+					selectedSourceId={selectedSourceId}
 					loading={loading}
 					onSourceSelect={onSourceSelect}
 				/>

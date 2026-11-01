@@ -10,6 +10,8 @@ import {
 	resolveWindowsWindowBounds,
 	stopWindowBoundsCapture,
 } from "../cursor/bounds";
+import { ensureNativeWindowListBinary } from "../paths/binaries";
+import { type SourceThumbnailRequest, toNativeThumbnailId } from "../sourceThumbnails";
 import { getDisplayBoundsForSource, getDisplayWorkAreaForSource } from "../recording/ffmpeg";
 import { selectedSource, setSelectedSource } from "../state";
 import type { SelectedSource } from "../types";
@@ -22,6 +24,90 @@ let sourceListCache: {
 	expiresAt: number;
 	value: Array<Record<string, unknown>>;
 } | null = null;
+
+const SOURCE_THUMBNAIL_CACHE_TTL_MS = 2500;
+let sourceThumbnailCache: {
+	key: string;
+	expiresAt: number;
+	value: Record<string, string>;
+} | null = null;
+
+/**
+ * Returns JPEG data URLs keyed by the requested source ids. On macOS the
+ * source list itself carries no thumbnails, so the editor fetches them
+ * lazily through ScreenCaptureKit after the list renders.
+ */
+export async function getCaptureSourceThumbnails(opts: {
+	sources: SourceThumbnailRequest[];
+	thumbnailSize?: { width: number; height: number };
+}): Promise<Record<string, string>> {
+	if (process.platform !== "darwin" || !Array.isArray(opts?.sources)) {
+		return {};
+	}
+
+	const width = Math.max(32, Math.min(800, Math.round(opts.thumbnailSize?.width ?? 320)));
+	const height = Math.max(18, Math.min(450, Math.round(opts.thumbnailSize?.height ?? 180)));
+	const nativeIdBySourceId = new Map<string, string>();
+	for (const source of opts.sources.slice(0, 64)) {
+		if (!source || typeof source.id !== "string") continue;
+		const nativeId = toNativeThumbnailId(source);
+		if (nativeId) nativeIdBySourceId.set(source.id, nativeId);
+	}
+	if (nativeIdBySourceId.size === 0) {
+		return {};
+	}
+
+	const nativeIds = [...new Set(nativeIdBySourceId.values())].sort();
+	const cacheKey = JSON.stringify({ width, height, nativeIds });
+	let thumbnails: Record<string, string> | null =
+		sourceThumbnailCache &&
+		sourceThumbnailCache.key === cacheKey &&
+		sourceThumbnailCache.expiresAt > Date.now()
+			? sourceThumbnailCache.value
+			: null;
+
+	if (!thumbnails) {
+		try {
+			const binaryPath = await ensureNativeWindowListBinary();
+			const { stdout } = await execFileAsync(
+				binaryPath,
+				[
+					"--thumbnails",
+					String(width),
+					String(height),
+					"--exclude-pid",
+					String(process.pid),
+					...nativeIds,
+				],
+				{ timeout: 15000, maxBuffer: 64 * 1024 * 1024 },
+			);
+			const parsed = JSON.parse(stdout) as unknown;
+			thumbnails = {};
+			if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+				for (const [key, value] of Object.entries(parsed)) {
+					if (typeof value === "string" && value.startsWith("data:image/")) {
+						thumbnails[key] = value;
+					}
+				}
+			}
+			sourceThumbnailCache = {
+				key: cacheKey,
+				expiresAt: Date.now() + SOURCE_THUMBNAIL_CACHE_TTL_MS,
+				value: thumbnails,
+			};
+		} catch (error) {
+			console.warn("Failed to capture source thumbnails:", error);
+			return {};
+		}
+	}
+
+	const result: Record<string, string> = {};
+	for (const [sourceId, nativeId] of nativeIdBySourceId) {
+		const thumbnail = thumbnails[nativeId];
+		if (thumbnail) result[sourceId] = thumbnail;
+	}
+	return result;
+}
 
 function normalizeDesktopSourceName(value: string) {
 	return value.trim().replace(/\s+/g, " ").toLowerCase();
@@ -507,6 +593,7 @@ export function registerSourceHandlers({
 	getSourceSelectorWindow: () => BrowserWindow | null;
 }) {
 	ipcMain.handle("get-sources", (_, opts) => listCaptureSources(opts));
+	ipcMain.handle("get-source-thumbnails", (_, opts) => getCaptureSourceThumbnails(opts));
 
 	ipcMain.handle("select-source", (_, source: SelectedSource) => {
 		setSelectedSource(source);

@@ -502,6 +502,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	getSources: async (opts: Electron.SourcesOptions) => {
 		return await ipcRenderer.invoke("get-sources", opts);
 	},
+	getSourceThumbnails: (opts: {
+		sources: Array<{ id: string; display_id?: string; sourceType?: "screen" | "window" }>;
+		thumbnailSize?: { width: number; height: number };
+	}) => {
+		return ipcRenderer.invoke("get-source-thumbnails", opts);
+	},
 	switchToEditor: () => {
 		return ipcRenderer.invoke("switch-to-editor");
 	},

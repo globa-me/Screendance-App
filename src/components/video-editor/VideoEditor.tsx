@@ -145,6 +145,7 @@ import {
 	loadEditorPresets,
 	loadLastSelectedEditorPresetId,
 	mergeEditorPresetWebcamSettings,
+	resolveFreshRecordingWallpaper,
 	resolveLastSelectedEditorPreset,
 	saveEditorPreferences,
 	saveEditorPresets,
@@ -1124,15 +1125,29 @@ export default function VideoEditor() {
 		setWhisperModelPath(snapshot.whisperModelPath);
 	}, []);
 
-	const applyLastSelectedPresetToFreshVideo = useCallback(() => {
-		if (!initialLastSelectedEditorPreset) {
-			return null;
-		}
+	const rememberWallpaperChoice = useCallback((nextWallpaper: string) => {
+		setWallpaper(nextWallpaper);
+		saveEditorPreferences({ wallpaper: nextWallpaper });
+	}, []);
 
-		setActiveEditorPresetId(initialLastSelectedEditorPreset.id);
-		applyEditorPresetSnapshot(initialLastSelectedEditorPreset.snapshot);
-		return initialLastSelectedEditorPreset.snapshot;
-	}, [applyEditorPresetSnapshot, initialLastSelectedEditorPreset]);
+	const applyLastSelectedPresetToFreshVideo = useCallback(() => {
+		// Read both at call time: the editor window can outlive many recordings.
+		const freshPreset = resolveLastSelectedEditorPreset(
+			loadEditorPresets(),
+			loadLastSelectedEditorPresetId(),
+		);
+		const rememberedWallpaper = resolveFreshRecordingWallpaper(
+			loadEditorPreferences(),
+			freshPreset?.snapshot ?? null,
+		);
+
+		if (freshPreset) {
+			setActiveEditorPresetId(freshPreset.id);
+			applyEditorPresetSnapshot(freshPreset.snapshot);
+		}
+		setWallpaper(rememberedWallpaper);
+		return freshPreset ? { ...freshPreset.snapshot, wallpaper: rememberedWallpaper } : null;
+	}, [applyEditorPresetSnapshot]);
 
 	const handleApplyEditorPreset = useCallback(
 		(presetId: string) => {
@@ -1145,6 +1160,7 @@ export default function VideoEditor() {
 			setLastSelectedEditorPresetId(preset.id);
 			saveLastSelectedEditorPresetId(preset.id);
 			applyEditorPresetSnapshot(preset.snapshot);
+			saveEditorPreferences({ wallpaper: preset.snapshot.wallpaper });
 			toast.success(
 				t("editor.presets.toasts.applied", 'Applied preset "{{name}}"', {
 					name: preset.name,
@@ -2501,9 +2517,11 @@ export default function VideoEditor() {
 		}
 	}, [autoApplyFreshRecordingAutoZooms]);
 
+	// The wallpaper is intentionally not auto-saved here: loading an older
+	// project must not replace the background the user last chose for new
+	// recordings. Explicit choices go through `rememberWallpaperChoice`.
 	useEffect(() => {
 		saveEditorPreferences({
-			wallpaper,
 			shadowIntensity,
 			backgroundBlur,
 			zoomMotionBlur,
@@ -2564,7 +2582,6 @@ export default function VideoEditor() {
 			whisperModelPath,
 		});
 	}, [
-		wallpaper,
 		shadowIntensity,
 		backgroundBlur,
 		zoomMotionBlur,
@@ -6689,7 +6706,7 @@ export default function VideoEditor() {
 							panelMode="editor"
 							activeEffectSection={activeEffectSection}
 							selected={wallpaper}
-							onWallpaperChange={setWallpaper}
+							onWallpaperChange={rememberWallpaperChoice}
 							selectedZoomDepth={
 								selectedZoomId
 									? zoomRegions.find((z) => z.id === selectedZoomId)?.depth

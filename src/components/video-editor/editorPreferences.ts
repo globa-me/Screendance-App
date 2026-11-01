@@ -655,6 +655,23 @@ export function resolveLastSelectedEditorPreset(
 }
 
 /**
+ * Background for a fresh recording or import. The background the user last
+ * chose explicitly (picked in the panel or via an applied preset) wins over
+ * the last preset's stored background, so a series of recordings keeps the
+ * same look without re-selecting it each time.
+ */
+export function resolveFreshRecordingWallpaper(
+	preferences: Pick<EditorPreferences, "wallpaper">,
+	presetSnapshot: Pick<EditorPresetSnapshot, "wallpaper"> | null,
+): string {
+	const remembered = preferences.wallpaper?.trim();
+	if (remembered) {
+		return remembered;
+	}
+	return presetSnapshot?.wallpaper || DEFAULT_EDITOR_PREFERENCES.wallpaper;
+}
+
+/**
  * Applies reusable webcam layout without ever carrying a media file or sync
  * offset from the video where the preset was created.
  */

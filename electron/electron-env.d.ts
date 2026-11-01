@@ -265,6 +265,10 @@ interface Window {
 		) => Promise<{ success: boolean; enabled: boolean }>;
 		getAssetBasePath: () => Promise<string | null>;
 		getSources: (opts: Electron.SourcesOptions) => Promise<ProcessedDesktopSource[]>;
+		getSourceThumbnails: (opts: {
+			sources: Array<{ id: string; display_id?: string; sourceType?: "screen" | "window" }>;
+			thumbnailSize?: { width: number; height: number };
+		}) => Promise<Record<string, string>>;
 		switchToEditor: () => Promise<void>;
 		openSourceSelector: () => Promise<void>;
 		selectSource: (source: ProcessedDesktopSource) => Promise<ProcessedDesktopSource>;

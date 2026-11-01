@@ -13,11 +13,13 @@ const POPOVER_ID = "sources";
 export function SourcePopover({
 	trigger,
 	selectedSource,
+	selectedSourceId,
 	onSourceSelect,
 	onOpen,
 }: {
 	trigger: ReactNode;
 	selectedSource: string;
+	selectedSourceId?: string | null;
 	onSourceSelect: (source: DesktopSource) => Promise<void> | void;
 	onOpen?: () => void;
 }) {
@@ -51,6 +53,7 @@ export function SourcePopover({
 			screenSources={screenSources}
 			windowSources={windowSources}
 			selectedSource={selectedSource}
+			selectedSourceId={selectedSourceId}
 			loading={loading}
 			onSourceSelect={async (source) => {
 				try {
