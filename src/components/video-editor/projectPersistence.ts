@@ -42,6 +42,9 @@ import {
 	DEFAULT_CURSOR_STYLE,
 	DEFAULT_CURSOR_SWAY,
 	DEFAULT_FIGURE_DATA,
+	HIGHLIGHT_SHAPE_DEFAULTS,
+	type HighlightData,
+	type HighlightShape,
 	DEFAULT_PADDING,
 	DEFAULT_PLAYBACK_SPEED,
 	DEFAULT_WEBCAM_CORNER_RADIUS,
@@ -153,6 +156,25 @@ function isFiniteNumber(value: unknown): value is number {
 
 function clamp(value: number, min: number, max: number) {
 	return Math.min(max, Math.max(min, value));
+}
+
+function normalizeHighlightData(candidate: Partial<HighlightData>): HighlightData {
+	const shape: HighlightShape =
+		candidate.shape === "ellipse" || candidate.shape === "marker" ? candidate.shape : "rectangle";
+	const defaults = HIGHLIGHT_SHAPE_DEFAULTS[shape];
+	return {
+		shape,
+		color:
+			typeof candidate.color === "string" && /^#[0-9a-f]{3,8}$/i.test(candidate.color.trim())
+				? candidate.color.trim()
+				: defaults.color,
+		strokeWidth: isFiniteNumber(candidate.strokeWidth)
+			? clamp(candidate.strokeWidth, 1, 40)
+			: defaults.strokeWidth,
+		fillOpacity: isFiniteNumber(candidate.fillOpacity)
+			? clamp(candidate.fillOpacity, 0, 1)
+			: defaults.fillOpacity,
+	};
 }
 
 type PersistedDevMotionBlurSettings = {
@@ -585,7 +607,8 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 						type:
 							region.type === "image" ||
 							region.type === "figure" ||
-							region.type === "blur"
+							region.type === "blur" ||
+							region.type === "highlight"
 								? region.type
 								: "text",
 						content: typeof region.content === "string" ? region.content : "",
@@ -640,6 +663,10 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 									...region.figureData,
 								}
 							: undefined,
+						highlightData:
+							region.highlightData && typeof region.highlightData === "object"
+								? normalizeHighlightData(region.highlightData)
+								: undefined,
 						blurIntensity: isFiniteNumber(region.blurIntensity)
 							? clamp(region.blurIntensity, 1, 100)
 							: 20,

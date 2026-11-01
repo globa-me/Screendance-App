@@ -42,7 +42,15 @@
 		"imageUploadError": "請上傳 JPG、PNG、GIF 或 WebP 圖片檔案。",
 		"blurStrength": "模糊強度: {{strength}}",
 		"solidColor": "純色 (審查)",
-		"borderRadius": "邊框半徑"
+		"borderRadius": "邊框半徑",
+		"highlight": "Highlight",
+		"highlightShape": "Shape",
+		"shapeRectangle": "Rectangle",
+		"shapeEllipse": "Ellipse",
+		"shapeMarker": "Marker",
+		"highlightColor": "Color",
+		"fillOpacity": "Fill: {{value}}%",
+		"highlightAnchoredHint": "Highlights stick to the recorded content and stay in place through zooms and camera motion."
 	},
 	"fontStyles": {
 		"classic": "經典",

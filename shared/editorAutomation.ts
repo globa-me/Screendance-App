@@ -156,7 +156,7 @@ export const EDITOR_COLLECTION_SCHEMAS = {
 	annotationRegions: z
 		.object({
 			...span,
-			type: z.enum(["text", "image", "figure", "blur"]),
+			type: z.enum(["text", "image", "figure", "blur", "highlight"]),
 			content: z.union([text, imageData]),
 			textContent: text.optional(),
 			imageContent: asset.optional(),
@@ -179,6 +179,15 @@ export const EDITOR_COLLECTION_SCHEMAS = {
 					]),
 					color: name,
 					strokeWidth: n(0, 100),
+				})
+				.strict()
+				.optional(),
+			highlightData: z
+				.object({
+					shape: z.enum(["rectangle", "ellipse", "marker"]),
+					color: z.string().regex(/^#[0-9a-fA-F]{3,8}$/),
+					strokeWidth: n(1, 40),
+					fillOpacity: n(0, 1),
 				})
 				.strict()
 				.optional(),

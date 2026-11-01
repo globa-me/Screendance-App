@@ -343,7 +343,7 @@ export function trimsToClips(trims: TrimRegion[], totalDurationMs: number): Clip
 	return clips;
 }
 
-export type AnnotationType = "text" | "image" | "figure" | "blur";
+export type AnnotationType = "text" | "image" | "figure" | "blur" | "highlight";
 export const BLUR_ANNOTATION_STRENGTH = 20;
 export const BASE_PREVIEW_WIDTH = 1920;
 export const BASE_PREVIEW_HEIGHT = 1080;
@@ -363,6 +363,35 @@ export interface FigureData {
 	color: string;
 	strokeWidth: number;
 }
+
+export type HighlightShape = "rectangle" | "ellipse" | "marker";
+
+/**
+ * Style of a content-anchored highlight. For `type: "highlight"` the
+ * annotation's position/size are percentages of the source video frame, not of
+ * the output canvas, so the shape follows zoom and camera motion.
+ */
+export interface HighlightData {
+	shape: HighlightShape;
+	color: string;
+	/** Stroke width in pixels at the 1920px preview base. */
+	strokeWidth: number;
+	/** 0..1 fill opacity; markers are fill-only. */
+	fillOpacity: number;
+}
+
+export const DEFAULT_HIGHLIGHT_DATA: HighlightData = {
+	shape: "rectangle",
+	color: "#FF453A",
+	strokeWidth: 6,
+	fillOpacity: 0,
+};
+
+export const HIGHLIGHT_SHAPE_DEFAULTS: Record<HighlightShape, Omit<HighlightData, "shape">> = {
+	rectangle: { color: "#FF453A", strokeWidth: 6, fillOpacity: 0 },
+	ellipse: { color: "#FF453A", strokeWidth: 6, fillOpacity: 0 },
+	marker: { color: "#FFD60A", strokeWidth: 6, fillOpacity: 0.38 },
+};
 
 export interface AnnotationPosition {
 	x: number;
@@ -408,6 +437,7 @@ export interface AnnotationRegion {
 	zIndex: number;
 	trackIndex?: number;
 	figureData?: FigureData;
+	highlightData?: HighlightData;
 	blurIntensity?: number;
 	blurColor?: string;
 }

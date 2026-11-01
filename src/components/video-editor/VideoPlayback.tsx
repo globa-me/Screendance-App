@@ -127,6 +127,9 @@ import { applyCanvasSceneTransform } from "@/lib/extensions/sceneTransform";
 import { getSquircleSvgPath } from "@/lib/geometry/squircle";
 import { type AspectRatio, formatAspectRatioForCSS } from "@/utils/aspectRatioUtils";
 import { AnnotationOverlay } from "./AnnotationOverlay";
+import { ContentHighlightEditor } from "./ContentHighlightEditor";
+import { drawContentHighlights, isContentHighlight } from "./videoPlayback/contentHighlights";
+import type { CursorViewportRect } from "./videoPlayback/cursorViewport";
 import {
 	DEFAULT_CONNECTED_ZOOM_DURATION_MS,
 	DEFAULT_CONNECTED_ZOOM_EASING,
@@ -490,6 +493,15 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 		}, []);
 
 		const overlayRef = useRef<HTMLDivElement | null>(null);
+		const highlightGraphicsRef = useRef<Graphics | null>(null);
+		const highlightLayerRef = useRef<HTMLDivElement | null>(null);
+		const annotationRegionsRef = useRef<AnnotationRegion[]>(annotationRegions);
+		annotationRegionsRef.current = annotationRegions;
+		const hasContentHighlightsRef = useRef(false);
+		hasContentHighlightsRef.current = annotationRegions.some(isContentHighlight);
+		const highlightCameraScaleRef = useRef(1);
+		const [highlightCameraScale, setHighlightCameraScale] = useState(1);
+		const [highlightMaskRect, setHighlightMaskRect] = useState<CursorViewportRect | null>(null);
 		const focusIndicatorRef = useRef<HTMLDivElement | null>(null);
 		const webcamVideoRef = useRef<HTMLVideoElement | null>(null);
 		const webcamBubbleRef = useRef<HTMLDivElement | null>(null);
@@ -955,6 +967,16 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 				baseOffsetRef.current = result.baseOffset;
 				baseMaskRef.current = result.maskRect;
 				cropBoundsRef.current = result.cropBounds;
+				setHighlightMaskRect((previous) =>
+					previous &&
+					previous.x === result.maskRect.x &&
+					previous.y === result.maskRect.y &&
+					previous.width === result.maskRect.width &&
+					previous.height === result.maskRect.height &&
+					previous.sourceCrop === result.maskRect.sourceCrop
+						? previous
+						: { ...result.maskRect },
+				);
 
 				// Sync extension cursor effects canvas resolution with renderer
 				const effectsCanvas = cursorEffectsCanvasRef.current;
@@ -1859,6 +1881,11 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 				frameContainerRef.current = frameContainer;
 				cameraContainer.addChild(frameContainer);
 
+				// Content highlights live in camera space so they follow zoom/pan.
+				const highlightGraphics = new Graphics();
+				highlightGraphicsRef.current = highlightGraphics;
+				cameraContainer.addChild(highlightGraphics);
+
 				const cursorContainer = new Container();
 				cursorContainerRef.current = cursorContainer;
 				cameraContainer.addChild(cursorContainer);
@@ -1928,6 +1955,7 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 				frameContainerRef.current = null;
 				frameSpriteRef.current = null;
 				cursorContainerRef.current = null;
+				highlightGraphicsRef.current = null;
 				videoSpriteRef.current = null;
 			};
 		}, [initializePixiRenderer, onError]);
@@ -2247,6 +2275,31 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 				applyWebcamBubbleLayout(animationStateRef.current.appliedScale || 1);
 
 				const timeMs = currentTimeRef.current;
+
+				const highlightGraphics = highlightGraphicsRef.current;
+				if (highlightGraphics) {
+					if (hasContentHighlightsRef.current) {
+						drawContentHighlights(
+							highlightGraphics,
+							annotationRegionsRef.current,
+							timeMs,
+							baseMaskRef.current,
+							stageSizeRef.current.width,
+						);
+					} else if (highlightGraphics.context.instructions.length > 0) {
+						highlightGraphics.clear();
+					}
+				}
+				const highlightLayer = highlightLayerRef.current;
+				const camera = cameraContainerRef.current;
+				if (highlightLayer && camera) {
+					const cameraScale = camera.scale.x || 1;
+					highlightLayer.style.transform = `translate(${camera.position.x}px, ${camera.position.y}px) scale(${cameraScale})`;
+					if (Math.abs(cameraScale - highlightCameraScaleRef.current) > 0.002) {
+						highlightCameraScaleRef.current = cameraScale;
+						setHighlightCameraScale(cameraScale);
+					}
+				}
 				const effectsCanvas = cursorEffectsCanvasRef.current;
 				const extensionCanvasWidth = effectsCanvas?.width || stageSizeRef.current.width;
 				const extensionCanvasHeight = effectsCanvas?.height || stageSizeRef.current.height;
@@ -2926,8 +2979,28 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 								</div>
 							</div>
 						) : null}
+						{hasContentHighlightsRef.current ? (
+							<ContentHighlightEditor
+								layerRef={highlightLayerRef}
+								highlights={(annotationRegions || []).filter((annotation) => {
+									if (!isContentHighlight(annotation)) return false;
+									if (annotation.id === selectedAnnotationId) return true;
+									const timeMs = Math.round(currentTime * 1000);
+									return timeMs >= annotation.startMs && timeMs <= annotation.endMs;
+								})}
+								selectedId={selectedAnnotationId}
+								maskRect={highlightMaskRect}
+								cameraScale={highlightCameraScale}
+								onSelect={(id) => onSelectAnnotation?.(id)}
+								onPositionChange={(id, position) =>
+									onAnnotationPositionChange?.(id, position)
+								}
+								onSizeChange={(id, size) => onAnnotationSizeChange?.(id, size)}
+							/>
+						) : null}
 						{(() => {
 							const filtered = (annotationRegions || []).filter((annotation) => {
+								if (isContentHighlight(annotation)) return false;
 								if (
 									typeof annotation.startMs !== "number" ||
 									typeof annotation.endMs !== "number"

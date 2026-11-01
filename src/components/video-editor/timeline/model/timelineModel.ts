@@ -23,6 +23,10 @@ export function getAnnotationLabel(region: AnnotationRegion): string {
 	if (region.type === "image") {
 		return "Image";
 	}
+	if (region.type === "highlight") {
+		const shape = region.highlightData?.shape ?? "rectangle";
+		return shape === "marker" ? "Marker" : shape === "ellipse" ? "Ellipse" : "Highlight";
+	}
 	return "Annotation";
 }
 

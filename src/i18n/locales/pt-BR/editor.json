@@ -42,7 +42,15 @@
 		"imageUploadError": "Envie um arquivo de imagem JPG, PNG, GIF ou WebP.",
 		"blurStrength": "Intensidade do blur: {{strength}}",
 		"solidColor": "Cor sólida (censura)",
-		"borderRadius": "Raio da borda"
+		"borderRadius": "Raio da borda",
+		"highlight": "Highlight",
+		"highlightShape": "Shape",
+		"shapeRectangle": "Rectangle",
+		"shapeEllipse": "Ellipse",
+		"shapeMarker": "Marker",
+		"highlightColor": "Color",
+		"fillOpacity": "Fill: {{value}}%",
+		"highlightAnchoredHint": "Highlights stick to the recorded content and stay in place through zooms and camera motion."
 	},
 	"fontStyles": {
 		"classic": "Classic",

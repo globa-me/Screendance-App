@@ -42,7 +42,15 @@
 		"imageUploadError": "请上传 JPG、PNG、GIF 或 WebP 图片文件。",
 		"blurStrength": "模糊强度: {{strength}}",
 		"solidColor": "纯色 (审查)",
-		"borderRadius": "边框半径"
+		"borderRadius": "边框半径",
+		"highlight": "Highlight",
+		"highlightShape": "Shape",
+		"shapeRectangle": "Rectangle",
+		"shapeEllipse": "Ellipse",
+		"shapeMarker": "Marker",
+		"highlightColor": "Color",
+		"fillOpacity": "Fill: {{value}}%",
+		"highlightAnchoredHint": "Highlights stick to the recorded content and stay in place through zooms and camera motion."
 	},
 	"fontStyles": {
 		"classic": "经典",

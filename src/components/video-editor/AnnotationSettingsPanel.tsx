@@ -4,10 +4,13 @@ import {
 	AlignRight,
 	TextB as Bold,
 	CaretDown as ChevronDown,
+	Circle as CircleIcon,
+	Highlighter as HighlighterIcon,
 	ImageSquare as ImageIcon,
 	Info,
 	TextItalic as Italic,
 	BoundingBox as SquareDashed,
+	Square as SquareIcon,
 	Trash as Trash2,
 	TextT as Type,
 	TextUnderline as Underline,
@@ -33,7 +36,16 @@ import { cn } from "@/lib/utils";
 import { useScopedT } from "../../contexts/I18nContext";
 import { AddCustomFontDialog } from "./AddCustomFontDialog";
 import { getArrowComponent } from "./ArrowSvgs";
-import type { AnnotationRegion, AnnotationType, ArrowDirection, FigureData } from "./types";
+import {
+	type AnnotationRegion,
+	type AnnotationType,
+	type ArrowDirection,
+	DEFAULT_HIGHLIGHT_DATA,
+	type FigureData,
+	HIGHLIGHT_SHAPE_DEFAULTS,
+	type HighlightData,
+	type HighlightShape,
+} from "./types";
 
 interface AnnotationSettingsPanelProps {
 	annotation: AnnotationRegion;
@@ -41,6 +53,7 @@ interface AnnotationSettingsPanelProps {
 	onTypeChange: (type: AnnotationType) => void;
 	onStyleChange: (style: Partial<AnnotationRegion["style"]>) => void;
 	onFigureDataChange?: (figureData: FigureData) => void;
+	onHighlightDataChange?: (highlightData: HighlightData) => void;
 	onBlurIntensityChange?: (intensity: number) => void;
 	onBlurColorChange?: (color: string) => void;
 	onDelete: () => void;
@@ -57,6 +70,17 @@ export const FONT_FAMILY_VALUES = [
 	{ value: "Trebuchet MS, sans-serif", labelKey: "fontStyles.clean" },
 ];
 
+const HIGHLIGHT_SHAPES: Array<{
+	shape: HighlightShape;
+	labelKey: string;
+	fallback: string;
+	Icon: typeof SquareIcon;
+}> = [
+	{ shape: "rectangle", labelKey: "annotations.shapeRectangle", fallback: "Rectangle", Icon: SquareIcon },
+	{ shape: "ellipse", labelKey: "annotations.shapeEllipse", fallback: "Ellipse", Icon: CircleIcon },
+	{ shape: "marker", labelKey: "annotations.shapeMarker", fallback: "Marker", Icon: HighlighterIcon },
+];
+
 export const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 64, 72, 80, 96, 128];
 
 export function AnnotationSettingsPanel({
@@ -65,6 +89,7 @@ export function AnnotationSettingsPanel({
 	onTypeChange,
 	onStyleChange,
 	onFigureDataChange,
+	onHighlightDataChange,
 	onBlurIntensityChange,
 	onBlurColorChange,
 	onDelete,
@@ -85,6 +110,11 @@ export function AnnotationSettingsPanel({
 		window.addEventListener("screendance:assets-changed", refresh);
 		return () => window.removeEventListener("screendance:assets-changed", refresh);
 	}, []);
+
+	const highlightData: HighlightData = {
+		...DEFAULT_HIGHLIGHT_DATA,
+		...(annotation.highlightData ?? {}),
+	};
 
 	const colorPalette = [
 		"#FF0000", // Red
@@ -160,24 +190,24 @@ export function AnnotationSettingsPanel({
 					onValueChange={(value) => onTypeChange(value as AnnotationType)}
 					className="mb-6"
 				>
-					<TabsList className="mb-4 bg-foreground/5 border border-foreground/5 p-1 w-full grid grid-cols-4 h-auto rounded-xl">
+					<TabsList className="mb-4 bg-foreground/5 border border-foreground/5 p-1 w-full grid grid-cols-5 h-auto rounded-xl">
 						<TabsTrigger
 							value="text"
-							className="data-[state=active]:bg-[#2563EB] data-[state=active]:text-white text-muted-foreground py-2 rounded-lg transition-all gap-2"
+							className="data-[state=active]:bg-[#2563EB] data-[state=active]:text-white text-muted-foreground py-1.5 px-1 rounded-lg transition-all gap-1 flex-col text-[11px]"
 						>
 							<Type className="w-4 h-4" />
 							{t("annotations.text")}
 						</TabsTrigger>
 						<TabsTrigger
 							value="image"
-							className="data-[state=active]:bg-[#2563EB] data-[state=active]:text-white text-muted-foreground py-2 rounded-lg transition-all gap-2"
+							className="data-[state=active]:bg-[#2563EB] data-[state=active]:text-white text-muted-foreground py-1.5 px-1 rounded-lg transition-all gap-1 flex-col text-[11px]"
 						>
 							<ImageIcon className="w-4 h-4" />
 							{t("annotations.image")}
 						</TabsTrigger>
 						<TabsTrigger
 							value="figure"
-							className="data-[state=active]:bg-[#2563EB] data-[state=active]:text-white text-muted-foreground py-2 rounded-lg transition-all gap-2"
+							className="data-[state=active]:bg-[#2563EB] data-[state=active]:text-white text-muted-foreground py-1.5 px-1 rounded-lg transition-all gap-1 flex-col text-[11px]"
 						>
 							<svg
 								className="w-4 h-4"
@@ -196,10 +226,17 @@ export function AnnotationSettingsPanel({
 						</TabsTrigger>
 						<TabsTrigger
 							value="blur"
-							className="data-[state=active]:bg-[#2563EB] data-[state=active]:text-white text-muted-foreground py-2 rounded-lg transition-all gap-2"
+							className="data-[state=active]:bg-[#2563EB] data-[state=active]:text-white text-muted-foreground py-1.5 px-1 rounded-lg transition-all gap-1 flex-col text-[11px]"
 						>
 							<SquareDashed className="w-4 h-4" />
 							{t("annotations.blur")}
+						</TabsTrigger>
+						<TabsTrigger
+							value="highlight"
+							className="data-[state=active]:bg-[#2563EB] data-[state=active]:text-white text-muted-foreground py-1.5 px-1 rounded-lg transition-all gap-1 flex-col text-[11px]"
+						>
+							<HighlighterIcon className="w-4 h-4" />
+							{t("annotations.highlight", "Highlight")}
 						</TabsTrigger>
 					</TabsList>
 
@@ -773,6 +810,105 @@ export function AnnotationSettingsPanel({
 								</div>
 							</div>
 						</div>
+					</TabsContent>
+					<TabsContent value="highlight" className="mt-0 space-y-4">
+						<div>
+							<label className="text-xs font-medium text-foreground mb-2 block">
+								{t("annotations.highlightShape", "Shape")}
+							</label>
+							<div className="grid grid-cols-3 gap-2">
+								{HIGHLIGHT_SHAPES.map(({ shape, labelKey, fallback, Icon }) => (
+									<button
+										key={shape}
+										type="button"
+										aria-pressed={highlightData.shape === shape}
+										onClick={() => {
+											if (highlightData.shape === shape) return;
+											onHighlightDataChange?.({
+												shape,
+												...HIGHLIGHT_SHAPE_DEFAULTS[shape],
+												color:
+													highlightData.color ===
+													HIGHLIGHT_SHAPE_DEFAULTS[highlightData.shape].color
+														? HIGHLIGHT_SHAPE_DEFAULTS[shape].color
+														: highlightData.color,
+											});
+										}}
+										className={cn(
+											"h-16 rounded-lg border flex flex-col items-center justify-center gap-1 text-[11px] transition-all",
+											highlightData.shape === shape
+												? "bg-[#2563EB] border-[#2563EB] text-white"
+												: "bg-foreground/5 border-foreground/10 text-muted-foreground hover:bg-foreground/10 hover:border-foreground/20",
+										)}
+									>
+										<Icon className="w-5 h-5" />
+										{t(labelKey, fallback)}
+									</button>
+								))}
+							</div>
+						</div>
+
+						<div>
+							<label className="text-xs font-medium text-foreground mb-2 block">
+								{t("annotations.highlightColor", "Color")}
+							</label>
+							<Block
+								color={highlightData.color}
+								colors={colorPalette}
+								onChange={(color) =>
+									onHighlightDataChange?.({ ...highlightData, color: color.hex })
+								}
+								style={{ borderRadius: "8px", width: "100%" }}
+							/>
+						</div>
+
+						{highlightData.shape !== "marker" ? (
+							<div>
+								<label className="text-xs font-medium text-foreground mb-2 block">
+									{t("annotations.strokeWidth", undefined, {
+										width: highlightData.strokeWidth,
+									})}
+								</label>
+								<Slider
+									value={[highlightData.strokeWidth]}
+									onValueChange={([value]) =>
+										onHighlightDataChange?.({ ...highlightData, strokeWidth: value })
+									}
+									min={1}
+									max={24}
+									step={1}
+									className="w-full"
+								/>
+							</div>
+						) : null}
+
+						<div>
+							<label className="text-xs font-medium text-foreground mb-2 block">
+								{t("annotations.fillOpacity", "Fill: {{value}}%", {
+									value: Math.round(highlightData.fillOpacity * 100),
+								})}
+							</label>
+							<Slider
+								value={[Math.round(highlightData.fillOpacity * 100)]}
+								onValueChange={([value]) =>
+									onHighlightDataChange?.({
+										...highlightData,
+										fillOpacity: value / 100,
+									})
+								}
+								min={highlightData.shape === "marker" ? 5 : 0}
+								max={100}
+								step={1}
+								className="w-full"
+							/>
+						</div>
+
+						<p className="text-[11px] leading-relaxed text-muted-foreground">
+							{t(
+								"annotations.highlightAnchoredHint",
+								"Highlights stick to the recorded content and stay in place through zooms and camera motion.",
+							)}
+						</p>
 					</TabsContent>
 				</Tabs>
 

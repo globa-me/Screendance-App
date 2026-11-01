@@ -1,4 +1,5 @@
 import { Application, BlurFilter, Container, Graphics, Rectangle, Sprite, Texture } from "pixi.js";
+import { drawContentHighlights } from "@/components/video-editor/videoPlayback/contentHighlights";
 import { MotionBlurFilter } from "pixi-filters/motion-blur";
 import { ZoomBlurFilter } from "pixi-filters/zoom-blur";
 import { buildActiveCaptionLayout } from "@/components/video-editor/captionLayout";
@@ -416,6 +417,7 @@ export class FrameRenderer {
 	private videoContainer: Container | null = null;
 	private frameContainer: Container | null = null;
 	private cursorContainer: Container | null = null;
+	private highlightGraphics: Graphics | null = null;
 	private overlayContainer: Container | null = null;
 	private annotationContainer: Container | null = null;
 	private captionContainer: Container | null = null;
@@ -616,6 +618,8 @@ export class FrameRenderer {
 
 		this.cameraContainer.addChild(this.videoEffectsContainer);
 		this.cameraContainer.addChild(this.frameContainer);
+		this.highlightGraphics = new Graphics();
+		this.cameraContainer.addChild(this.highlightGraphics);
 		this.cameraContainer.addChild(this.cursorContainer);
 		this.videoEffectsContainer.addChild(this.videoContainer);
 		this.videoEffectsContainer.filterArea = new Rectangle(
@@ -3024,6 +3028,16 @@ export class FrameRenderer {
 			);
 		}
 
+		if (this.highlightGraphics) {
+			drawContentHighlights(
+				this.highlightGraphics,
+				this.config.annotationRegions,
+				timeMs,
+				layoutCache.maskRect,
+				layoutCache.stageSize.width,
+			);
+		}
+
 		this.updateAnimationState(timeMs);
 
 		applyZoomTransform({
@@ -3270,6 +3284,16 @@ export class FrameRenderer {
 				layoutCache.maskRect,
 				this.config.showCursor ?? true,
 				false,
+			);
+		}
+
+		if (this.highlightGraphics) {
+			drawContentHighlights(
+				this.highlightGraphics,
+				this.config.annotationRegions,
+				timeMs,
+				layoutCache.maskRect,
+				layoutCache.stageSize.width,
 			);
 		}
 
@@ -3997,6 +4021,7 @@ export class FrameRenderer {
 		this.videoContainer = null;
 		this.frameContainer = null;
 		this.cursorContainer = null;
+		this.highlightGraphics = null;
 		this.overlayContainer = null;
 		this.annotationContainer = null;
 		this.captionContainer = null;

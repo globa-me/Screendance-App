@@ -1,4 +1,5 @@
 import { Application, Container, Graphics, Rectangle, Sprite, Texture } from "pixi.js";
+import { drawContentHighlights } from "@/components/video-editor/videoPlayback/contentHighlights";
 import { MotionBlurFilter } from "pixi-filters/motion-blur";
 import { ZoomBlurFilter } from "pixi-filters/zoom-blur";
 import type {
@@ -259,6 +260,7 @@ export class FrameRenderer {
 	private cameraContainer: Container | null = null;
 	private videoContainer: Container | null = null;
 	private cursorContainer: Container | null = null;
+	private highlightGraphics: Graphics | null = null;
 	private videoSprite: Sprite | null = null;
 	private videoTextureSource: VideoTextureSource | null = null;
 	private backgroundSprite: HTMLCanvasElement | null = null;
@@ -430,6 +432,8 @@ export class FrameRenderer {
 		this.cursorContainer = new Container();
 		this.app.stage.addChild(this.cameraContainer);
 		this.cameraContainer.addChild(this.videoContainer);
+		this.highlightGraphics = new Graphics();
+		this.cameraContainer.addChild(this.highlightGraphics);
 		this.cameraContainer.addChild(this.cursorContainer);
 
 		if (cursorOverlayEnabled) {
@@ -1606,6 +1610,16 @@ export class FrameRenderer {
 			);
 		}
 
+		if (this.highlightGraphics) {
+			drawContentHighlights(
+				this.highlightGraphics,
+				this.config.annotationRegions,
+				timeMs,
+				layoutCache.maskRect,
+				layoutCache.stageSize.width,
+			);
+		}
+
 		const smoothedCursor = mapSmoothedCursorToCanvasNormalized(
 			this.cursorOverlay?.getSmoothedCursorSnapshot() ?? null,
 			{
@@ -2091,6 +2105,16 @@ export class FrameRenderer {
 				layoutCache.maskRect,
 				this.config.showCursor ?? true,
 				false,
+			);
+		}
+
+		if (this.highlightGraphics) {
+			drawContentHighlights(
+				this.highlightGraphics,
+				this.config.annotationRegions,
+				timeMs,
+				layoutCache.maskRect,
+				layoutCache.stageSize.width,
 			);
 		}
 

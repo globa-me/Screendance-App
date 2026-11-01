@@ -335,8 +335,10 @@ export async function renderAnnotations(
 	scaleFactor: number = 1.0,
 	assets?: AnnotationRenderAssets,
 ): Promise<void> {
+	// Content-anchored highlights are drawn inside the camera layer instead.
 	const activeAnnotations = annotations.filter(
-		(ann) => currentTimeMs >= ann.startMs && currentTimeMs <= ann.endMs,
+		(ann) =>
+			ann.type !== "highlight" && currentTimeMs >= ann.startMs && currentTimeMs <= ann.endMs,
 	);
 
 	const sortedAnnotations = [...activeAnnotations].sort((a, b) => a.zIndex - b.zIndex);
@@ -424,6 +426,10 @@ export async function renderAnnotationToCanvas(
 	scaleFactor: number = 1.0,
 	assets?: AnnotationRenderAssets,
 ): Promise<HTMLCanvasElement | null> {
+	if (annotation.type === "highlight") {
+		return null;
+	}
+
 	const canvasWidth = Math.max(1, Math.ceil(width));
 	const canvasHeight = Math.max(1, Math.ceil(height));
 	const canvas = document.createElement("canvas");

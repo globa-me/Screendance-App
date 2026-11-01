@@ -196,6 +196,7 @@ import {
 	DEFAULT_CROP_REGION,
 	DEFAULT_CURSOR_STYLE,
 	DEFAULT_FIGURE_DATA,
+	DEFAULT_HIGHLIGHT_DATA,
 	DEFAULT_MANUAL_ZOOM_FOCUS,
 	DEFAULT_NEW_ZOOM_DURATION_MS,
 	DEFAULT_NEW_ZOOM_MODE,
@@ -210,6 +211,7 @@ import {
 	type EditorEffectSection,
 	extendAutoFullTrackClip,
 	type FigureData,
+	type HighlightData,
 	getClipSourceEndMs,
 	getTimelineDurationMs,
 	mapSourceTimeToTimelineTime as resolveSourceTimeToTimelineTime,
@@ -3994,6 +3996,11 @@ export default function VideoEditor() {
 					if (region.blurIntensity === undefined) {
 						updatedRegion.blurIntensity = 20;
 					}
+				} else if (type === "highlight") {
+					updatedRegion.content = "";
+					if (!region.highlightData) {
+						updatedRegion.highlightData = { ...DEFAULT_HIGHLIGHT_DATA };
+					}
 				}
 
 				return updatedRegion;
@@ -4018,6 +4025,15 @@ export default function VideoEditor() {
 			prev.map((region) => (region.id === id ? { ...region, figureData } : region)),
 		);
 	}, []);
+
+	const handleAnnotationHighlightDataChange = useCallback(
+		(id: string, highlightData: HighlightData) => {
+			setAnnotationRegions((prev) =>
+				prev.map((region) => (region.id === id ? { ...region, highlightData } : region)),
+			);
+		},
+		[],
+	);
 
 	const handleAnnotationBlurIntensityChange = useCallback((id: string, blurIntensity: number) => {
 		setAnnotationRegions((prev) =>
@@ -6890,6 +6906,7 @@ export default function VideoEditor() {
 							onAnnotationTypeChange={handleAnnotationTypeChange}
 							onAnnotationStyleChange={handleAnnotationStyleChange}
 							onAnnotationFigureDataChange={handleAnnotationFigureDataChange}
+							onAnnotationHighlightDataChange={handleAnnotationHighlightDataChange}
 							onAnnotationBlurIntensityChange={handleAnnotationBlurIntensityChange}
 							onAnnotationBlurColorChange={handleAnnotationBlurColorChange}
 							onAnnotationDelete={handleAnnotationDelete}

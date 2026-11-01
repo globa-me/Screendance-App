@@ -42,7 +42,15 @@
 		"imageUploadError": "Загрузите файл JPG, PNG, GIF, или WebP.",
 		"blurStrength": "Сила размытия: {{strength}}",
 		"solidColor": "Сплошной цвет (цензура)",
-		"borderRadius": "Скругление углов"
+		"borderRadius": "Скругление углов",
+		"highlight": "Выделение",
+		"highlightShape": "Форма",
+		"shapeRectangle": "Прямоугольник",
+		"shapeEllipse": "Овал",
+		"shapeMarker": "Маркер",
+		"highlightColor": "Цвет",
+		"fillOpacity": "Заливка: {{value}}%",
+		"highlightAnchoredHint": "Выделение привязано к содержимому записи и остаётся на месте при зуме и движении камеры."
 	},
 	"fontStyles": {
 		"classic": "Классический",
