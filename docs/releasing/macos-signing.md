@@ -382,7 +382,9 @@ notarization. Broader physical hardware/permission checks remain manual.
 
 ## Version 1.7.0 local release — 2026-11-02
 
-Artifacts: `release/notarized-v1.7.0/` (arm64 + x64 ZIP/DMG, not published).
+Artifacts: `release/notarized-v1.7.0/` (arm64 + x64 ZIP/DMG), published at
+https://github.com/globa-me/Screendance-App/releases/tag/v1.7.0 with hyphenated
+asset names; downloaded assets re-verified.
 Same G2 certificate and `GZB-notary` profile as 1.6.0. DMG submissions:
 arm64 `1fd3fbfd-74de-4fe2-b765-557267e04745`, x64
 `057e331b-cbbe-47ef-b372-94bb2f12633f`, both Accepted and stapled; both apps

@@ -8,7 +8,7 @@ source + `cursorContentViewport`, canvas webcam compositor + `webcam.hiddenRange
 content-anchored `highlight` annotations (source-frame percentages, drawn in
 the camera container), last-wallpaper reuse and the HUD hit-zone fix. CLI/MCP
 now has 85 commands (`recording.adjust`). The dual-arch 1.7.0 release is built,
-notarized, stapled and verified in `release/notarized-v1.7.0` (not published);
+notarized, stapled and verified in `release/notarized-v1.7.0` and published as GitHub release v1.7.0;
 the notarized arm64 app is installed in /Applications, 1.5.0 backup is in
 `release/backup-installed-1.5.0`. Never modify/re-sign those bundles. Keep highlights out of screen-space
 annotation paths and hidden ranges out of presets.
