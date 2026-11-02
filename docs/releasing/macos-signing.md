@@ -379,3 +379,14 @@ file node_modules/uiohook-napi/build/Release/uiohook_napi.node
 Do not modify/re-sign the notarized apps. Keep the final hashes in the version
 record and `SHA256SUMS.txt`; further production changes require fresh signing and
 notarization. Broader physical hardware/permission checks remain manual.
+
+## Version 1.7.0 local release — 2026-11-02
+
+Artifacts: `release/notarized-v1.7.0/` (arm64 + x64 ZIP/DMG, not published).
+Same G2 certificate and `GZB-notary` profile as 1.6.0. DMG submissions:
+arm64 `1fd3fbfd-74de-4fe2-b765-557267e04745`, x64
+`057e331b-cbbe-47ef-b372-94bb2f12633f`, both Accepted and stapled; both apps
+were notarized by electron-builder. Finalization, ZIP/DMG QA, packaged binary
+smoke (both arches) and packaged CLI/MCP smoke passed. Full record and checksums:
+[v1.7.0.md](../releases/v1.7.0.md). The notarized arm64 app was installed over the
+owner's 1.5.0 at their request (backup in `release/backup-installed-1.5.0`).

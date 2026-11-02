@@ -5,7 +5,7 @@ the fork, see [Recordly](https://github.com/webadderallorg/Recordly/commits/main
 For the complete, browseable history after the fork, see the
 [Screendance commit log](https://github.com/globa-me/Screendance-App/commits/screendance/macos-apple-silicon).
 
-## November 1, 2026 — 1.7.0 (source, not built)
+## November 2, 2026 — 1.7.0 (local build, notarized, not published)
 
 - The source picker shows live thumbnails of every window and screen (native
   ScreenCaptureKit previews on macOS) in a grid with app icons. Windows with

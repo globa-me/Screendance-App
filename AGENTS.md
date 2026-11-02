@@ -7,10 +7,10 @@ capture changes (`switch_source`/`set_microphone` helper commands, letterboxed
 source + `cursorContentViewport`, canvas webcam compositor + `webcam.hiddenRanges`),
 content-anchored `highlight` annotations (source-frame percentages, drawn in
 the camera container), last-wallpaper reuse and the HUD hit-zone fix. CLI/MCP
-now has 85 commands (`recording.adjust`). A local arm64 G2-signed (not notarized)
-1.7.0 is installed in /Applications for testing; 1.5.0 backup is in
-`release/backup-installed-1.5.0`. Installed-app checks passed (see the record);
-x64/notarized release work is still open. Keep highlights out of screen-space
+now has 85 commands (`recording.adjust`). The dual-arch 1.7.0 release is built,
+notarized, stapled and verified in `release/notarized-v1.7.0` (not published);
+the notarized arm64 app is installed in /Applications, 1.5.0 backup is in
+`release/backup-installed-1.5.0`. Never modify/re-sign those bundles. Keep highlights out of screen-space
 annotation paths and hidden ranges out of presets.
 
 ## CLI/MCP automation
