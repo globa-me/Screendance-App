@@ -11,7 +11,7 @@
   [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111111?style=flat-square&logo=apple&logoColor=white)](https://www.apple.com/macos/)
   [![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-arm64-2f6fed?style=flat-square)](#download)
   [![Intel Mac](https://img.shields.io/badge/Intel%20Mac-x64-2f6fed?style=flat-square)](#download)
-  [![Version](https://img.shields.io/badge/version-1.6.0-7857ff?style=flat-square)](CHANGELOG.md)
+  [![Version](https://img.shields.io/badge/version-1.7.0-7857ff?style=flat-square)](CHANGELOG.md)
   [![License: AGPL v3](https://img.shields.io/badge/license-AGPL%20v3-663399?style=flat-square)](LICENSE.md)
 
   [Website](https://globa-me.github.io/Screendance-App/) ·
@@ -45,9 +45,11 @@ the result on a visual timeline, and export in the format your work needs.
 
 ## Highlights
 
-- **Native macOS recording** — ScreenCaptureKit capture tuned for Apple Silicon and Intel Macs.
+- **Native macOS recording** — ScreenCaptureKit capture tuned for Apple Silicon and Intel Macs, with live window and screen previews in the source picker.
+- **Change course mid-take** — pause, switch to another window or screen, turn the microphone or webcam on, off or to another device, and keep recording the same take.
 - **Automatic focus** — turn clicks and cursor movement into smooth, editable zooms.
-- **A clean visual editor** — style backgrounds, padding, corners, shadows, crop, and layout from one workspace.
+- **A clean visual editor** — style backgrounds, padding, corners, shadows, crop, and layout from one workspace; new recordings reuse the background you chose last.
+- **Highlights that stick** — mark parts of the recording with rectangles, ellipses or a marker that stay on the content through zooms and camera motion.
 - **Local captions** — generate subtitles with downloadable Whisper models and keep media on your Mac.
 - **Flexible audio** — record system sound and an external microphone, with live level indicators and fallback recovery.
 - **Professional export** — MP4, GIF, transparent WebM, and Quick Look-safe ProRes 4444 workflows.
@@ -86,12 +88,11 @@ Screendance supports **macOS 14 or newer** with separate builds for:
 - **Apple Silicon (`arm64`)** — M1, M2, M3, M4, and newer Apple chips.
 - **Intel (`x64`)** — supported Intel-based Macs.
 
-Version 1.5.0 is signed and notarized for both Apple Silicon and Intel Macs.
+Version 1.7.0 is signed and notarized for both Apple Silicon and Intel Macs.
 Download it only from the official
-[Screendance App 1.5.0 release](https://github.com/globa-me/Screendance-App/releases/tag/v1.5.0).
-
-Version 1.6.0 is the current local automation upgrade; it has not been published
-to GitHub. See its [build and validation record](docs/releases/v1.6.0.md).
+[Screendance App 1.7.0 release](https://github.com/globa-me/Screendance-App/releases/tag/v1.7.0).
+It also includes the 1.6.0 CLI/MCP automation, which was not published separately.
+See the [1.7.0 build and validation record](docs/releases/v1.7.0.md).
 
 After downloading, open the DMG, drag **Screendance App** to `Applications`, and
 grant the macOS permissions needed for the features you use: Screen & System Audio
