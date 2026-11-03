@@ -392,3 +392,13 @@ were notarized by electron-builder. Finalization, ZIP/DMG QA, packaged binary
 smoke (both arches) and packaged CLI/MCP smoke passed. Full record and checksums:
 [v1.7.0.md](../releases/v1.7.0.md). The notarized arm64 app was installed over the
 owner's 1.5.0 at their request (backup in `release/backup-installed-1.5.0`).
+
+## Version 1.7.1 local release — 2026-11-03
+
+Artifacts: `release/notarized-v1.7.1/` (arm64 + x64 ZIP/DMG). Same G2
+certificate and `GZB-notary` profile. DMG submissions: arm64
+`6ca7a7f3-f698-44fd-ae93-def91bdcaa47`, x64
+`36d4ab64-29ca-412b-a7fc-b86a15577291`, both Accepted and stapled; both apps
+were notarized by electron-builder. Finalization, ZIP/DMG QA, packaged binary
+smoke and packaged CLI/MCP smoke (both arches) passed. Full record and
+checksums: [v1.7.1.md](../releases/v1.7.1.md).

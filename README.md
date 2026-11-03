@@ -11,7 +11,7 @@
   [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111111?style=flat-square&logo=apple&logoColor=white)](https://www.apple.com/macos/)
   [![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-arm64-2f6fed?style=flat-square)](#download)
   [![Intel Mac](https://img.shields.io/badge/Intel%20Mac-x64-2f6fed?style=flat-square)](#download)
-  [![Version](https://img.shields.io/badge/version-1.7.0-7857ff?style=flat-square)](CHANGELOG.md)
+  [![Version](https://img.shields.io/badge/version-1.7.1-7857ff?style=flat-square)](CHANGELOG.md)
   [![License: AGPL v3](https://img.shields.io/badge/license-AGPL%20v3-663399?style=flat-square)](LICENSE.md)
 
   [Website](https://globa-me.github.io/Screendance-App/) ·
@@ -88,11 +88,11 @@ Screendance supports **macOS 14 or newer** with separate builds for:
 - **Apple Silicon (`arm64`)** — M1, M2, M3, M4, and newer Apple chips.
 - **Intel (`x64`)** — supported Intel-based Macs.
 
-Version 1.7.0 is signed and notarized for both Apple Silicon and Intel Macs.
+Version 1.7.1 is signed and notarized for both Apple Silicon and Intel Macs.
 Download it only from the official
-[Screendance App 1.7.0 release](https://github.com/globa-me/Screendance-App/releases/tag/v1.7.0).
-It also includes the 1.6.0 CLI/MCP automation, which was not published separately.
-See the [1.7.0 build and validation record](docs/releases/v1.7.0.md).
+[Screendance App 1.7.1 release](https://github.com/globa-me/Screendance-App/releases/tag/v1.7.1).
+It is a bug-fix update to 1.7.0, which also brought the 1.6.0 CLI/MCP automation.
+See the [1.7.1 build and validation record](docs/releases/v1.7.1.md).
 
 After downloading, open the DMG, drag **Screendance App** to `Applications`, and
 grant the macOS permissions needed for the features you use: Screen & System Audio
