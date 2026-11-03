@@ -60,7 +60,9 @@
 		"noAudioSource": "Без звука",
 		"switchSourceWhilePaused": "Сменить окно или экран",
 		"liveChangeFailed": "Не удалось применить изменение",
-		"liveChangeSwitchedSource": "Источник записи изменён"
+		"liveChangeSwitchedSource": "Источник записи изменён",
+		"sourceUnavailablePaused": "Записываемое окно закрыто — запись на паузе",
+		"sourceUnavailableChooseSource": "Выберите другое окно или экран, чтобы продолжить, или остановите запись."
 	},
 	"sourceSelector": {
 		"loadingSources": "Загрузка источников...",

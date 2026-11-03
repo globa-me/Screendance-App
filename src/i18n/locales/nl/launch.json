@@ -60,7 +60,9 @@
 		"noAudioSource": "No audio",
 		"switchSourceWhilePaused": "Switch window or screen",
 		"liveChangeFailed": "Couldn't apply the change",
-		"liveChangeSwitchedSource": "Recording source switched"
+		"liveChangeSwitchedSource": "Recording source switched",
+		"sourceUnavailablePaused": "Het opgenomen venster is gesloten — opname gepauzeerd",
+		"sourceUnavailableChooseSource": "Kies een ander venster of scherm om door te gaan, of stop de opname."
 	},
 	"sourceSelector": {
 		"loadingSources": "Bronnen laden...",

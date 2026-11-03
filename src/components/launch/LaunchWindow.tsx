@@ -257,6 +257,14 @@ function LaunchWindowContent() {
 		[t],
 	);
 
+	// The recorded window closed and the take was paused: offer another source.
+	const needsReplacementSource = liveCapture.available && liveCapture.sourceUnavailable;
+	useEffect(() => {
+		if (!needsReplacementSource) return;
+		beginInteractiveHudAction();
+		requestOpen("sources");
+	}, [beginInteractiveHudAction, needsReplacementSource, requestOpen]);
+
 	// While a macOS recording is paused, the source, microphone and webcam can
 	// change without ending the take (see useScreenRecorder.liveCapture).
 	const pausedCaptureControls = liveCapture.available ? (

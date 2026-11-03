@@ -60,6 +60,7 @@ import {
 	waitForFfmpegCaptureStart,
 	waitForFfmpegCaptureStop,
 } from "../recording/ffmpeg";
+import { emitRecordingSourceUnavailable } from "../recording/events";
 import {
 	attachNativeCaptureLifecycle,
 	finalizeStoredVideo,
@@ -91,6 +92,7 @@ import {
 	nativeCaptureMicrophonePath,
 	nativeCaptureOutputBuffer,
 	nativeCapturePaused,
+	nativeCaptureSourceUnavailable,
 	nativeCaptureProcess,
 	nativeCaptureSystemAudioPath,
 	nativeCaptureTargetPath,
@@ -112,6 +114,7 @@ import {
 	setNativeCaptureMicrophonePath,
 	setNativeCaptureOutputBuffer,
 	setNativeCapturePaused,
+	setNativeCaptureSourceUnavailable,
 	setNativeCaptureProcess,
 	setNativeCaptureStopRequested,
 	setNativeCaptureSystemAudioPath,
@@ -444,6 +447,16 @@ function processNativeCaptureOutputLines(
 		lineBuffer.value = lineBuffer.value.slice(newlineIndex + 1);
 
 		if (handleNativeLiveCommandLine(line)) {
+			newlineIndex = lineBuffer.value.indexOf("\n");
+			continue;
+		}
+
+		if (line === "SOURCE_UNAVAILABLE_PAUSED") {
+			// The helper already paused itself; mirror that so the paused-only
+			// source switch is allowed and resume stays blocked until then.
+			setNativeCapturePaused(true);
+			setNativeCaptureSourceUnavailable(true);
+			emitRecordingSourceUnavailable();
 			newlineIndex = lineBuffer.value.indexOf("\n");
 			continue;
 		}
@@ -1430,6 +1443,14 @@ export function registerRecordingHandlers(
 			return { success: true };
 		}
 
+		if (nativeCaptureSourceUnavailable) {
+			return {
+				success: false,
+				sourceUnavailable: true,
+				message: "The recorded window was closed. Choose another window or screen before resuming.",
+			};
+		}
+
 		try {
 			nativeCaptureProcess.stdin.write("resume\n");
 			setNativeCapturePaused(false);
@@ -1493,6 +1514,7 @@ export function registerRecordingHandlers(
 				);
 				const viewport = parseSourceSwitchViewport(response);
 				setSelectedSource(source);
+				setNativeCaptureSourceUnavailable(false);
 				setCursorContentViewport(viewport);
 				broadcastSelectedSourceChange();
 				startWindowBoundsCapture();

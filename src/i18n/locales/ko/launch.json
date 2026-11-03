@@ -60,7 +60,9 @@
 		"noAudioSource": "No audio",
 		"switchSourceWhilePaused": "Switch window or screen",
 		"liveChangeFailed": "Couldn't apply the change",
-		"liveChangeSwitchedSource": "Recording source switched"
+		"liveChangeSwitchedSource": "Recording source switched",
+		"sourceUnavailablePaused": "녹화 중인 창이 닫혀 녹화가 일시 정지되었습니다",
+		"sourceUnavailableChooseSource": "계속하려면 다른 창이나 화면을 선택하거나 녹화를 중지하세요."
 	},
 	"sourceSelector": {
 		"loadingSources": "소스를 불러오는 중...",

@@ -68,6 +68,10 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	private var microphoneOutputURL: URL?
 	private var trackedWindowId: UInt32?
 	private var windowValidationTask: Task<Void, Never>?
+	/// The recorded window disappeared; the take is paused until another source is chosen.
+	private var sourceUnavailable = false
+	/// ScreenCaptureKit stopped the stream on its own (e.g. its window closed).
+	private var streamStoppedBySystem = false
 	private var inlineAudioInput: AVAssetWriterInput?
 	private var firstInlineAudioSampleTime: CMTime?
 	private var capturesSystemAudio = false
@@ -293,20 +297,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		microphoneMuted = false
 		activeMicrophoneDeviceId = resolvedMicrophoneDeviceId
 		reportedMicrophoneWriterFailure = false
-		try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
-		if capturesSystemAudio {
-			try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
-		}
-		if capturesMicrophone {
-			guard let microphoneOutputType = SCStreamOutputType(rawValue: microphoneOutputTypeRawValue) else {
-				throw NSError(
-					domain: "RecordlyCapture",
-					code: 17,
-					userInfo: [NSLocalizedDescriptionKey: "Microphone stream output type is unavailable"]
-				)
-			}
-			try stream.addStreamOutput(self, type: microphoneOutputType, sampleHandlerQueue: queue)
-		}
+		try addStreamOutputs(to: stream)
 		try await stream.startCapture()
 
 		guard assetWriter.startWriting() else {
@@ -317,6 +308,8 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		sessionStarted = true
 		isRecording = true
 		isPaused = false
+		sourceUnavailable = false
+		streamStoppedBySystem = false
 		pauseStartedHostTime = nil
 		pendingResumeAdjustment = false
 		accumulatedPausedDuration = .zero
@@ -337,6 +330,23 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		return try await finishCapture()
 	}
 
+	private func addStreamOutputs(to stream: SCStream) throws {
+		try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
+		if capturesSystemAudio {
+			try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
+		}
+		if capturesMicrophone {
+			guard let microphoneOutputType = SCStreamOutputType(rawValue: microphoneOutputTypeRawValue) else {
+				throw NSError(
+					domain: "RecordlyCapture",
+					code: 17,
+					userInfo: [NSLocalizedDescriptionKey: "Microphone stream output type is unavailable"]
+				)
+			}
+			try stream.addStreamOutput(self, type: microphoneOutputType, sampleHandlerQueue: queue)
+		}
+	}
+
 	func pauseCapture() {
 		guard isRecording, !isPaused else { return }
 		isPaused = true
@@ -346,6 +356,12 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
 	func resumeCapture() {
 		guard isRecording, isPaused else { return }
+		// Resuming without a source would freeze the video on the closed window.
+		guard !sourceUnavailable else {
+			print("RESUME_REFUSED_SOURCE_UNAVAILABLE")
+			fflush(stdout)
+			return
+		}
 		isPaused = false
 		pendingResumeAdjustment = true
 	}
@@ -425,9 +441,19 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 			streamConfiguration.ignoreShadowsSingleWindow = nextTrackedWindowId != nil
 		}
 
-		try await stream.updateContentFilter(filter)
-		try await stream.updateConfiguration(streamConfiguration)
+		if streamStoppedBySystem {
+			// The old stream died with its window: continue the same take on a new one.
+			let replacement = SCStream(filter: filter, configuration: streamConfiguration, delegate: self)
+			try addStreamOutputs(to: replacement)
+			try await replacement.startCapture()
+			self.stream = replacement
+			streamStoppedBySystem = false
+		} else {
+			try await stream.updateContentFilter(filter)
+			try await stream.updateConfiguration(streamConfiguration)
+		}
 
+		sourceUnavailable = false
 		trackedWindowId = nextTrackedWindowId
 		startWindowValidationIfNeeded()
 
@@ -640,6 +666,10 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	func stream(_ stream: SCStream, didStopWithError error: Error) {
 		fputs("Error: \(error.localizedDescription)\n", stderr)
 		fflush(stderr)
+		queue.async { [weak self] in
+			guard let self, stream === self.stream else { return }
+			self.streamStoppedBySystem = true
+		}
 	}
 
 	private func finishCapture() async throws -> String {
@@ -700,6 +730,8 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		lastInlineAudioDuration = .zero
 		frameCount = 0
 		isPaused = false
+		sourceUnavailable = false
+		streamStoppedBySystem = false
 		pauseStartedHostTime = nil
 		pendingResumeAdjustment = false
 		accumulatedPausedDuration = .zero
@@ -941,12 +973,15 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 					let availableContent = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
 					let windowStillAvailable = availableContent.windows.contains(where: { $0.windowID == trackedWindowId })
 					if !windowStillAvailable {
-						print("WINDOW_UNAVAILABLE")
+						// Keep the take: pause it and let the app offer another source.
+						self.queue.sync {
+							self.pauseCapture()
+							self.sourceUnavailable = true
+							self.trackedWindowId = nil
+						}
+						print("SOURCE_UNAVAILABLE_PAUSED")
 						fflush(stdout)
-						let outputPath = try await self.finishCapture()
-						print("Recording stopped. Output path: \(outputPath)")
-						fflush(stdout)
-						exit(0)
+						return
 					}
 				} catch {
 					continue

@@ -134,6 +134,37 @@ describe("getCompanionAudioFallbackPaths", () => {
 		]);
 	});
 
+	it("uses one microphone file when both the raw and finalized sidecars exist", async () => {
+		const videoPath = path.join(tempRoot, "recording.mp4");
+		const rawMicPath = path.join(tempRoot, "recording.mic.m4a");
+		const finalizedMicPath = path.join(tempRoot, "recording.mic.wav");
+
+		await Promise.all([
+			fs.writeFile(videoPath, "video"),
+			fs.writeFile(rawMicPath, "mic"),
+			fs.writeFile(finalizedMicPath, "mic"),
+		]);
+
+		execFileMock.mockImplementation(
+			(
+				_file: string,
+				_args: string[],
+				_options: Record<string, unknown>,
+				callback: ExecFileCallback,
+			) => {
+				const error = new Error("ffmpeg probe failed") as Error & { stderr?: string };
+				error.stderr = "Stream #0:0: Video: h264";
+				callback(error, "", error.stderr);
+			},
+		);
+
+		const { getCompanionAudioFallbackPaths } = await import("./diagnostics");
+
+		await expect(getCompanionAudioFallbackPaths(videoPath)).resolves.toEqual([
+			finalizedMicPath,
+		]);
+	});
+
 	it("loads saved sidecar timing metadata alongside companion audio paths", async () => {
 		const videoPath = path.join(tempRoot, "recording.mp4");
 		const micPath = path.join(tempRoot, "recording.mic.webm");

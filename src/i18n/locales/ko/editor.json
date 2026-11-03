@@ -129,7 +129,8 @@
 		"saving": "Saving…",
 		"saveFailed": "Save failed",
 		"unsaved": "Unsaved changes",
-		"saved": "Saved"
+		"saved": "Saved",
+		"openVideo": "동영상 열기…"
 	},
 	"recordingAssets": {
 		"assembling": "Finishing audio and camera…",

@@ -204,6 +204,8 @@ export type LiveCaptureResult = { success: boolean; message?: string };
 export type LiveCaptureControls = {
 	/** True while a native macOS recording is paused and can be changed. */
 	available: boolean;
+	/** The recorded window closed; the take is paused until another source is chosen. */
+	sourceUnavailable: boolean;
 	switchSource: (source: ProcessedDesktopSource) => Promise<LiveCaptureResult>;
 	setMicrophone: (enabled: boolean, deviceId?: string) => Promise<LiveCaptureResult>;
 	setWebcam: (enabled: boolean, deviceId?: string) => Promise<LiveCaptureResult>;
@@ -362,6 +364,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	const [preferencesReady, setPreferencesReady] = useState(false);
 	const [countdownReady, setCountdownReady] = useState(false);
 	const [paused, setPausedState] = useState(false);
+	const [sourceUnavailable, setSourceUnavailable] = useState(false);
 	const [starting, setStartingState] = useState(false);
 	const [finalizing, setFinalizingState] = useState(false);
 	const [countdownActive, setCountdownActiveState] = useState(false);
@@ -1709,18 +1712,18 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 					cleanupCapturedMedia();
 					await window.electronAPI.setRecordingState(false);
 
-					if (state.reason !== "window-unavailable") {
-						try {
-							const recoveredPath = await recoverNativeRecordingSession();
-							if (recoveredPath) {
-								return;
-							}
-						} catch (recoveryError) {
-							console.error(
-								"Failed to recover interrupted native screen recording:",
-								recoveryError,
-							);
+					// Keep whatever the helper wrote, whatever ended the capture
+					// (a closed window included): finalize it and open the editor.
+					try {
+						const recoveredPath = await recoverNativeRecordingSession();
+						if (recoveredPath) {
+							return;
 						}
+					} catch (recoveryError) {
+						console.error(
+							"Failed to recover interrupted native screen recording:",
+							recoveryError,
+						);
 					}
 
 					if (state.reason === "window-unavailable" && !hasPromptedForReselect.current) {
@@ -2417,6 +2420,10 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 			if (nativeScreenRecording.current) {
 				const result = await window.electronAPI.resumeNativeScreenRecording();
 				if (!result.success) {
+					if (result.sourceUnavailable) {
+						toast.warning(tLaunch("recording.sourceUnavailableChooseSource"));
+						return false;
+					}
 					recordingWarnings.current.push(
 						result.error || result.message || "Native resume failed.",
 					);
@@ -2439,7 +2446,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 		} finally {
 			releaseRecorderMutation(captureMutation, "resuming");
 		}
-	}, [markRecordingResumed, resumeMicFallbackRecorder, setPaused]);
+	}, [markRecordingResumed, resumeMicFallbackRecorder, setPaused, tLaunch]);
 
 	const canChangeCaptureWhilePaused = useCallback(
 		() =>
@@ -2464,10 +2471,35 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 			if (!result.success) {
 				return { success: false, message: result.error || result.message };
 			}
+			setSourceUnavailable(false);
 			return { success: true };
 		},
 		[canChangeCaptureWhilePaused],
 	);
+
+	useEffect(() => {
+		if (!recording) setSourceUnavailable(false);
+	}, [recording]);
+
+	// macOS: the recorded window closed. The helper paused the take instead of
+	// ending it, so pause the webcam, mic fallback and cursor at the same
+	// boundary and let the HUD offer another source.
+	useEffect(() => {
+		const removeListener = window.electronAPI?.onRecordingSourceUnavailable?.(() => {
+			if (!recorderStateRef.current.recording) return;
+			setSourceUnavailable(true);
+			void (async () => {
+				if (!recorderStateRef.current.paused) {
+					await pauseRecording();
+				}
+				toast.warning(tLaunch("recording.sourceUnavailablePaused"), {
+					description: tLaunch("recording.sourceUnavailableChooseSource"),
+					duration: 12000,
+				});
+			})();
+		});
+		return () => removeListener?.();
+	}, [pauseRecording, tLaunch]);
 
 	const setMicrophoneWhilePaused = useCallback(
 		async (enabled: boolean, deviceId?: string): Promise<LiveCaptureResult> => {
@@ -2883,6 +2915,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 		setCountdownDelay,
 		liveCapture: {
 			available: paused && isMacOS && nativeScreenRecording.current && !nativeWindowsRecording.current,
+			sourceUnavailable: recording && sourceUnavailable,
 			switchSource: switchSourceWhilePaused,
 			setMicrophone: setMicrophoneWhilePaused,
 			setWebcam: setWebcamWhilePaused,

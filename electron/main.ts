@@ -264,6 +264,24 @@ ipcMain.on("set-has-unsaved-changes", (_event, hasChanges: boolean) => {
 	editorHasUnsavedChanges = hasChanges;
 });
 
+// Same choice as closing the editor, asked before another file replaces it.
+ipcMain.handle("confirm-replace-unsaved-document", async (event) => {
+	const owner = BrowserWindow.fromWebContents(event.sender);
+	const options = {
+		type: "warning" as const,
+		buttons: ["Save & Open", "Discard & Open", "Cancel"],
+		defaultId: 0,
+		cancelId: 2,
+		title: "Unsaved Changes",
+		message: "You have unsaved changes.",
+		detail: "Do you want to save your project before opening another one?",
+	};
+	const { response } = owner
+		? await dialog.showMessageBox(owner, options)
+		: await dialog.showMessageBox(options);
+	return response === 0 ? "save" : response === 1 ? "discard" : "cancel";
+});
+
 function createWindow() {
 	if (!app.isReady()) {
 		void app.whenReady().then(() => {
@@ -389,7 +407,7 @@ function isEditorWindow(window: BrowserWindow) {
 }
 
 function sendEditorMenuAction(
-	channel: "menu-load-project" | "menu-save-project" | "menu-save-project-as",
+	channel: "menu-load-project" | "menu-open-video" | "menu-save-project" | "menu-save-project-as",
 ) {
 	let targetWindow = BrowserWindow.getFocusedWindow() ?? mainWindow;
 
@@ -439,6 +457,11 @@ function setupApplicationMenu() {
 					label: "Open Projects…",
 					accelerator: "CmdOrCtrl+O",
 					click: () => sendEditorMenuAction("menu-load-project"),
+				},
+				{
+					label: "Open Video…",
+					accelerator: "CmdOrCtrl+Shift+O",
+					click: () => sendEditorMenuAction("menu-open-video"),
 				},
 				{
 					label: "Save Project…",

@@ -672,6 +672,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		ipcRenderer.on("recording-interrupted", listener);
 		return () => ipcRenderer.removeListener("recording-interrupted", listener);
 	},
+	onRecordingSourceUnavailable: (callback: () => void) => {
+		const listener = () => callback();
+		ipcRenderer.on("recording-source-unavailable", listener);
+		return () => ipcRenderer.removeListener("recording-source-unavailable", listener);
+	},
 	onCursorStateChanged: (
 		callback: (state: { cursorType: CursorTelemetryPoint["cursorType"] }) => void,
 	) => {
@@ -939,6 +944,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		ipcRenderer.on("menu-load-project", listener);
 		return () => ipcRenderer.removeListener("menu-load-project", listener);
 	},
+	onMenuOpenVideo: (callback: () => void) => {
+		const listener = () => callback();
+		ipcRenderer.on("menu-open-video", listener);
+		return () => ipcRenderer.removeListener("menu-open-video", listener);
+	},
 	onMenuSaveProject: (callback: () => void) => {
 		const listener = () => callback();
 		ipcRenderer.on("menu-save-project", listener);
@@ -989,6 +999,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	setHasUnsavedChanges: (hasChanges: boolean) => {
 		ipcRenderer.send("set-has-unsaved-changes", hasChanges);
 	},
+	confirmReplaceUnsavedDocument: (): Promise<"save" | "discard" | "cancel"> =>
+		ipcRenderer.invoke("confirm-replace-unsaved-document"),
 	onRequestSaveBeforeClose: (callback: () => Promise<boolean>) => {
 		const listener = async () => {
 			let saved = false;

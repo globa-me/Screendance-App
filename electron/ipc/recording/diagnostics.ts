@@ -412,28 +412,65 @@ export async function writeRecordingDiagnosticsSnapshot(
 	return diagnosticsPath;
 }
 
+/**
+ * Finalizing a macOS take renames the helper's `.mic.m4a`/`.system.m4a` to
+ * `.wav`, so when one role exists under several layouts (an interrupted
+ * rename, a manual recovery) only the most finalized copy is used. Mixing
+ * both would play the same microphone twice.
+ */
+const COMPANION_AUDIO_SUFFIX_PREFERENCE = [".wav", ".m4a", ".webm"];
+
+function companionAudioPreferenceRank(companionPath: string) {
+	const index = COMPANION_AUDIO_SUFFIX_PREFERENCE.findIndex((suffix) =>
+		companionPath.endsWith(suffix),
+	);
+	return index >= 0 ? index : COMPANION_AUDIO_SUFFIX_PREFERENCE.length;
+}
+
+async function isUsableCompanionAudioFile(companionPath: string) {
+	try {
+		const stat = await fs.stat(companionPath);
+		return stat.size > 0;
+	} catch {
+		// Missing companion audio is expected for many recordings.
+		return false;
+	}
+}
+
 export async function getUsableCompanionAudioCandidates(
 	videoPath: string,
 ): Promise<CompanionAudioCandidate[]> {
 	const basePath = videoPath.replace(/\.[^.]+$/u, "");
+	const layouts = await Promise.all(
+		COMPANION_AUDIO_LAYOUTS.map(async (layout) => {
+			const systemPath = `${basePath}${layout.systemSuffix}`;
+			const micPath = `${basePath}${layout.micSuffix}`;
+			return {
+				layout,
+				systemPath,
+				micPath,
+				systemUsable: await isUsableCompanionAudioFile(systemPath),
+				micUsable: await isUsableCompanionAudioFile(micPath),
+			};
+		}),
+	);
+
+	const pickPreferred = (paths: string[]) =>
+		[...paths].sort(
+			(left, right) => companionAudioPreferenceRank(left) - companionAudioPreferenceRank(right),
+		)[0] ?? null;
+	const chosenSystemPath = pickPreferred(
+		layouts.filter((entry) => entry.systemUsable).map((entry) => entry.systemPath),
+	);
+	const chosenMicPath = pickPreferred(
+		layouts.filter((entry) => entry.micUsable).map((entry) => entry.micPath),
+	);
+
 	const candidates: CompanionAudioCandidate[] = [];
-
-	for (const layout of COMPANION_AUDIO_LAYOUTS) {
-		const systemPath = `${basePath}${layout.systemSuffix}`;
-		const micPath = `${basePath}${layout.micSuffix}`;
-		const usablePaths: string[] = [];
-
-		for (const companionPath of [systemPath, micPath]) {
-			try {
-				const stat = await fs.stat(companionPath);
-				if (stat.size > 0) {
-					usablePaths.push(companionPath);
-				}
-			} catch {
-				// Missing companion audio is expected for many recordings.
-			}
-		}
-
+	for (const { layout, systemPath, micPath } of layouts) {
+		const usablePaths = [systemPath, micPath].filter(
+			(companionPath) => companionPath === chosenSystemPath || companionPath === chosenMicPath,
+		);
 		if (usablePaths.length > 0) {
 			candidates.push({
 				platform: layout.platform,

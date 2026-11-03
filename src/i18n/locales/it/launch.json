@@ -60,7 +60,9 @@
 		"noAudioSource": "No audio",
 		"switchSourceWhilePaused": "Switch window or screen",
 		"liveChangeFailed": "Couldn't apply the change",
-		"liveChangeSwitchedSource": "Recording source switched"
+		"liveChangeSwitchedSource": "Recording source switched",
+		"sourceUnavailablePaused": "La finestra registrata è stata chiusa: registrazione in pausa",
+		"sourceUnavailableChooseSource": "Scegli un'altra finestra o schermo per continuare, oppure interrompi la registrazione."
 	},
 	"sourceSelector": {
 		"loadingSources": "Caricamento sorgenti...",

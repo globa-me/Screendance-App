@@ -30,6 +30,8 @@ export let nativeCaptureStopRequested = false;
 export let nativeCaptureSystemAudioPath: string | null = null;
 export let nativeCaptureMicrophonePath: string | null = null;
 export let nativeCapturePaused = false;
+/** The recorded window closed; the helper paused the take until another source is chosen. */
+export let nativeCaptureSourceUnavailable = false;
 
 // ── Native cursor monitor ─────────────────────────────────────────────────────
 export let nativeCursorMonitorProcess: ChildProcessWithoutNullStreams | null = null;
@@ -152,6 +154,12 @@ export function setNativeCaptureMicrophonePath(v: string | null) {
 }
 export function setNativeCapturePaused(v: boolean) {
 	nativeCapturePaused = v;
+	if (!v) {
+		nativeCaptureSourceUnavailable = false;
+	}
+}
+export function setNativeCaptureSourceUnavailable(v: boolean) {
+	nativeCaptureSourceUnavailable = v;
 }
 
 export function setNativeCursorMonitorProcess(v: ChildProcessWithoutNullStreams | null) {

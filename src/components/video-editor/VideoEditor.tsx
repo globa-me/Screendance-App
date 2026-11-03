@@ -3103,8 +3103,20 @@ export default function VideoEditor() {
 		[closeProjectNameEditor, projectNameDraft, saveProjectWithName],
 	);
 
+	const openFreshVideoRef = useRef<(path: string) => Promise<void>>(async () => undefined);
+
+	/** Resolves false when the user keeps the current document open. */
+	const confirmReplaceCurrentDocument = useCallback(async () => {
+		if (!hasUnsavedChanges) return true;
+		const choice = await window.electronAPI.confirmReplaceUnsavedDocument();
+		if (choice === "cancel") return false;
+		if (choice === "save") return saveProject(false);
+		return true;
+	}, [hasUnsavedChanges, saveProject]);
+
 	const handleOpenProjectFromLibrary = useCallback(
 		async (projectPath: string) => {
+			if (!(await confirmReplaceCurrentDocument())) return;
 			const result = await window.electronAPI.openProjectFileAtPath(projectPath);
 
 			if (result.canceled) {
@@ -3126,7 +3138,7 @@ export default function VideoEditor() {
 			await refreshProjectLibrary();
 			toast.success(`Project loaded from ${result.path}`);
 		},
-		[applyLoadedProject, refreshProjectLibrary],
+		[applyLoadedProject, confirmReplaceCurrentDocument, refreshProjectLibrary],
 	);
 
 	const handleOpenProjectBrowser = useCallback(async () => {
@@ -3139,19 +3151,36 @@ export default function VideoEditor() {
 		setProjectBrowserOpen(true);
 	}, [projectBrowserOpen, refreshProjectLibrary]);
 
+	const handleOpenVideoFile = useCallback(async () => {
+		if (!(await confirmReplaceCurrentDocument())) return;
+		const result = await window.electronAPI.openVideoFilePicker();
+		if (result.canceled || !result.success || !result.path) return;
+		try {
+			setProjectBrowserOpen(false);
+			await openFreshVideoRef.current(result.path);
+		} catch (error) {
+			console.error("Failed to open video:", error);
+			toast.error("Failed to open video");
+		}
+	}, [confirmReplaceCurrentDocument]);
+
 	useEffect(() => {
 		const removeLoadListener = window.electronAPI.onMenuLoadProject(() => {
 			void handleOpenProjectBrowser();
+		});
+		const removeOpenVideoListener = window.electronAPI.onMenuOpenVideo(() => {
+			void handleOpenVideoFile();
 		});
 		const removeSaveListener = window.electronAPI.onMenuSaveProject(handleSaveProject);
 		const removeSaveAsListener = window.electronAPI.onMenuSaveProjectAs(handleSaveProjectAs);
 
 		return () => {
 			removeLoadListener?.();
+			removeOpenVideoListener?.();
 			removeSaveListener?.();
 			removeSaveAsListener?.();
 		};
-	}, [handleOpenProjectBrowser, handleSaveProject, handleSaveProjectAs]);
+	}, [handleOpenProjectBrowser, handleOpenVideoFile, handleSaveProject, handleSaveProjectAs]);
 
 	useEffect(() => {
 		let mounted = true;
@@ -5492,6 +5521,75 @@ export default function VideoEditor() {
 		window.electronAPI.automationJobsReady();
 	}, []);
 
+	// Imports a video as a fresh document: the same path as a just-finished
+	// recording (its session webcam, last preset, auto zooms), never the
+	// previous document's edits or webcam media.
+	const openFreshVideo = async (path: string, beforeApply: () => void = () => undefined) => {
+		// Start with fresh-document preferences, never retain the previous video's edits or webcam media.
+		const freshEditor = normalizeProjectEditor({
+			...initialEditorPreferences,
+			webcam: {
+				...initialEditorPreferences.webcam,
+				enabled: false,
+				sourcePath: null,
+				timeOffsetMs: DEFAULT_WEBCAM_TIME_OFFSET_MS,
+			},
+			zoomRegions: [],
+			trimRegions: [],
+			clipRegions: [],
+			speedRegions: [],
+			annotationRegions: [],
+			audioRegions: [],
+			autoCaptions: [],
+		});
+		const sourceUrl = await resolveVideoUrl(path);
+		const prepared = prepareAutomationProject(
+			createProjectData(path, freshEditor),
+			await probeAutomationVideoDuration(sourceUrl),
+		);
+		const previousSessionResult = await window.electronAPI.getCurrentRecordingSession?.();
+		const previousSession =
+			previousSessionResult?.success && previousSessionResult.session?.videoPath === path
+				? previousSessionResult.session
+				: null;
+		beforeApply();
+		setIsPreviewReady(false);
+		await applyLoadedProject(prepared, null);
+		const freshPreset = applyLastSelectedPresetToFreshVideo();
+		const sessionResult = await window.electronAPI.getCurrentRecordingSession?.();
+		const resolvedSession =
+			sessionResult?.success && sessionResult.session?.videoPath === path
+				? sessionResult.session
+				: null;
+		const freshSession = resolvedSession
+			? {
+					...resolvedSession,
+					hideOverlayCursorByDefault: Boolean(
+						resolvedSession.hideOverlayCursorByDefault ||
+							previousSession?.hideOverlayCursorByDefault,
+					),
+				}
+			: previousSession;
+		const shouldEnableWebcam = freshPreset?.webcam.enabled ?? true;
+		presetWebcamEnabledRef.current = shouldEnableWebcam;
+		applySessionPresentation(freshSession);
+		setWebcam((current) => ({
+			...current,
+			enabled: shouldEnableWebcam && Boolean(freshSession?.webcamPath),
+			sourcePath: freshSession?.webcamPath ?? null,
+			timeOffsetMs: freshSession?.timeOffsetMs ?? DEFAULT_WEBCAM_TIME_OFFSET_MS,
+			hiddenRanges: freshSession?.webcamPath ? freshSession.webcamHiddenRanges : undefined,
+		}));
+		pendingFreshRecordingAutoZoomPathRef.current =
+			(freshPreset?.autoApplyFreshRecordingAutoZooms ??
+			initialEditorPreferences.autoApplyFreshRecordingAutoZooms)
+				? sourceUrl
+				: null;
+		setLastSavedSnapshot(null);
+		remountPreview();
+	};
+	openFreshVideoRef.current = openFreshVideo;
+
 	useEditorAutomation({
 		initializing: loading,
 		editorCommand: editorAutomationCommand,
@@ -5574,70 +5672,7 @@ export default function VideoEditor() {
 				throw new AutomationError("INVALID_PROJECT", "Invalid project data.");
 			remountPreview();
 		},
-		openVideo: async (path, beforeApply) => {
-			// Start with fresh-document preferences, never retain the previous video's edits or webcam media.
-			const freshEditor = normalizeProjectEditor({
-				...initialEditorPreferences,
-				webcam: {
-					...initialEditorPreferences.webcam,
-					enabled: false,
-					sourcePath: null,
-					timeOffsetMs: DEFAULT_WEBCAM_TIME_OFFSET_MS,
-				},
-				zoomRegions: [],
-				trimRegions: [],
-				clipRegions: [],
-				speedRegions: [],
-				annotationRegions: [],
-				audioRegions: [],
-				autoCaptions: [],
-			});
-			const sourceUrl = await resolveVideoUrl(path);
-			const prepared = prepareAutomationProject(
-				createProjectData(path, freshEditor),
-				await probeAutomationVideoDuration(sourceUrl),
-			);
-			const previousSessionResult = await window.electronAPI.getCurrentRecordingSession?.();
-			const previousSession =
-				previousSessionResult?.success && previousSessionResult.session?.videoPath === path
-					? previousSessionResult.session
-					: null;
-			beforeApply();
-			setIsPreviewReady(false);
-			await applyLoadedProject(prepared, null);
-			const freshPreset = applyLastSelectedPresetToFreshVideo();
-			const sessionResult = await window.electronAPI.getCurrentRecordingSession?.();
-			const resolvedSession =
-				sessionResult?.success && sessionResult.session?.videoPath === path
-					? sessionResult.session
-					: null;
-			const freshSession = resolvedSession
-				? {
-						...resolvedSession,
-						hideOverlayCursorByDefault: Boolean(
-							resolvedSession.hideOverlayCursorByDefault ||
-								previousSession?.hideOverlayCursorByDefault,
-						),
-					}
-				: previousSession;
-			const shouldEnableWebcam = freshPreset?.webcam.enabled ?? true;
-			presetWebcamEnabledRef.current = shouldEnableWebcam;
-			applySessionPresentation(freshSession);
-			setWebcam((current) => ({
-				...current,
-				enabled: shouldEnableWebcam && Boolean(freshSession?.webcamPath),
-				sourcePath: freshSession?.webcamPath ?? null,
-				timeOffsetMs: freshSession?.timeOffsetMs ?? DEFAULT_WEBCAM_TIME_OFFSET_MS,
-				hiddenRanges: freshSession?.webcamPath ? freshSession.webcamHiddenRanges : undefined,
-			}));
-			pendingFreshRecordingAutoZoomPathRef.current =
-				(freshPreset?.autoApplyFreshRecordingAutoZooms ??
-				initialEditorPreferences.autoApplyFreshRecordingAutoZooms)
-					? sourceUrl
-					: null;
-			setLastSavedSnapshot(null);
-			remountPreview();
-		},
+		openVideo: openFreshVideo,
 		saveProject: async (requestId, expectedContext) => {
 			const expected = expectedContext as
 				| { projectPath?: unknown; videoPath?: unknown }
@@ -6125,6 +6160,9 @@ export default function VideoEditor() {
 			anchorRef={error ? projectBrowserFallbackTriggerRef : projectBrowserTriggerRef}
 			onOpenProject={(projectPath) => {
 				void handleOpenProjectFromLibrary(projectPath);
+			}}
+			onOpenVideo={() => {
+				void handleOpenVideoFile();
 			}}
 		/>
 	);

@@ -60,7 +60,9 @@
 		"noAudioSource": "No audio",
 		"switchSourceWhilePaused": "Switch window or screen",
 		"liveChangeFailed": "Couldn't apply the change",
-		"liveChangeSwitchedSource": "Recording source switched"
+		"liveChangeSwitchedSource": "Recording source switched",
+		"sourceUnavailablePaused": "正在錄製的視窗已關閉，錄製已暫停",
+		"sourceUnavailableChooseSource": "請選擇其他視窗或螢幕以繼續，或停止錄製。"
 	},
 	"sourceSelector": {
 		"loadingSources": "正在載入來源...",

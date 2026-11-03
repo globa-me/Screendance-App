@@ -129,7 +129,8 @@
 		"saving": "Saving…",
 		"saveFailed": "Save failed",
 		"unsaved": "Unsaved changes",
-		"saved": "Saved"
+		"saved": "Saved",
+		"openVideo": "Video openen…"
 	},
 	"recordingAssets": {
 		"assembling": "Finishing audio and camera…",

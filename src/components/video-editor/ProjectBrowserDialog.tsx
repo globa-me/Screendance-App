@@ -17,6 +17,8 @@ type ProjectBrowserDialogProps = {
 	onOpenChange: (open: boolean) => void;
 	entries: ProjectLibraryEntry[];
 	onOpenProject: (projectPath: string) => void;
+	/** Opens a recorded or imported video that has no project file yet. */
+	onOpenVideo?: () => void;
 	anchorRef?: React.RefObject<HTMLElement | null>;
 	preferredDirection?: "up" | "down" | "auto";
 	onPanelHeightChange?: (height: number) => void;
@@ -27,6 +29,7 @@ export default function ProjectBrowserDialog({
 	onOpenChange,
 	entries,
 	onOpenProject,
+	onOpenVideo,
 	anchorRef,
 	preferredDirection = "auto",
 	onPanelHeightChange,
@@ -205,9 +208,20 @@ export default function ProjectBrowserDialog({
 				<div className="text-sm font-medium tracking-tight text-foreground">
 					{t("editor.project.projects", "Projects")}
 				</div>
-				<span className="text-[11px] tabular-nums text-muted-foreground">
-					{visibleEntries.length}/{entries.length}
-				</span>
+				<div className="flex items-center gap-2.5">
+					{onOpenVideo ? (
+						<button
+							type="button"
+							onClick={onOpenVideo}
+							className="text-[11px] font-medium text-[#2563EB] hover:underline"
+						>
+							{t("editor.project.openVideo", "Open video…")}
+						</button>
+					) : null}
+					<span className="text-[11px] tabular-nums text-muted-foreground">
+						{visibleEntries.length}/{entries.length}
+					</span>
+				</div>
 			</div>
 			<label className="mx-2.5 mt-2.5 flex h-9 items-center gap-2 rounded-lg border border-foreground/10 bg-foreground/5 px-2.5 text-muted-foreground focus-within:border-[#2563EB]/50 focus-within:ring-2 focus-within:ring-[#2563EB]/20">
 				<MagnifyingGlass className="h-4 w-4 shrink-0" aria-hidden="true" />

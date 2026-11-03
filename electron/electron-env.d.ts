@@ -318,6 +318,8 @@ interface Window {
 		}>;
 		resumeNativeScreenRecording: () => Promise<{
 			success: boolean;
+			/** The recorded window closed; a new source must be chosen first. */
+			sourceUnavailable?: boolean;
 			message?: string;
 			error?: string;
 		}>;
@@ -671,6 +673,8 @@ interface Window {
 		onRecordingInterrupted: (
 			callback: (state: { reason: string; message: string }) => void,
 		) => () => void;
+		/** macOS: the recorded window closed and the take was paused, not stopped. */
+		onRecordingSourceUnavailable: (callback: () => void) => () => void;
 		onCursorStateChanged: (
 			callback: (state: { cursorType: CursorTelemetryPoint["cursorType"] }) => void,
 		) => () => void;
@@ -891,6 +895,7 @@ interface Window {
 			}) => void,
 		) => () => void;
 		onMenuLoadProject: (callback: () => void) => () => void;
+		onMenuOpenVideo: (callback: () => void) => () => void;
 		onMenuSaveProject: (callback: () => void) => () => void;
 		onMenuSaveProjectAs: (callback: () => void) => () => void;
 		getPlatform: () => Promise<string>;
@@ -918,6 +923,8 @@ interface Window {
 		getAppSetting: (key: string) => unknown;
 		setAppSetting: (key: string, value: unknown) => boolean;
 		setHasUnsavedChanges: (hasChanges: boolean) => void;
+		/** Asks whether to save, discard or keep unsaved changes before opening another file. */
+		confirmReplaceUnsavedDocument: () => Promise<"save" | "discard" | "cancel">;
 		onRequestSaveBeforeClose: (callback: () => Promise<boolean>) => () => void;
 		isNativeWindowsCaptureAvailable: () => Promise<{ available: boolean }>;
 		muxNativeWindowsRecording: (expectedDurationMs?: number) => Promise<{
