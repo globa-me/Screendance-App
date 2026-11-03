@@ -401,4 +401,6 @@ certificate and `GZB-notary` profile. DMG submissions: arm64
 `36d4ab64-29ca-412b-a7fc-b86a15577291`, both Accepted and stapled; both apps
 were notarized by electron-builder. Finalization, ZIP/DMG QA, packaged binary
 smoke and packaged CLI/MCP smoke (both arches) passed. Full record and
-checksums: [v1.7.1.md](../releases/v1.7.1.md).
+checksums: [v1.7.1.md](../releases/v1.7.1.md). Published at
+https://github.com/globa-me/Screendance-App/releases/tag/v1.7.1; the arm64 app
+is installed in `/Applications`.

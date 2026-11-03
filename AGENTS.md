@@ -19,7 +19,9 @@ Read `docs/releases/v1.7.1.md`: a closed recorded window now pauses the
 take (helper `SOURCE_UNAVAILABLE_PAUSED`, resume refused until a new source),
 recovery runs for every interruption, unsaved-changes prompt before opening,
 one mic sidecar per role, and File → Open Video… / Projects "Open video…".
-Release 1.7.1 build/notarization/publication status is recorded there.
+1.7.1 is built, notarized and verified in `release/notarized-v1.7.1`, published
+as GitHub release v1.7.1 and installed (arm64) in /Applications. Never
+modify/re-sign those bundles.
 
 ## CLI/MCP automation
 
