@@ -5,6 +5,25 @@ the fork, see [Recordly](https://github.com/webadderallorg/Recordly/commits/main
 For the complete, browseable history after the fork, see the
 [Screendance commit log](https://github.com/globa-me/Screendance-App/commits/screendance/macos-apple-silicon).
 
+## November 3, 2026 — 1.7.1
+
+Available from the
+[Screendance App 1.7.1 release](https://github.com/globa-me/Screendance-App/releases/tag/v1.7.1).
+
+- Closing the window you are recording no longer ends the take. The recording
+  pauses, the HUD comes back with the source picker, and after you choose
+  another window or screen you can resume the same take. If the capture helper
+  stops anyway, the take is now recovered and opened in the editor with its
+  webcam, microphone and cursor instead of being left unlinked on disk.
+- Opening a project from the Projects popover or opening a video now asks to
+  save, discard or cancel when the current project has unsaved changes.
+- New File → Open Video… (⌘⇧O) and an "Open video…" button in the Projects
+  popover.
+- Fixed the microphone playing twice when both `.mic.m4a` and `.mic.wav`
+  sidecars exist next to a recording.
+
+Details and verification: [`docs/releases/v1.7.1.md`](docs/releases/v1.7.1.md).
+
 ## November 2, 2026 — 1.7.0
 
 Available from the

@@ -13,13 +13,13 @@ the notarized arm64 app is installed in /Applications, 1.5.0 backup is in
 `release/backup-installed-1.5.0`. Never modify/re-sign those bundles. Keep highlights out of screen-space
 annotation paths and hidden ranges out of presets.
 
-## Unreleased fixes after 1.7.0
+## 1.7.1 fixes after 1.7.0
 
-Read `docs/releases/unreleased.md`: a closed recorded window now pauses the
+Read `docs/releases/v1.7.1.md`: a closed recorded window now pauses the
 take (helper `SOURCE_UNAVAILABLE_PAUSED`, resume refused until a new source),
 recovery runs for every interruption, unsaved-changes prompt before opening,
 one mic sidecar per role, and File → Open Video… / Projects "Open video…".
-Not versioned, built or signed yet; the installed app is still 1.7.0.
+Release 1.7.1 build/notarization/publication status is recorded there.
 
 ## CLI/MCP automation
 
