@@ -10,7 +10,6 @@
 
   [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111111?style=flat-square&logo=apple&logoColor=white)](https://www.apple.com/macos/)
   [![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-arm64-2f6fed?style=flat-square)](#download)
-  [![Intel Mac](https://img.shields.io/badge/Intel%20Mac-x64-2f6fed?style=flat-square)](#download)
   [![Version](https://img.shields.io/badge/version-1.7.1-7857ff?style=flat-square)](CHANGELOG.md)
   [![License: AGPL v3](https://img.shields.io/badge/license-AGPL%20v3-663399?style=flat-square)](LICENSE.md)
 
@@ -45,7 +44,7 @@ the result on a visual timeline, and export in the format your work needs.
 
 ## Highlights
 
-- **Native macOS recording** — ScreenCaptureKit capture tuned for Apple Silicon and Intel Macs, with live window and screen previews in the source picker.
+- **Native macOS recording** — ScreenCaptureKit capture tuned for Apple Silicon Macs, with live window and screen previews in the source picker.
 - **Change course mid-take** — pause, switch to another window or screen, turn the microphone or webcam on, off or to another device, and keep recording the same take.
 - **Automatic focus** — turn clicks and cursor movement into smooth, editable zooms.
 - **A clean visual editor** — style backgrounds, padding, corners, shadows, crop, and layout from one workspace; new recordings reuse the background you chose last.
@@ -83,12 +82,14 @@ the result on a visual timeline, and export in the format your work needs.
 
 ## Download
 
-Screendance supports **macOS 14 or newer** with separate builds for:
+Screendance supports **macOS 14 or newer on Apple Silicon** (`arm64`: M1, M2,
+M3, M4 and newer).
 
-- **Apple Silicon (`arm64`)** — M1, M2, M3, M4, and newer Apple chips.
-- **Intel (`x64`)** — supported Intel-based Macs.
+**Intel Macs are no longer supported.** Version 1.7.1 is the last release with
+an Intel (`x64`) build; it stays available on its release page but will not get
+updates or fixes.
 
-Version 1.7.1 is signed and notarized for both Apple Silicon and Intel Macs.
+Version 1.7.1 is signed and notarized.
 Download it only from the official
 [Screendance App 1.7.1 release](https://github.com/globa-me/Screendance-App/releases/tag/v1.7.1).
 It is a bug-fix update to 1.7.0, which also brought the 1.6.0 CLI/MCP automation.
@@ -105,7 +106,7 @@ Recording, Accessibility, Microphone, and Camera.
 - macOS 14 or newer
 - Node.js 22 LTS and npm
 - Xcode Command Line Tools
-- CMake for clean dual-architecture Whisper runtime builds
+- CMake for clean Whisper runtime builds
 
 ```bash
 git clone https://github.com/globa-me/Screendance-App.git
@@ -115,7 +116,7 @@ npm ci
 npm run dev
 ```
 
-To build signed `arm64` and `x64` packages on a configured development Mac:
+To build signed `arm64` packages on a configured development Mac:
 
 ```bash
 npm run build:mac
@@ -165,7 +166,7 @@ changing ProRes export or transcoding behavior.
 
 The current development branch includes transparent export, resilient external
 microphone selection, recording diagnostics, configurable zoom behavior, smoother
-preview rendering, global recording shortcuts, dual-architecture macOS packaging,
+preview rendering, global recording shortcuts, Apple Silicon macOS packaging,
 and refreshed localization. See the [changelog](CHANGELOG.md) for the detailed history.
 
 ## Agent automation

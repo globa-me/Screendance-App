@@ -404,3 +404,14 @@ smoke and packaged CLI/MCP smoke (both arches) passed. Full record and
 checksums: [v1.7.1.md](../releases/v1.7.1.md). Published at
 https://github.com/globa-me/Screendance-App/releases/tag/v1.7.1; the arm64 app
 is installed in `/Applications`.
+
+
+## Intel (x64) discontinued — 2026-11-03
+
+At the owner's decision macOS Intel support ended with 1.7.1, the last x64
+release (kept published unchanged). `electron-builder.json5`, `build:mac-native-helpers`,
+`finalize-macos-release.mjs` (default `arm64`) and the GitHub workflows now
+produce and check arm64 only. Earlier sections that describe x64 steps are
+historical. Intel users on 1.7.1 will see a future update offered but its
+download fails with `ERR_UPDATER_ZIP_FILE_NOT_FOUND` (electron-updater filters
+out arm64 files on Intel); it never installs the wrong architecture.

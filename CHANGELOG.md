@@ -5,6 +5,12 @@ the fork, see [Recordly](https://github.com/webadderallorg/Recordly/commits/main
 For the complete, browseable history after the fork, see the
 [Screendance commit log](https://github.com/globa-me/Screendance-App/commits/screendance/macos-apple-silicon).
 
+## November 3, 2026 — Intel Macs no longer supported
+
+Screendance now supports Apple Silicon Macs only. 1.7.1 is the last release
+with an Intel (`x64`) build; it stays on its release page but will not get
+updates or fixes. Builds, checks and the release workflow are arm64 only.
+
 ## November 3, 2026 — 1.7.1
 
 Available from the

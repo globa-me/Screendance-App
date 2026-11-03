@@ -9,7 +9,7 @@ const require = createRequire(import.meta.url);
 const yaml = require("js-yaml");
 const { executeAppBuilderAsJson } = require("app-builder-lib/out/util/appBuilder");
 const root = path.resolve(process.argv[2] || "release/notarized");
-const requestedArchitectures = new Set((process.argv[3] || "arm64,x64").split(","));
+const requestedArchitectures = new Set((process.argv[3] || "arm64").split(","));
 const product = JSON.parse(readFileSync(new URL("../package.json", import.meta.url))).productName;
 const run = (tool, args) => execFileSync(tool, args, { stdio: "inherit" });
 const candidates = [

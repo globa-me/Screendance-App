@@ -1,5 +1,16 @@
 # Agent Notes
 
+## Intel (x64) support discontinued — 2026-11-03
+
+The owner discontinued macOS Intel support. 1.7.1 is the last x64 release and
+stays published as is. Build, test and release **arm64 only**; do not build,
+smoke-test, notarize, fix or document x64 again, and do not suggest it. The
+committed `electron/native/bin/darwin-x64/*` helpers are frozen at 1.7.1 and are
+not rebuilt. Universal pieces that cost nothing (staged universal FFmpeg, the
+universal `Contents/MacOS/screendance` launcher and its test) were left as is.
+Windows/Linux x64 jobs in `.github/workflows` are upstream Recordly leftovers,
+not Intel Mac support.
+
 ## 1.7.0 work in progress (branch `screendance/v1.7.0`)
 
 Read `docs/releases/v1.7.0.md` first: source thumbnails, paused-only live
@@ -72,7 +83,7 @@ The host is opt-in (`--automation` or `SCREENDANCE_AUTOMATION=1`); development u
 `npm run build:automation`. The packaged universal native launcher at
 `Contents/MacOS/screendance` runs the bundled Electron runtime without external
 Node; `install` creates only its own user symlink and `setup` prints client
-registration commands without applying them. Maintain both macOS architectures.
+registration commands without applying them. Only arm64 is maintained.
 
 Real smoke uses generated media and isolated profiles: `npm run smoke:automation`
 and `node scripts/smoke-automation-upgrade.mjs`. Packaged smoke uses
@@ -134,22 +145,21 @@ Reference from the regression investigation:
 
 ## macOS architecture release guardrail
 
-The supported target is macOS 14+ with separate `arm64` and `x64` artifacts.
-Do not return the builder, Swift helper build, or Whisper runtime build to an
-arm64-only default. Intel requires freshly built `darwin-x64` helpers and a
-matching Whisper runtime.
+The supported target is macOS 14+ on Apple Silicon (`arm64` artifacts only).
+Intel (`x64`) was discontinued after 1.7.1 (see the top of this file); the
+builder, Swift helper build and Whisper runtime build target arm64 only.
 
 `ffmpeg-static` is staged as a universal macOS executable before packaging.
 FFprobe must remain packaged for both Darwin architectures; excluding
 `node_modules/ffprobe-static/bin/darwin/**` makes recording validation and native
 export fail on a clean Mac.
 
-For a dual local release, use `npm run build:mac`, then run packaged smoke once
-per app root with `PACKAGED_SMOKE_ARCH_TAGS=darwin-arm64` and `darwin-x64`.
-After notarizing and stapling both DMGs, run:
+For a local release, use `npm run build:mac`, then run packaged smoke on
+`release/<dir>/mac-arm64` with `PACKAGED_SMOKE_ARCH_TAGS=darwin-arm64`. After
+notarizing and stapling the DMG, run:
 
 ```bash
-node scripts/finalize-macos-release.mjs release/notarized-dual
+node scripts/finalize-macos-release.mjs release/<dir>
 ```
 
 The September 11, 2026 validation record and Apple submission IDs are in

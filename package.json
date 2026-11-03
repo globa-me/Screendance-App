@@ -31,7 +31,7 @@
 		"build:whisper-runtime": "node scripts/build-whisper-runtime.mjs",
 		"stage:mac-ffprobe": "node scripts/stage-macos-ffprobe.mjs",
 		"stage:mac-ffmpeg": "node scripts/stage-macos-ffmpeg.mjs",
-		"build:mac-native-helpers": "MACOS_NATIVE_ARCHS=all WHISPER_RUNTIME_ARCHS=all npm run build:native-helpers && MACOS_NATIVE_ARCHS=all WHISPER_RUNTIME_ARCHS=all npm run build:whisper-runtime",
+		"build:mac-native-helpers": "MACOS_NATIVE_ARCHS=arm64 WHISPER_RUNTIME_ARCHS=arm64 npm run build:native-helpers && MACOS_NATIVE_ARCHS=arm64 WHISPER_RUNTIME_ARCHS=arm64 npm run build:whisper-runtime",
 		"build:platform-native-helpers": "npm run build:mac-native-helpers",
 		"build:mac": "node scripts/build-macos-g2.mjs",
 		"build:mac:package": "npm run build:mac-native-helpers && npm run stage:mac-ffmpeg && npm run stage:mac-ffprobe && npm run build:automation && npm run build:automation:launcher && tsc && vite build --config vite.config.ts && npm run normalize:electron-main-cjs && npm run smoke:electron-main-cjs && electron-builder --mac",

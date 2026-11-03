@@ -72,9 +72,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - arch: x64
-            arch_tag: darwin-x64
-            runner: macos-15-intel
           - arch: arm64
             arch_tag: darwin-arm64
             runner: macos-14
