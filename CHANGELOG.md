@@ -5,6 +5,16 @@ the fork, see [Recordly](https://github.com/webadderallorg/Recordly/commits/main
 For the complete, browseable history after the fork, see the
 [Screendance commit log](https://github.com/globa-me/Screendance-App/commits/screendance/macos-apple-silicon).
 
+## November 4, 2026 — 1.7.2 (local build, not published)
+
+- Cancelling an export no longer leaves the editor stuck on "Canceling…".
+- Security hardening: page code and extensions can no longer run arbitrary
+  programs, write files outside the chosen export destination or recordings
+  folder, or read non-media files; the local media server requires a
+  per-launch token. Installing an extension now asks for confirmation.
+- If you had picked a custom Whisper executable, pick it again in the captions
+  settings.
+
 ## November 3, 2026 — Intel Macs no longer supported
 
 Screendance now supports Apple Silicon Macs only. 1.7.1 is the last release

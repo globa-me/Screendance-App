@@ -54,6 +54,14 @@ one mic sidecar per role, and File → Open Video… / Projects "Open video…".
 as GitHub release v1.7.1 and installed (arm64) in /Applications. Never
 modify/re-sign those bundles.
 
+## 1.7.2 local release (not published)
+
+Read `docs/releases/v1.7.2.md`: security fixes B1–B5 plus the export-cancel
+fix B17. Built, notarized and verified in `release/notarized-v1.7.2` and
+installed (arm64) in /Applications on 2026-11-04; NOT published on GitHub (no
+tag/release). Never modify/re-sign those bundles. To publish, follow the 1.7.1
+publication steps in `docs/releases/v1.7.1.md`.
+
 ## CLI/MCP automation
 
 Stages 1–6 are implemented in source for 1.6.0: 84 commands registered through
