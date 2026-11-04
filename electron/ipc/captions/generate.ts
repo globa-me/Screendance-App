@@ -32,9 +32,92 @@ export async function isExecutableFile(filePath: string) {
 	}
 }
 
-export async function resolveWhisperExecutablePath(preferredPath?: string | null) {
+// ── Trusted Whisper executables ──────────────────────────────────────────────
+// The renderer (and anything running in it, such as extensions) must not be
+// able to make main execute an arbitrary program. A custom Whisper executable
+// is accepted only after the user picked it in the main-process file dialog;
+// that choice is persisted here, outside renderer control.
+const TRUSTED_WHISPER_EXECUTABLES_FILE = "trusted-whisper-executables.json";
+
+function getTrustedWhisperExecutablesFile(): string {
+	return path.join(app.getPath("userData"), TRUSTED_WHISPER_EXECUTABLES_FILE);
+}
+
+async function readTrustedWhisperExecutables(): Promise<string[]> {
+	try {
+		const parsed = JSON.parse(await fs.readFile(getTrustedWhisperExecutablesFile(), "utf-8"));
+		return Array.isArray(parsed)
+			? parsed.filter((entry): entry is string => typeof entry === "string")
+			: [];
+	} catch {
+		return [];
+	}
+}
+
+/** Records a Whisper executable the user chose in a main-process dialog. */
+export async function trustWhisperExecutablePath(filePath: string): Promise<void> {
+	const normalized = path.resolve(filePath);
+	const trusted = await readTrustedWhisperExecutables();
+	if (trusted.includes(normalized)) return;
+	const next = [...trusted, normalized].slice(-20);
+	const target = getTrustedWhisperExecutablesFile();
+	const tempPath = `${target}.${process.pid}.tmp`;
+	await fs.mkdir(path.dirname(target), { recursive: true });
+	await fs.writeFile(tempPath, JSON.stringify(next, null, 2), { mode: 0o600 });
+	await fs.rename(tempPath, target);
+}
+
+function getAutoDiscoveredWhisperCandidates(): string[] {
+	return [
+		...getBundledWhisperExecutableCandidates(),
+		process.env["WHISPER_CPP_PATH"]?.trim() || null,
+		process.platform === "darwin" ? "/opt/homebrew/bin/whisper-cli" : null,
+		process.platform === "darwin" ? "/usr/local/bin/whisper-cli" : null,
+		process.platform === "darwin" ? "/opt/homebrew/bin/whisper-cpp" : null,
+		process.platform === "darwin" ? "/usr/local/bin/whisper-cpp" : null,
+	]
+		.filter((value): value is string => Boolean(value))
+		.map((value) => path.resolve(value));
+}
+
+/**
+ * True when a preferred executable may be run: picked by the user through the
+ * dialog, or one of the locations auto-discovery would use anyway.
+ */
+export async function isTrustedWhisperExecutablePath(filePath: string): Promise<boolean> {
+	const normalized = path.resolve(filePath);
+	if (getAutoDiscoveredWhisperCandidates().includes(normalized)) return true;
+	return (await readTrustedWhisperExecutables()).includes(normalized);
+}
+
+export class UntrustedWhisperExecutableError extends Error {
+	constructor() {
+		super(
+			"This Whisper executable was not selected in Screendance App. Choose it again with the Whisper executable picker.",
+		);
+		this.name = "UntrustedWhisperExecutableError";
+	}
+}
+
+/**
+ * Resolves the Whisper runtime. A `preferredPath` that did not come from a
+ * trusted source must be checked with `isTrustedWhisperExecutablePath` first,
+ * or passed with `requireTrusted: true`.
+ */
+export async function resolveWhisperExecutablePath(
+	preferredPath?: string | null,
+	options?: { requireTrusted?: boolean },
+) {
+	const preferred = preferredPath?.trim() || null;
+	if (
+		preferred &&
+		options?.requireTrusted &&
+		!(await isTrustedWhisperExecutablePath(preferred))
+	) {
+		throw new UntrustedWhisperExecutableError();
+	}
 	const candidatePaths = [
-		preferredPath?.trim() || null,
+		preferred,
 		...getBundledWhisperExecutableCandidates(),
 		process.env["WHISPER_CPP_PATH"]?.trim() || null,
 		process.platform === "darwin" ? "/opt/homebrew/bin/whisper-cli" : null,
@@ -167,7 +250,13 @@ export async function generateAutoCaptionsFromVideo(options: {
 		throw new Error("Missing source video path.");
 	}
 
-	const whisperExecutablePath = await resolveWhisperExecutablePath(options.whisperExecutablePath);
+	// Called from renderer IPC: a custom executable must have been picked by the user.
+	const whisperExecutablePath = await resolveWhisperExecutablePath(
+		options.whisperExecutablePath,
+		{
+			requireTrusted: true,
+		},
+	);
 	const whisperModelPath = path.resolve(options.whisperModelPath);
 	await ensureReadableFile(whisperExecutablePath, { executable: true });
 	await ensureReadableFile(whisperModelPath);

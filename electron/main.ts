@@ -27,6 +27,7 @@ import {
 	killWindowsCaptureProcess,
 	registerIpcHandlers,
 } from "./ipc/handlers";
+import { installFileAccessGuard } from "./fileAccessGuard";
 import { ensureMediaServer } from "./mediaServer";
 import { ensurePackagedRendererServer } from "./rendererServer";
 import type { UpdateToastPayload } from "./updater";
@@ -1024,6 +1025,7 @@ app.whenReady().then(async () => {
 		app.setAppUserModelId("dev.screendance.app");
 	}
 	setupAboutPanel();
+	installFileAccessGuard(session.defaultSession);
 
 	session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
 		const allowed = ["media", "audioCapture", "microphone", "camera", "videoCapture"];

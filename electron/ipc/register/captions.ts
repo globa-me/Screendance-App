@@ -6,7 +6,7 @@ import {
 	deleteWhisperSmallModel,
 	sendWhisperModelDownloadProgress,
 } from "../captions/whisper";
-import { generateAutoCaptionsFromVideo } from "../captions/generate";
+import { generateAutoCaptionsFromVideo, trustWhisperExecutablePath } from "../captions/generate";
 import { approveUserPath, getRecordingsDir } from "../utils";
 
 export function registerCaptionHandlers() {
@@ -89,6 +89,7 @@ export function registerCaptionHandlers() {
       }
 
       approveUserPath(result.filePaths[0])
+      await trustWhisperExecutablePath(result.filePaths[0])
       return { success: true, path: result.filePaths[0] }
     } catch (error) {
       console.error('Failed to open Whisper executable picker:', error)

@@ -118,6 +118,44 @@ describe("select-export-destination", () => {
 	});
 });
 
+describe("export write destinations", () => {
+	it("writes only to a destination chosen through select-export-destination", async () => {
+		const dir = await makeTempDir();
+		const chosenPath = path.join(dir, "chosen.mp4");
+		const otherPath = path.join(dir, "Library", "LaunchAgents", "evil.plist");
+		vi.mocked(dialog.showSaveDialog).mockResolvedValue({
+			canceled: false,
+			filePath: chosenPath,
+		});
+		registerExportHandlers();
+		const handler = (channel: string) =>
+			vi.mocked(ipcMain.handle).mock.calls.find(([name]) => name === channel)![1];
+		const data = new TextEncoder().encode("export-bytes").buffer;
+
+		const refused = await handler("write-exported-video-to-path")(
+			{ sender: {} } as never,
+			data,
+			otherPath,
+		);
+		expect(refused).toMatchObject({ success: false });
+		await expect(fs.access(otherPath)).rejects.toThrow();
+
+		const selected = await handler("select-export-destination")({ sender: {} } as never, {
+			fileName: "chosen.mp4",
+			format: "mp4",
+		});
+		expect(selected).toMatchObject({ success: true, path: chosenPath });
+
+		const written = await handler("write-exported-video-to-path")(
+			{ sender: {} } as never,
+			data,
+			chosenPath,
+		);
+		expect(written).toMatchObject({ success: true });
+		await expect(fs.readFile(chosenPath, "utf8")).resolves.toBe("export-bytes");
+	});
+});
+
 describe("moveExportedTempFile", () => {
 	it("moves an app-managed export temp file to the selected destination", async () => {
 		const dir = await makeTempDir();

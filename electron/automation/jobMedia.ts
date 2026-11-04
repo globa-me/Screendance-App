@@ -311,8 +311,12 @@ export async function generateAutomationCaptions(
 			"Caption jobs need a frozen absolute source and Whisper model path.",
 		);
 	context.signal.throwIfAborted();
+	// An explicit CLI/MCP `executablePath` comes from the authenticated local
+	// caller; one taken from the editor snapshot was supplied by the renderer and
+	// must have been picked by the user.
 	const runtime = await resolveWhisperExecutablePath(
 		typeof executable === "string" ? executable : undefined,
+		{ requireTrusted: typeof context.input.executablePath !== "string" },
 	);
 	await ensureReadableFile(modelPath);
 	await ensureReadableFile(videoPath);

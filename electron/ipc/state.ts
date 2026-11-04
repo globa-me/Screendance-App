@@ -21,6 +21,9 @@ export let currentRecordingSession: RecordingSessionData | null = null;
 // ── Security: approved read paths ─────────────────────────────────────────────
 export const approvedLocalReadPaths = new Set<string>();
 
+// ── Security: write destinations the user chose in a main-process dialog ─────
+export const approvedWriteDestinations = new Set<string>();
+
 // ── Native macOS capture ──────────────────────────────────────────────────────
 export let nativeScreenRecordingActive = false;
 export let nativeCaptureProcess: ChildProcessWithoutNullStreams | null = null;

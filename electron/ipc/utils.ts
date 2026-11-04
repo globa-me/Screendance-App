@@ -7,6 +7,7 @@ import { RECORDINGS_DIR } from "../appPaths";
 import { AUTO_RECORDING_PREFIX, RECORDINGS_SETTINGS_FILE } from "./constants";
 import {
 	approvedLocalReadPaths,
+	approvedWriteDestinations,
 	customRecordingsDir,
 	recordingsDirLoaded,
 	setCustomRecordingsDir,
@@ -119,6 +120,65 @@ export function getMacPrivacySettingsUrl(pane: "screen" | "accessibility" | "mic
 	if (pane === "microphone")
 		return "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone";
 	return "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility";
+}
+
+function normalizeComparablePath(filePath: string): string {
+	const resolved = path.resolve(filePath);
+	return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+}
+
+function isInsideDirectory(candidatePath: string, directoryPath: string): boolean {
+	const candidate = normalizeComparablePath(candidatePath);
+	const directory = normalizeComparablePath(directoryPath);
+	return candidate === directory || candidate.startsWith(`${directory}${path.sep}`);
+}
+
+/**
+ * Remembers a destination the user picked in a main-process save dialog, so a
+ * later renderer request may write exactly there without a second dialog.
+ */
+export function approveWriteDestination(filePath: string | null | undefined): void {
+	if (!filePath) return;
+	approvedWriteDestinations.add(normalizeComparablePath(filePath));
+}
+
+/** Smoke-export destinations come from the launching environment, not the renderer. */
+function getEnvironmentWriteDestinations(): string[] {
+	const smokeOutput =
+		process.env.RECORDLY_SMOKE_EXPORT === "1"
+			? process.env.RECORDLY_SMOKE_EXPORT_OUTPUT?.trim()
+			: undefined;
+	if (!smokeOutput) return [];
+	return [smokeOutput, `${smokeOutput}.report.json`];
+}
+
+/**
+ * Renderer-supplied output paths are writable only when main approved them:
+ * chosen through a save dialog, or configured by the smoke-export environment.
+ * Alpha exports may get their extension corrected to `.mov`, so the same base
+ * name with a different extension is accepted for an approved destination.
+ */
+export function isApprovedWriteDestination(filePath: string | null | undefined): boolean {
+	if (!filePath) return false;
+	const candidate = normalizeComparablePath(filePath);
+	const approved = [
+		...approvedWriteDestinations,
+		...getEnvironmentWriteDestinations().map(normalizeComparablePath),
+	];
+	const stripExtension = (value: string) => value.replace(/\.[^./\\]+$/, "");
+	const candidateIsAlphaContainer = /\.(mov|webm)$/i.test(candidate);
+	return approved.some(
+		(entry) =>
+			entry === candidate ||
+			(candidateIsAlphaContainer && stripExtension(entry) === stripExtension(candidate)),
+	);
+}
+
+/** True when the path lies inside the default or the user-chosen recordings folder. */
+export async function isInsideRecordingsDir(filePath: string | null | undefined): Promise<boolean> {
+	if (!filePath) return false;
+	const recordingsDir = await getRecordingsDir();
+	return isInsideDirectory(filePath, recordingsDir) || isInsideDirectory(filePath, RECORDINGS_DIR);
 }
 
 export function approveUserPath(filePath: string | null | undefined): void {

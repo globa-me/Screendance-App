@@ -1,12 +1,44 @@
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
 import { approvedLocalReadPaths } from "./ipc/state";
 import { getMediaContentType } from "./mediaTypes";
+import { getPackagedRendererBaseUrl } from "./rendererServer";
 
 let mediaServerBaseUrl: string | null = null;
 let mediaServerStartPromise: Promise<string> | null = null;
+
+// Per-launch secret: other local processes and web pages in the user's browser
+// can reach 127.0.0.1, so a media URL is only honored with this token.
+const MEDIA_SERVER_TOKEN = randomBytes(24).toString("hex");
+
+export function isValidMediaServerToken(candidate: string | null): boolean {
+	if (!candidate) return false;
+	const expected = Buffer.from(MEDIA_SERVER_TOKEN);
+	const actual = Buffer.from(candidate);
+	return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+function getOrigin(url: string | null | undefined): string | null {
+	if (!url) return null;
+	try {
+		return new URL(url).origin;
+	} catch {
+		return null;
+	}
+}
+
+/** CORS is granted only to the app's own renderer origins, never to `*`. */
+export function getAllowedCorsOrigin(requestOrigin: string | undefined): string | null {
+	if (!requestOrigin) return null;
+	const allowedOrigins = [
+		getOrigin(getPackagedRendererBaseUrl()),
+		getOrigin(process.env["VITE_DEV_SERVER_URL"]),
+	].filter((origin): origin is string => Boolean(origin));
+	return allowedOrigins.includes(requestOrigin) ? requestOrigin : null;
+}
 
 export function resolveHttpByteRange(
 	rangeHeader: string,
@@ -75,6 +107,42 @@ async function handleMediaRequest(
 			return;
 		}
 
+		const method = request.method ?? "GET";
+		if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
+			response.writeHead(405, { Allow: "GET, HEAD, OPTIONS" });
+			response.end();
+			return;
+		}
+
+		const allowedOrigin = getAllowedCorsOrigin(request.headers.origin);
+		const corsHeaders: Record<string, string> = allowedOrigin
+			? {
+					"Access-Control-Allow-Origin": allowedOrigin,
+					Vary: "Origin",
+					"Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges",
+				}
+			: {};
+
+		if (method === "OPTIONS") {
+			response.writeHead(allowedOrigin ? 204 : 403, {
+				...corsHeaders,
+				...(allowedOrigin
+					? {
+							"Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+							"Access-Control-Allow-Headers": "Range",
+						}
+					: {}),
+			});
+			response.end();
+			return;
+		}
+
+		if (!isValidMediaServerToken(url.searchParams.get("token"))) {
+			response.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
+			response.end("Forbidden");
+			return;
+		}
+
 		const rawPath = url.searchParams.get("path");
 		if (!rawPath) {
 			response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
@@ -100,22 +168,6 @@ async function handleMediaRequest(
 		const contentType = getMediaContentType(resolvedPath);
 		const fileSize = stat.size;
 		const rangeHeader = request.headers.range;
-
-		const corsHeaders = {
-			"Access-Control-Allow-Origin": "*",
-			"Access-Control-Allow-Credentials": "false",
-			"Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges",
-		};
-
-		if (request.method === "OPTIONS") {
-			response.writeHead(204, {
-				...corsHeaders,
-				"Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
-				"Access-Control-Allow-Headers": "Range",
-			});
-			response.end();
-			return;
-		}
 
 		if (rangeHeader) {
 			if (fileSize === 0) {
@@ -233,5 +285,5 @@ export async function ensureMediaServer(): Promise<string> {
 
 export function buildMediaUrl(baseUrl: string, filePath: string): string {
 	const resolved = path.resolve(filePath);
-	return `${baseUrl}/video?path=${encodeURIComponent(resolved)}`;
+	return `${baseUrl}/video?path=${encodeURIComponent(resolved)}&token=${MEDIA_SERVER_TOKEN}`;
 }

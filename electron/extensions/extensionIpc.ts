@@ -5,6 +5,7 @@
  * uninstall, enable/disable) and exposes them to the renderer via preload.
  */
 
+import path from "node:path";
 import { BrowserWindow, dialog, ipcMain, shell } from "electron";
 import {
 	discoverExtensions,
@@ -25,6 +26,31 @@ import {
 } from "./extensionMarketplace";
 import { getErrorMessage } from "./errorUtils";
 import type { ExtensionInfo, MarketplaceReviewStatus } from "./extensionTypes";
+
+/**
+ * Extensions execute in the editor page with the same access as the editor UI;
+ * the renderer-side permission list is not a security boundary (see
+ * docs/audits/2026-11-04-mac-app-store-and-bugs/README.md, B1). Installation
+ * therefore needs an explicit main-process confirmation the renderer cannot fake.
+ */
+async function confirmExtensionInstall(
+	window: BrowserWindow | null,
+	description: string,
+): Promise<boolean> {
+	const options = {
+		type: "warning" as const,
+		buttons: ["Install", "Cancel"],
+		defaultId: 1,
+		cancelId: 1,
+		title: "Install Extension",
+		message: `Install ${description}?`,
+		detail: "Extensions run inside the editor with the same access as Screendance App itself: they can read your recordings and projects and use editor features. Install only extensions from authors you trust.",
+	};
+	const result = window
+		? await dialog.showMessageBox(window, options)
+		: await dialog.showMessageBox(options);
+	return result.response === 0;
+}
 
 /**
  * Serialize extension info for IPC transfer (strip non-serializable fields).
@@ -81,6 +107,11 @@ export function registerExtensionIpcHandlers(): void {
 		});
 
 		if (result.canceled || result.filePaths.length === 0) {
+			return { success: false, reason: "cancelled" };
+		}
+
+		const folderName = path.basename(result.filePaths[0]);
+		if (!(await confirmExtensionInstall(window, `the extension in “${folderName}”`))) {
 			return { success: false, reason: "cancelled" };
 		}
 
@@ -150,7 +181,12 @@ export function registerExtensionIpcHandlers(): void {
 	// Download and install a marketplace extension
 	ipcMain.handle(
 		"extensions:marketplace-install",
-		async (_event, extensionId: string, downloadUrl: string) => {
+		async (event, extensionId: string, downloadUrl: string) => {
+			const window = BrowserWindow.fromWebContents(event.sender);
+			const label = typeof extensionId === "string" ? extensionId : "this extension";
+			if (!(await confirmExtensionInstall(window, `the extension “${label}”`))) {
+				return { success: false, error: "Installation cancelled" };
+			}
 			return downloadAndInstallExtension(extensionId, downloadUrl);
 		},
 	);

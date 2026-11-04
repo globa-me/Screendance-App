@@ -5,6 +5,7 @@ import path from "node:path";
 import { BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { RECORDINGS_DIR } from "../../appPaths";
 import { buildMediaUrl, getMediaServerBaseUrl } from "../../mediaServer";
+import { isRendererMediaFile } from "../../mediaTypes";
 import {
 	LEGACY_PROJECT_FILE_EXTENSIONS,
 	PROJECT_FILE_EXTENSION,
@@ -605,7 +606,10 @@ export function registerProjectHandlers() {
 			options?: { preserveProjectPath?: boolean; hideOverlayCursorByDefault?: boolean },
 		) => {
 			setCurrentVideoPath(normalizeVideoSourcePath(path) ?? path);
-			approveUserPath(currentVideoPath);
+			// Renderer-supplied: approve only media files (see fileAccessGuard.ts).
+			if (currentVideoPath && isRendererMediaFile(currentVideoPath)) {
+				approveUserPath(currentVideoPath);
+			}
 			const resolvedSession = (await resolveRecordingSession(currentVideoPath)) ?? {
 				videoPath: currentVideoPath!,
 				webcamPath: null,
@@ -678,8 +682,15 @@ export function registerProjectHandlers() {
 						? session.assetMessage.trim()
 						: null,
 			});
-			await rememberApprovedLocalReadPath(currentRecordingSession!.videoPath);
-			await rememberApprovedLocalReadPath(currentRecordingSession!.webcamPath);
+			// Renderer-supplied: approve only media files (see fileAccessGuard.ts).
+			for (const sessionPath of [
+				currentRecordingSession!.videoPath,
+				currentRecordingSession!.webcamPath,
+			]) {
+				if (sessionPath && isRendererMediaFile(sessionPath)) {
+					await rememberApprovedLocalReadPath(sessionPath);
+				}
+			}
 			if (!options?.preserveProjectPath) {
 				setCurrentProjectPath(null);
 			}

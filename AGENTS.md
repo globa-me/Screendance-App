@@ -11,6 +11,21 @@ universal `Contents/MacOS/screendance` launcher and its test) were left as is.
 Windows/Linux x64 jobs in `.github/workflows` are upstream Recordly leftovers,
 not Intel Mac support.
 
+## Audit 2026-11-04 (bugs + Mac App Store)
+
+`docs/audits/2026-11-04-mac-app-store-and-bugs/README.md` lists open security
+bugs (extension sandbox bypass, renderer-controlled exec/write/read paths, media
+server CORS), quit/recording races, and MAS blockers (nonfree FFmpeg still in
+1.7.1, AGPL rights, Apple-looking wallpapers, AX/uiohook, extensions). Nothing
+from it is fixed except B1–B5 (security; see its status table). Keep these
+boundaries: renderer writes only to `approveWriteDestination` targets, reads via
+`isRendererReadablePath` (also enforced on every `file://` request by
+`electron/fileAccessGuard.ts`, needed because HUD/editor use `webSecurity:false`),
+media-server URLs need the per-launch token, custom Whisper executables must be
+trusted via the main dialog, and renderer/project-supplied paths are approved only
+if they are media files. Extensions are NOT isolated (B1 open); installing one
+needs the main-process confirmation. Update that file when items are resolved.
+
 ## 1.7.0 work in progress (branch `screendance/v1.7.0`)
 
 Read `docs/releases/v1.7.0.md` first: source thumbnails, paused-only live

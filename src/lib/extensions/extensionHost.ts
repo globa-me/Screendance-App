@@ -29,14 +29,21 @@ import type {
 const EXTENSION_SETTINGS_STORAGE_KEY = "recordly.extension-settings.v1";
 
 // ---------------------------------------------------------------------------
-// Security: Hide electronAPI from extension code
+// electronAPI guard (best effort, NOT a security boundary)
 // ---------------------------------------------------------------------------
-// Extensions run via dynamic import() in the renderer's main world. Since
-// contextBridge.exposeInMainWorld puts electronAPI on window in the same
-// world, extensions could abuse it to read arbitrary files, open URLs, etc.
-// We replace the global with a Proxy that blocks access while extension code
-// is executing (import + activate). The reference is stashed so that only
-// app code (which runs outside of extension activation) can reach it.
+// Extensions run via dynamic import() in the renderer's main world, the same
+// world that holds window.electronAPI. contextBridge defines that property as
+// non-configurable, so the Proxy below is normally never installed, and even
+// when it is, it only covers import + activate, not later callbacks. Extension
+// code must be assumed to have the same access as the editor UI.
+//
+// The real protection lives in the main process: IPC handlers only write to
+// dialog-approved destinations, run only user-picked Whisper executables,
+// read and serve only approved/app-managed paths or media files, and a
+// webRequest guard filters renderer file:// requests (electron/fileAccessGuard.ts).
+// Installing an extension needs a main-process confirmation. True isolation
+// (worker/iframe realm with a message bridge) is still open: see
+// docs/audits/2026-11-04-mac-app-store-and-bugs/README.md, B1.
 // ---------------------------------------------------------------------------
 
 let _extensionActivationDepth = 0;

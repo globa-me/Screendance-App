@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { app } from "electron";
 import { RECORDINGS_DIR, USER_DATA_PATH } from "../../appPaths";
-import { isSupportedLocalMediaPath } from "../../mediaTypes";
+import { isRendererMediaFile, isSupportedLocalMediaPath } from "../../mediaTypes";
 import {
 	LEGACY_PROJECT_FILE_EXTENSIONS,
 	MAX_RECENT_PROJECTS,
@@ -114,7 +114,10 @@ async function collectApprovedLocalReadPaths(filePath?: string | null): Promise<
 	try {
 		const realPath = await fs.realpath(approvedPaths[0]);
 		const normalizedRealPath = normalizePath(realPath);
-		if (!approvedPaths.includes(normalizedRealPath)) {
+		if (
+			!approvedPaths.includes(normalizedRealPath) &&
+			(isRendererMediaFile(normalizedRealPath) || !isRendererMediaFile(approvedPaths[0]))
+		) {
 			approvedPaths.push(normalizedRealPath);
 		}
 	} catch {
@@ -157,12 +160,19 @@ export async function resolveApprovedLocalMediaPath(candidatePath: string): Prom
 	return realPath;
 }
 
+/**
+ * Replaces session approvals with renderer- or project-supplied media paths.
+ * Only media files are approved: these paths come from the renderer or from a
+ * project file, so they must never unlock documents, keys or project files.
+ */
 export async function replaceApprovedSessionLocalReadPaths(
 	filePaths: Array<string | null | undefined>,
 ) {
 	const nextApprovedPaths = new Set<string>();
 	const approvedPathLists = await Promise.all(
-		filePaths.map((filePath) => collectApprovedLocalReadPaths(filePath)),
+		filePaths
+			.filter((filePath) => typeof filePath === "string" && isRendererMediaFile(filePath))
+			.map((filePath) => collectApprovedLocalReadPaths(filePath)),
 	);
 
 	for (const approvedPathList of approvedPathLists) {

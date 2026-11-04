@@ -31,7 +31,7 @@ import {
 	getSystemCursorHelperSourcePath,
 	getWindowsCaptureExePath,
 } from "../paths/binaries";
-import { rememberApprovedLocalReadPath } from "../project/manager";
+import { isAllowedLocalReadPath, rememberApprovedLocalReadPath } from "../project/manager";
 import { broadcastSelectedSourceChange } from "./sources";
 import {
 	deriveMicrophoneSidecarPath,
@@ -151,6 +151,7 @@ import {
 	getMacPrivacySettingsUrl,
 	getRecordingsDir,
 	getScreen,
+	isInsideRecordingsDir,
 	getTelemetryPathForVideo,
 	moveFileWithOverwrite,
 	normalizeVideoSourcePath,
@@ -1831,7 +1832,13 @@ export function registerRecordingHandlers(
 				pauseIntervals?: unknown;
 			},
 		) => {
-			const baseName = videoPath.replace(/\.[^.]+$/, "");
+			if (typeof videoPath !== "string" || !(await isInsideRecordingsDir(videoPath))) {
+				return {
+					success: false,
+					error: "Microphone sidecars can only be stored next to a recording in the recordings folder",
+				};
+			}
+			const baseName = path.resolve(videoPath).replace(/\.[^./\\]+$/, "");
 			const sidecarPath = `${baseName}.mic.wav`;
 			const sourceWebmPath = `${baseName}.mic.source.webm`;
 			const tempWebmPath = `${sourceWebmPath}.tmp`;
@@ -1967,7 +1974,11 @@ export function registerRecordingHandlers(
 	ipcMain.handle("store-recorded-video", async (_, videoData: ArrayBuffer, fileName: string) => {
 		try {
 			const recordingsDir = await getRecordingsDir();
-			const videoPath = path.join(recordingsDir, fileName);
+			const safeFileName = typeof fileName === "string" ? path.basename(fileName) : "";
+			if (!safeFileName || safeFileName === "." || safeFileName === "..") {
+				throw new Error("Invalid recording file name");
+			}
+			const videoPath = path.join(recordingsDir, safeFileName);
 			await fs.writeFile(videoPath, Buffer.from(videoData));
 			return await finalizeStoredVideo(videoPath);
 		} catch (error) {
@@ -2121,6 +2132,15 @@ export function registerRecordingHandlers(
 					samples: [],
 					message: "No video path available for cursor telemetry",
 					error: "Missing video path",
+				};
+			}
+
+			if (!isAllowedLocalReadPath(targetVideoPath) && !(await isInsideRecordingsDir(targetVideoPath))) {
+				return {
+					success: false,
+					samples: [],
+					message: "Cursor telemetry can only be stored next to an opened or recorded video",
+					error: "Video path is not approved",
 				};
 			}
 

@@ -49,7 +49,7 @@ import {
 	type NativeVideoExportFinishOptions,
 } from "../nativeVideoExport";
 import { isAllowedLocalReadPath, resolveApprovedLocalMediaPath } from "../project/manager";
-import { approveUserPath } from "../utils";
+import { approveUserPath, approveWriteDestination, isApprovedWriteDestination } from "../utils";
 
 function getPartialExportDestinationPath(destinationPath: string) {
 	const parsed = path.parse(destinationPath);
@@ -550,6 +550,7 @@ export function registerExportHandlers() {
 				if (expectedBytes > 0 && availableBytes < expectedBytes) {
 					return { success: false, code: "insufficient-space", error: "Not enough free space at the selected destination", availableBytes, expectedBytes };
 				}
+				approveWriteDestination(destinationPath);
 				return { success: true, path: destinationPath, availableBytes, expectedBytes };
 			} catch (error) {
 				return { success: false, code: "not-writable", error: `Selected destination is not writable: ${String(error)}` };
@@ -1187,6 +1188,10 @@ export function registerExportHandlers() {
 					properties: ["createDirectory", "showOverwriteConfirmation"],
 				};
 
+				if (outputPath && !isApprovedWriteDestination(outputPath)) {
+					const message = "Export destination was not chosen in a save dialog";
+					return { success: false, message, error: message };
+				}
 				const result = outputPath
 					? { canceled: false, filePath: outputPath }
 					: parentWindow
@@ -1253,6 +1258,10 @@ export function registerExportHandlers() {
 				}
 
 				const resolvedPath = path.resolve(outputPath);
+				if (!isApprovedWriteDestination(resolvedPath)) {
+					const message = "Export destination was not chosen in a save dialog";
+					return { success: false, message, canceled: false, error: message };
+				}
 				await fs.mkdir(path.dirname(resolvedPath), { recursive: true });
 				await writeExportedDataAtomic(resolvedPath, Buffer.from(videoData));
 				approveUserPath(resolvedPath);
@@ -1317,6 +1326,10 @@ export function registerExportHandlers() {
 
 				if (payload.outputPath) {
 					const requestedPath = path.resolve(payload.outputPath);
+					if (!isApprovedWriteDestination(requestedPath)) {
+						const message = "Export destination was not chosen in a save dialog";
+						return { success: false, canceled: false, message, error: message };
+					}
 					const resolvedPath =
 						isAlphaQuickTime && !requestedPath.toLowerCase().endsWith(".webm")
 							? ensureFileExtension(requestedPath, ".mov")

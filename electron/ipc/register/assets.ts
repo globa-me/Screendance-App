@@ -6,6 +6,7 @@ import { ipcMain } from "electron";
 import { USER_DATA_PATH } from "../../appPaths";
 import { normalizePath } from "../utils";
 import { getAssetRootPath } from "../project/manager";
+import { isRendererReadablePath } from "../../fileAccessGuard";
 
 export function registerAssetHandlers() {
   async function resolveReadableLocalFilePath(filePath: string) {
@@ -109,12 +110,16 @@ export function registerAssetHandlers() {
 
   ipcMain.handle('read-local-file', async (_, filePath: string) => {
     try {
-      // Intentionally more permissive than the media-server allowlist: this IPC
-      // is used for direct renderer-side local file reads after the app has
-      // already accepted a path, while URL-based media serving must stay scoped
-      // to approved/app-managed locations. We still canonicalize the path and
-      // require a real on-disk file so this cannot be used to read directories.
+      // Same policy as renderer file:// requests (see fileAccessGuard.ts):
+      // app-managed or approved paths, or media/image/font files. Directories
+      // and documents, keys or project files elsewhere are refused.
+      if (typeof filePath !== 'string' || !isRendererReadablePath(filePath)) {
+        return { success: false, error: 'Reading this file is not allowed' }
+      }
       const resolved = await resolveReadableLocalFilePath(filePath)
+      if (!isRendererReadablePath(resolved)) {
+        return { success: false, error: 'Reading this file is not allowed' }
+      }
 
       const data = await fs.readFile(resolved)
       return { success: true, data }
