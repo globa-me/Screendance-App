@@ -124,11 +124,17 @@
 - **B15.** `ipcMain.once("save-before-close-done")` принимает ответ от любого окна;
   повторные закрытия копят слушатели (`main.ts:898`).
 - **B16.** About: жёстко «1.1» (`main.ts:957`) → `app.getVersion()`.
+- **B17. Отмена экспорта зависает навсегда в «Отмена…»** (найдено пользователем
+  в 1.7.1 после аудита; **исправлено**, см. ниже). Чаще всего на «Подготовке к
+  экспорту».
+- **B18.** В журнале 1.7.1 `get-local-media-url` блокирует сайдкар
+  `recording-*.system.wav` → в превью может не быть системного звука. После
+  правок B4 `.wav` считается медиа, но одобряется ли сайдкар — не проверено.
 - Мусор в корне: `test_transcode_ks.mov` (310 МБ, не в git).
 
 ## Статус исправлений B1–B5 (4 ноября 2026)
 
-Изменения в рабочем дереве, не закоммичены. Проверка: `npx tsc --noEmit` —
+Закоммичено в `d4500072` (ветка `screendance/window-close-pause`). Проверка: `npx tsc --noEmit` —
 чисто; `npm test` — 1164 теста / 114 файлов, всё зелёное (+1 тест экспорта позже —
 1165); новые тесты в `electron/securityBoundaries.test.ts` и
 `electron/ipc/register/export.test.ts`. `npm run smoke:automation` (реальный
@@ -152,6 +158,37 @@ Electron, изолированный профиль) — пройден, заб�
 и вызывать функции редактора (сохранить проект, начать запись и т. д.).
 Включить `webSecurity:true` и вынести расширения в изолированный realm —
 отдельная задача с ручной проверкой превью, обоев и экспорта.
+
+## Исправление B17 (4 ноября 2026)
+
+Причина — два «вечных» ожидания, которые отмена не будила:
+
+1. `StreamingVideoDecoder`: `cancel()`/`destroy()` закрывали `VideoDecoder`, но
+   `VideoDecoder.close()` по спецификации WebCodecs не вызывает error-callback, а
+   потребитель уже ждал следующий кадр в `getNextFrame()`, подача — в
+   backpressure или `reader.read()`. `decodeAll()` не завершался никогда.
+   Теперь `cancel()`/`destroy()` вызывают `wakeActiveDecode` (резолвят ожидание
+   кадра `null`, будят backpressure, отменяют reader), `getNextFrame()` после
+   отмены сразу отдаёт `null`.
+2. `ModernVideoExporter`: `cancel()` закрывал H.264-кодировщик, а цикл кадров
+   ждал `waitForEncodeCapacity()`, которую будит только output закрытого
+   кодировщика. Теперь `cancel()`/`cleanup()` вызывают
+   `notifyEncodeCapacityAvailable()`, а после отмены ожидание сразу завершается.
+
+Страховка в UI: `handleCancelExport` в `VideoEditor.tsx` ждёт завершения
+экспорта не дольше `EXPORT_CANCEL_SETTLE_TIMEOUT_MS` (10 с), затем сбрасывает
+состояние экспорта и пишет предупреждение в консоль.
+
+Тесты: `streamingDecoder.test.ts` («ends a stalled decodeAll() after
+cancel()/destroy()», без исправления падает по таймауту) и
+`modernVideoExporter.fallback.test.ts` (ожидание места в кодировщике
+отпускается при отмене). `npx tsc --noEmit` чисто, `npm test` — 1168 тестов.
+Вручную в собранном приложении не проверялось.
+
+Не исправлено, но похоже: отмена **записи** на macOS ждёт выхода
+ScreenCaptureKit-helper без таймаута (`waitForNativeCaptureStop` в
+`electron/ipc/recording/mac.ts`); если helper не завершится, HUD зависнет в
+«финализации». Подтверждения от пользователя пока нет.
 
 ## Рекомендуемый порядок
 

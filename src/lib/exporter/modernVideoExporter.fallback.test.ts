@@ -171,3 +171,32 @@ describe("ModernVideoExporter native fallback routing", () => {
 		expect(mocks.muxerFinalize).toHaveBeenCalledTimes(1);
 	});
 });
+
+describe("ModernVideoExporter cancellation", () => {
+	it("releases frame loops waiting for encoder capacity when cancelled", async () => {
+		const { ModernVideoExporter } = await import("./modernVideoExporter");
+		const exporter = new ModernVideoExporter({
+			videoUrl: "file:///recording.mp4",
+			width: 1920,
+			height: 1080,
+			frameRate: 30,
+			bitrate: 8_000_000,
+		} as never) as unknown as {
+			cancel: () => Promise<void>;
+			waitForEncodeCapacity: () => Promise<void>;
+		};
+
+		// A closed encoder never reports capacity again; cancel must wake the waiter.
+		let released = false;
+		const waiting = exporter.waitForEncodeCapacity().then(() => {
+			released = true;
+		});
+		await Promise.resolve();
+		expect(released).toBe(false);
+
+		await exporter.cancel();
+		await waiting;
+		expect(released).toBe(true);
+		await expect(exporter.waitForEncodeCapacity()).resolves.toBeUndefined();
+	});
+});

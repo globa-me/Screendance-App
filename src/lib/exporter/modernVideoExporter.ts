@@ -3443,6 +3443,7 @@ export class ModernVideoExporter {
 	}
 
 	private waitForEncodeCapacity(): Promise<void> {
+		if (this.cancelled) return Promise.resolve();
 		return new Promise((resolve) => {
 			this.encodeCapacityWaiters.add(resolve);
 		});
@@ -3899,11 +3900,15 @@ export class ModernVideoExporter {
 					window.electronAPI.nativeStaticLayoutExportCancel(nativeStaticLayoutSessionId),
 				);
 		}
+		// Closing an encoder never fires its output callback again, so release
+		// frame loops parked in waitForEncodeCapacity(); they re-check `cancelled`.
+		this.notifyEncodeCapacityAvailable();
 		await Promise.allSettled(cancellations);
 	}
 
 	private cleanup(): void {
 		this.disposeEncoder();
+		this.notifyEncodeCapacityAvailable();
 
 		if (this.streamingDecoder) {
 			try {

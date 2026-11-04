@@ -10,6 +10,7 @@ const {
 	mockDemuxerGetMediaInfo,
 	mockDemuxerDestroy,
 	mockDemuxerGetDecoderConfig,
+	mockDemuxerRead,
 } = vi.hoisted(() => ({
 	mockDemuxerLoad: vi.fn(),
 	mockDemuxerGetMediaInfo: vi.fn(async () => ({
@@ -29,6 +30,7 @@ const {
 	})),
 	mockDemuxerDestroy: vi.fn(),
 	mockDemuxerGetDecoderConfig: vi.fn(),
+	mockDemuxerRead: vi.fn(),
 }));
 
 vi.mock("web-demuxer", () => ({
@@ -37,6 +39,7 @@ vi.mock("web-demuxer", () => ({
 		getMediaInfo = mockDemuxerGetMediaInfo;
 		destroy = mockDemuxerDestroy;
 		getDecoderConfig = mockDemuxerGetDecoderConfig;
+		read = mockDemuxerRead;
 	},
 }));
 
@@ -103,9 +106,7 @@ describe("StreamingVideoDecoder local media loading", () => {
 			"http://127.0.0.1:4321/video?path=%2Ftmp%2Ffallback.mp4",
 		);
 		expect(mockDemuxerLoad.mock.calls[1]?.[0]).toBeInstanceOf(File);
-		expect((window as any).electronAPI.readLocalFile).toHaveBeenCalledWith(
-			"/tmp/fallback.mp4",
-		);
+		expect((window as any).electronAPI.readLocalFile).toHaveBeenCalledWith("/tmp/fallback.mp4");
 	});
 });
 
@@ -162,5 +163,64 @@ describe("getDecodedFrameTimelineOffsetUs", () => {
 				mediaStartTime: 0.1,
 			}),
 		).toBe(150_000);
+	});
+});
+
+describe("StreamingVideoDecoder cancellation", () => {
+	// Real VideoDecoder.close() never calls the error callback, and a stalled
+	// source never yields a chunk; cancel/destroy must still end decodeAll().
+	class SilentVideoDecoder {
+		state = "unconfigured";
+		decodeQueueSize = 0;
+		configure() {
+			this.state = "configured";
+		}
+		decode() {}
+		async flush() {}
+		close() {
+			this.state = "closed";
+		}
+	}
+
+	beforeEach(() => {
+		mockDemuxerLoad.mockReset();
+		mockDemuxerGetDecoderConfig.mockReset();
+		mockDemuxerGetDecoderConfig.mockResolvedValue({ codec: "avc1.640034" });
+		mockDemuxerRead.mockReset();
+		mockDemuxerRead.mockImplementation(
+			() => new ReadableStream({ pull: () => new Promise<void>(() => undefined) }),
+		);
+		vi.stubGlobal("VideoDecoder", SilentVideoDecoder);
+		Object.assign(globalThis, {
+			window: {
+				location: { href: "http://localhost:5173/" },
+				electronAPI: {},
+			},
+		});
+	});
+
+	async function settlesWithin(promise: Promise<unknown>, ms: number) {
+		return Promise.race([
+			promise.then(
+				() => true,
+				() => true,
+			),
+			new Promise<false>((resolve) => setTimeout(() => resolve(false), ms)),
+		]);
+	}
+
+	it.each([
+		"cancel",
+		"destroy",
+	] as const)("ends a stalled decodeAll() after %s()", async (method) => {
+		const decoder = new StreamingVideoDecoder();
+		await decoder.loadMetadata("http://127.0.0.1:43123/video?path=%2Ftmp%2Fstall.mp4");
+		const onFrame = vi.fn();
+		const decodeAll = decoder.decodeAll(30, [], [], onFrame);
+
+		expect(await settlesWithin(decodeAll, 50)).toBe(false);
+		decoder[method]();
+		expect(await settlesWithin(decodeAll, 1000)).toBe(true);
+		expect(onFrame).not.toHaveBeenCalled();
 	});
 });

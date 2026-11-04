@@ -74,6 +74,13 @@ export class StreamingVideoDecoder {
 	private cancelled = false;
 	private metadata: DecodedVideoInfo | null = null;
 	private pendingFrames: VideoFrame[] = [];
+	/**
+	 * Wakes every await inside an active decodeAll() (frame consumer, feed
+	 * backpressure, demuxer read). Without it, cancel/destroy could leave
+	 * decodeAll() pending forever: closing a VideoDecoder does not invoke its
+	 * error callback, so a consumer waiting for the next frame never resumes.
+	 */
+	private wakeActiveDecode: (() => void) | null = null;
 	private readonly maxDecodeQueue: number;
 	private readonly maxPendingFrames: number;
 
@@ -300,6 +307,7 @@ export class StreamingVideoDecoder {
 		}
 
 		const getNextFrame = (): Promise<VideoFrame | null> => {
+			if (this.cancelled) return Promise.resolve(null);
 			if (decodeError) throw decodeError;
 			if (pendingFrames.length > 0) {
 				const frame = pendingFrames.shift()!;
@@ -321,6 +329,16 @@ export class StreamingVideoDecoder {
 					(this.metadata.streamStartTime ?? this.metadata.mediaStartTime ?? 0),
 			) + 0.5;
 		const reader = this.demuxer.read("video", 0, readEndSec).getReader();
+		this.wakeActiveDecode = () => {
+			if (frameResolve) {
+				const resolve = frameResolve;
+				frameResolve = null;
+				resolve(null);
+			}
+			notifyBackpressureProgress();
+			void reader.cancel().catch(() => undefined);
+		};
+		if (this.cancelled) this.wakeActiveDecode();
 
 		// Feed chunks to decoder in background with backpressure
 		const feedPromise = (async () => {
@@ -535,7 +553,7 @@ export class StreamingVideoDecoder {
 		}
 
 		// Drain leftover decoded frames
-		while (!decodeDone) {
+		while (!decodeDone && !this.cancelled) {
 			const frame = await getNextFrame();
 			if (!frame) break;
 			frame.close();
@@ -547,6 +565,7 @@ export class StreamingVideoDecoder {
 			/* already closed */
 		}
 		await feedPromise;
+		this.wakeActiveDecode = null;
 		for (const f of pendingFrames) f.close();
 		pendingFrames.length = 0;
 
@@ -655,6 +674,7 @@ export class StreamingVideoDecoder {
 
 	cancel(): void {
 		this.cancelled = true;
+		this.wakeActiveDecode?.();
 	}
 
 	getDemuxer() {
@@ -663,6 +683,7 @@ export class StreamingVideoDecoder {
 
 	destroy(): void {
 		this.cancelled = true;
+		this.wakeActiveDecode?.();
 
 		if (this.decoder) {
 			try {

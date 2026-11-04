@@ -25,6 +25,11 @@ media-server URLs need the per-launch token, custom Whisper executables must be
 trusted via the main dialog, and renderer/project-supplied paths are approved only
 if they are media files. Extensions are NOT isolated (B1 open); installing one
 needs the main-process confirmation. Update that file when items are resolved.
+Export cancel (B17, fixed): never close a WebCodecs encoder/decoder without
+waking whoever awaits its output (`close()` fires no callback). Keep
+`StreamingVideoDecoder.wakeActiveDecode`, `notifyEncodeCapacityAvailable()` in
+`ModernVideoExporter.cancel()/cleanup()` and the bounded UI wait in
+`handleCancelExport`.
 
 ## 1.7.0 work in progress (branch `screendance/v1.7.0`)
 

@@ -332,6 +332,8 @@ const SMOKE_EXPORT_READY_TIMEOUT_MS = 30_000;
 const DEFAULT_MP4_EXPORT_FRAME_RATE: ExportMp4FrameRate = 30;
 const PROJECT_AUTOSAVE_DELAY_MS = 1000;
 const EXPORT_ERROR_TOAST_DURATION_MS = 20000;
+// Upper bound for an export run to unwind after Cancel before the UI resets anyway.
+const EXPORT_CANCEL_SETTLE_TIMEOUT_MS = 10_000;
 
 function getDefaultProjectNameBase(sourcePath: string): string {
 	const sourceName =
@@ -5916,7 +5918,31 @@ export default function VideoEditor() {
 		setIsCancellingExport(true);
 		try {
 			if (exporter) await exporter.cancel();
-			await exportRunPromiseRef.current?.catch(() => undefined);
+			// Never let a stuck pipeline hold the UI in "Canceling…": give the run a
+			// bounded time to unwind, then reset the export UI regardless.
+			const run = exportRunPromiseRef.current;
+			if (run) {
+				let timeoutId: ReturnType<typeof setTimeout> | undefined;
+				const settledInTime = await Promise.race([
+					run.then(
+						() => true,
+						() => true,
+					),
+					new Promise<false>((resolve) => {
+						timeoutId = setTimeout(() => resolve(false), EXPORT_CANCEL_SETTLE_TIMEOUT_MS);
+					}),
+				]);
+				clearTimeout(timeoutId);
+				if (!settledInTime) {
+					console.warn(
+						`[export] Export did not stop within ${EXPORT_CANCEL_SETTLE_TIMEOUT_MS}ms after cancel; resetting the export UI.`,
+					);
+					exporterRef.current = null;
+					exportStartInFlightRef.current = false;
+					exportSavingRef.current = false;
+					setIsExporting(false);
+				}
+			}
 			clearPendingExportSave();
 			setExportProgress(null);
 			setExportedFilePath(undefined);
