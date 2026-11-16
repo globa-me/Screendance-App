@@ -66,7 +66,12 @@ installed (arm64) in /Applications on 2026-11-04; NOT published on GitHub (no
 tag/release). Never modify/re-sign those bundles. To publish, follow the 1.7.1
 publication steps in `docs/releases/v1.7.1.md`.
 
-## Unreleased fixes after 1.7.2 (2026-11-16, not built/released)
+## 1.7.3 release (2026-11-16)
+
+Read `docs/releases/v1.7.3.md`. Built, notarized and verified in
+`release/notarized-v1.7.3`, installed (arm64) in /Applications and published
+as GitHub release v1.7.3 (includes the unpublished 1.7.2 fixes). Never
+modify/re-sign those bundles. Changes in 1.7.3:
 
 - HUD hide: with the floating camera preview visible, "hide" folds only the
   control bar into a small pill (`hudBarCollapsed` in `LaunchWindow.tsx`);

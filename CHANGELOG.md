@@ -5,6 +5,23 @@ the fork, see [Recordly](https://github.com/webadderallorg/Recordly/commits/main
 For the complete, browseable history after the fork, see the
 [Screendance commit log](https://github.com/globa-me/Screendance-App/commits/screendance/macos-apple-silicon).
 
+## November 16, 2026 — 1.7.3
+
+Available from the
+[Screendance App 1.7.3 release](https://github.com/globa-me/Screendance-App/releases/tag/v1.7.3).
+Includes the 1.7.2 fixes below, which were not published on their own.
+
+- Hiding the recording controls while the camera preview is on screen now
+  folds only the control bar into a small button; the camera stays visible.
+- The floating camera preview has three sizes (S/M/L, remembered) and can be
+  collapsed into a small camera button.
+- If the camera disconnects during a take (for example a wireless iPhone
+  camera), Screendance reconnects it automatically.
+- Presets no longer change app-wide settings. Turning off automatic zooms for
+  new recordings now sticks.
+- Timeline: a "Remove all zooms" button (with Undo), and short zooms, trims,
+  speed ranges and annotations are easier to grab on long videos.
+
 ## November 4, 2026 — 1.7.2 (local build, not published)
 
 - Cancelling an export no longer leaves the editor stuck on "Canceling…".
