@@ -14,7 +14,10 @@
 		"addedSuggestions": "Добавлено зумов: {{count}}",
 		"label": "Зум {{index}}",
 		"addZoom": "Добавить зум (Z)",
-		"suggestZooms": "Предложить зумы на основе курсора"
+		"suggestZooms": "Предложить зумы на основе курсора",
+		"removeAllZooms": "Удалить все зумы",
+		"removedAllZooms": "Удалено зумов: {{count}}",
+		"undo": "Отменить"
 	},
 	"trim": {
 		"cannotPlace": "Нельзя обрезать здесь",

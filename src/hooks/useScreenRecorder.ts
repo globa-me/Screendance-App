@@ -50,6 +50,8 @@ const WEBCAM_BITRATE = 8_000_000;
 const WEBCAM_WIDTH = 1280;
 const WEBCAM_HEIGHT = 720;
 const WEBCAM_FRAME_RATE = 30;
+const WEBCAM_RECONNECT_ATTEMPTS = 20;
+const WEBCAM_RECONNECT_DELAY_MS = 1500;
 
 function buildWebcamConstraints(deviceId: string | undefined): MediaStreamConstraints {
 	const video = {
@@ -1292,6 +1294,59 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	);
 
 	/**
+	 * A wireless Continuity Camera (iPhone) can drop its link mid-take, which
+	 * ends the camera track. Re-open the same device for a while so the webcam
+	 * file continues instead of staying frozen for the rest of the recording.
+	 */
+	const reconnectWebcamCamera = useCallback(
+		async (compositor: LiveWebcamCompositor, endedStream: MediaStream) => {
+			const endedTrack = endedStream.getVideoTracks()[0];
+			const deviceId = endedTrack?.getSettings().deviceId;
+			const label = endedTrack?.label || "camera";
+			console.warn(`[webcam] Camera track ended during recording (${label}); reconnecting.`);
+			toast.warning(
+				tLaunch("recording.webcamDisconnected", "Camera disconnected — reconnecting…"),
+				{ id: "webcam-reconnect" },
+			);
+			const stillCurrent = () =>
+				webcamCompositor.current === compositor && compositor.isCurrentCamera(endedStream);
+			for (let attempt = 0; attempt < WEBCAM_RECONNECT_ATTEMPTS; attempt += 1) {
+				await new Promise((resolve) => setTimeout(resolve, WEBCAM_RECONNECT_DELAY_MS));
+				if (!stillCurrent()) return;
+				try {
+					const camera = await navigator.mediaDevices.getUserMedia(
+						buildWebcamConstraints(deviceId),
+					);
+					if (!stillCurrent()) {
+						for (const track of camera.getTracks()) track.stop();
+						return;
+					}
+					await compositor.setCamera(camera);
+					console.info(`[webcam] Camera reconnected after ${attempt + 1} attempt(s).`);
+					toast.success(tLaunch("recording.webcamReconnected", "Camera reconnected"), {
+						id: "webcam-reconnect",
+					});
+					return;
+				} catch (error) {
+					console.warn(`[webcam] Reconnect attempt ${attempt + 1} failed:`, error);
+				}
+			}
+			if (!stillCurrent()) return;
+			recordingWarnings.current.push(
+				"The camera disconnected during recording and could not be reconnected.",
+			);
+			toast.error(
+				tLaunch(
+					"recording.webcamReconnectFailed",
+					"Camera could not be reconnected. Pause and choose the camera again.",
+				),
+				{ id: "webcam-reconnect", duration: 10000 },
+			);
+		},
+		[tLaunch],
+	);
+
+	/**
 	 * Wraps a camera stream in the canvas compositor used on macOS, where the
 	 * camera can change while a native recording is paused.
 	 */
@@ -1302,10 +1357,13 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 			settings.height ?? WEBCAM_HEIGHT,
 			WEBCAM_FRAME_RATE,
 		);
+		compositor.onCameraEnded = (endedStream) => {
+			void reconnectWebcamCamera(compositor, endedStream);
+		};
 		await compositor.setCamera(cameraStream);
 		webcamCompositor.current = compositor;
 		return compositor.start();
-	}, []);
+	}, [reconnectWebcamCamera]);
 
 	/**
 	 * Acquire the webcam stream and prepare the MediaRecorder, but do NOT start

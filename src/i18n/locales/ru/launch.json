@@ -62,7 +62,14 @@
 		"liveChangeFailed": "Не удалось применить изменение",
 		"liveChangeSwitchedSource": "Источник записи изменён",
 		"sourceUnavailablePaused": "Записываемое окно закрыто — запись на паузе",
-		"sourceUnavailableChooseSource": "Выберите другое окно или экран, чтобы продолжить, или остановите запись."
+		"sourceUnavailableChooseSource": "Выберите другое окно или экран, чтобы продолжить, или остановите запись.",
+		"showHud": "Показать панель",
+		"webcamPreviewSize": "Размер превью",
+		"collapseWebcamPreview": "Свернуть превью камеры",
+		"expandWebcamPreview": "Показать превью камеры",
+		"webcamDisconnected": "Камера отключилась — переподключаю…",
+		"webcamReconnected": "Камера снова подключена",
+		"webcamReconnectFailed": "Не удалось переподключить камеру. Поставьте запись на паузу и выберите камеру заново."
 	},
 	"sourceSelector": {
 		"loadingSources": "Загрузка источников...",

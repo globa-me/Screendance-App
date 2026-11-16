@@ -247,6 +247,8 @@ function showHudOverlayFromTray() {
 	if (hud.isMinimized()) {
 		hud.restore();
 	}
+	// The renderer may have folded only the control bar (camera kept visible).
+	hud.webContents.send("hud-overlay-expand-bar");
 
 	if (process.platform === "win32" && isHudOverlayMousePassthroughSupported()) {
 		hud.showInactive();
@@ -1008,6 +1010,10 @@ app.on("window-all-closed", () => {
 app.on("activate", () => {
 	// On OS X it's common to re-create a window in the app when the
 	// dock icon is clicked and there are no other windows open.
+	const hud = getHudOverlayWindow();
+	if (hud && !hud.isDestroyed()) {
+		hud.webContents.send("hud-overlay-expand-bar");
+	}
 	focusOrCreateMainWindow();
 });
 

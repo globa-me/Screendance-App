@@ -40,8 +40,7 @@ content-anchored `highlight` annotations (source-frame percentages, drawn in
 the camera container), last-wallpaper reuse and the HUD hit-zone fix. CLI/MCP
 now has 85 commands (`recording.adjust`). The dual-arch 1.7.0 release is built,
 notarized, stapled and verified in `release/notarized-v1.7.0` and published as GitHub release v1.7.0;
-the notarized arm64 app is installed in /Applications, 1.5.0 backup is in
-`release/backup-installed-1.5.0`. Never modify/re-sign those bundles. Keep highlights out of screen-space
+the notarized arm64 app is installed in /Applications, 1.5.0 backup was removed on 2026-11-05 (see cleanup below). Never modify/re-sign those bundles. Keep highlights out of screen-space
 annotation paths and hidden ranges out of presets.
 
 ## 1.7.1 fixes after 1.7.0
@@ -54,6 +53,11 @@ one mic sidecar per role, and File → Open Video… / Projects "Open video…".
 as GitHub release v1.7.1 and installed (arm64) in /Applications. Never
 modify/re-sign those bundles.
 
+Disk cleanup 2026-11-13: the local folders `release/notarized-v1.7.0` and
+`release/notarized-v1.7.1` were deleted to free space. Their notarized
+ZIP/DMG artifacts remain available from GitHub releases v1.7.0 and v1.7.1;
+only `release/notarized-v1.7.2` is kept locally.
+
 ## 1.7.2 local release (not published)
 
 Read `docs/releases/v1.7.2.md`: security fixes B1–B5 plus the export-cancel
@@ -61,6 +65,37 @@ fix B17. Built, notarized and verified in `release/notarized-v1.7.2` and
 installed (arm64) in /Applications on 2026-11-04; NOT published on GitHub (no
 tag/release). Never modify/re-sign those bundles. To publish, follow the 1.7.1
 publication steps in `docs/releases/v1.7.1.md`.
+
+## Unreleased fixes after 1.7.2 (2026-11-16, not built/released)
+
+- HUD hide: with the floating camera preview visible, "hide" folds only the
+  control bar into a small pill (`hudBarCollapsed` in `LaunchWindow.tsx`);
+  the window is minimized only when no preview is shown. Main sends
+  `hud-overlay-expand-bar` on tray/dock show to unfold it.
+- Floating camera preview: S/M/L size (128/192/288px, remembered in
+  localStorage `screendance.hud.webcamPreviewSize`, see
+  `floatingWebcamPreview.ts`) and collapse to a 44px camera button. The
+  preview container carries `launch-theme` so its surface/border variables
+  resolve (otherwise the collapsed button is transparent).
+- Continuity Camera drops: on 2026-11-16 the macOS log showed the wireless
+  iPhone link failing (RTCP errors, `kCMContinuityCaptureEventRemoteClientDisconnect`)
+  and a 14 s frozen span in the webcam file — an OS/wireless issue. The
+  compositor now reports a camera track `ended` (`onCameraEnded`) and
+  `useScreenRecorder.reconnectWebcamCamera` reopens the same device (20×1.5 s).
+  A muted/frozen-but-not-ended track cannot be fixed by the app; a USB cable
+  to the iPhone is the reliable option.
+- Presets no longer own app-wide preferences: applying a preset ignores
+  `autoApplyFreshRecordingAutoZooms`, new-zoom defaults, last manual focus and
+  Whisper paths (fields stay in old snapshots for compatibility). Fresh videos
+  read `loadEditorPreferences().autoApplyFreshRecordingAutoZooms`.
+- Timeline: "Remove all zooms" toolbar button (one undo step, 8 s toast with Undo);
+  short non-clip/audio items get a centred 44px minimum hit width
+  (`TIMELINE_ITEM_MIN_HIT_WIDTH_PX`, must exceed `resizeHandleWidth` 28).
+- Manual check 2026-11-16 (`npm run dev`): HUD fold/unfold, preview S/M/L and
+  collapse, remove-all + undo and moving a short zoom on a 6:20 video all work.
+  A dev Electron started from an agent gets no camera frames (TCC attributes
+  it to the agent, which lacks the camera entitlement); the HUD is visible in
+  screenshots only with `hud-overlay-settings.json` `hiddenFromCapture:false`.
 
 ## CLI/MCP automation
 
@@ -218,3 +253,18 @@ preset so native recordings do not display a duplicate cursor.
 ## Local artifact cleanup — 2026-10-27
 
 Owner authorized removing old builds. Unpacked mac/mac-arm64 in notarized-v1.6.0-automation were byte-exact duplicates of retained final ZIPs and were removed; restore both from ZIP before rerunning release finalization. All final ZIP/DMG/blockmaps/update metadata/checksums, installed app and old 1.5 ZIP/DMG remain. Old unpacked1.5 G2 candidates were removed (arm64 was ad hoc packaging output). Removed only exact Chromium cache children under 20 synthetic QA profiles and .tmp FFmpeg/FFprobe staging; profile state, recordings/jobs/reports and canonical node_modules runtimes remain. Source/retained files SHA-verified, installed deep/strict signature passed. Private inventory/recovery: ~/Documents/Codex/maintenance/cleanup-20261027/README.md. Never replay historical cleanup scripts.
+
+## Local artifact cleanup — 2026-11-05
+
+At the owner's request: moved `test_transcode_ks.mov`, the stale 1.7.0
+`release/mac-arm64` build output and `release/builder-debug.yml` to
+`~/.Trash/screendance-cleanup-20261105`; deleted `dist*` build outputs (rebuilt by
+`npm run build*`), the `.tmp/release-v1.7.{0,1}-upload` hard-link copies of the
+release folders, Chromium caches under `.tmp/*/profile` and `.DS_Store`. Smoke
+reports/logs, `.tmp/ffmpeg-static`, `.tmp/ffprobe-packages` and all
+`release/notarized-*`/backup folders were kept. Docs mentioning the removed
+upload folders refer to files still present in `release/notarized-v1.7.{0,1}`.
+Later the same day the owner also approved removing the old releases:
+`release/notarized-v1.5.0-g2`, `release/backup-installed-1.5.0` and
+`release/notarized-v1.6.0-automation` went to the same Trash folder. Only
+`release/notarized-v1.7.{0,1,2}` remain; docs about 1.5/1.6 artifacts are history.

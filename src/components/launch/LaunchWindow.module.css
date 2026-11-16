@@ -380,3 +380,111 @@
 	background-color: #1a1a22;
 	color: #eeeef2;
 }
+
+/* Folded control bar: keeps only an expand button (plus timer while recording)
+   so the floating camera can stay on screen without the full HUD. */
+.collapsedBar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 5px 6px 5px 10px;
+	border-radius: 999px;
+	background: var(--launch-bar-bg);
+	border: 1px solid var(--launch-bar-border);
+	box-shadow: var(--launch-bar-shadow);
+	color: var(--launch-text);
+}
+
+.collapsedRecording {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+}
+
+.collapsedDot,
+.collapsedDotPaused {
+	width: 8px;
+	height: 8px;
+	border-radius: 999px;
+	background: #ef4444;
+}
+
+.collapsedDot {
+	animation: blink 1.4s ease-in-out infinite;
+}
+
+.collapsedDotPaused {
+	background: #f59e0b;
+}
+
+.collapsedTime {
+	min-width: 38px;
+}
+
+.collapsedExpand {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	border-radius: 999px;
+	color: var(--launch-text);
+	background: transparent;
+	transition: background 0.15s ease;
+}
+
+.collapsedExpand:hover {
+	background: var(--launch-hover);
+}
+
+.recordingWebcamPreviewCollapsed {
+	width: 44px;
+	height: 44px;
+	border-radius: 999px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+}
+
+.recordingWebcamPreviewIcon {
+	color: var(--launch-text);
+	pointer-events: none;
+}
+
+.recordingWebcamPreviewTools {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	display: flex;
+	gap: 4px;
+	opacity: 0;
+	transition: opacity 0.15s ease;
+}
+
+.recordingWebcamPreview:hover .recordingWebcamPreviewTools,
+.recordingWebcamPreviewTools:focus-within {
+	opacity: 1;
+}
+
+.recordingWebcamPreviewTool {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	height: 22px;
+	min-width: 22px;
+	padding: 0 6px;
+	border-radius: 999px;
+	font-size: 10px;
+	font-weight: 600;
+	color: #fff;
+	background: rgba(0, 0, 0, 0.55);
+	backdrop-filter: blur(6px);
+	cursor: pointer;
+}
+
+.recordingWebcamPreviewTool:hover {
+	background: rgba(0, 0, 0, 0.75);
+}

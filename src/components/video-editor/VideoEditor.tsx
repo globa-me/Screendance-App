@@ -24,6 +24,7 @@ import {
 	SpeakerX as VolumeX,
 	MagicWand as WandSparkles,
 	X,
+	MagnifyingGlassMinus as ZoomClearAll,
 	MagnifyingGlassPlus as ZoomIn,
 } from "@phosphor-icons/react";
 import type { Span } from "dnd-timeline";
@@ -1120,13 +1121,11 @@ export default function VideoEditor() {
 		setGifFrameRate(snapshot.gifFrameRate);
 		setGifLoop(snapshot.gifLoop);
 		setGifSizePreset(snapshot.gifSizePreset);
-		setAutoApplyFreshRecordingAutoZooms(snapshot.autoApplyFreshRecordingAutoZooms);
-		setDefaultZoomDurationMs(snapshot.defaultZoomDurationMs);
-		setDefaultZoomMode(snapshot.defaultZoomMode);
-		setLastManualZoomFocus({ ...snapshot.lastManualZoomFocus });
+		// App-wide preferences (auto-zoom on fresh recordings, new-zoom defaults,
+		// Whisper paths) live in Settings and are NOT owned by presets: applying a
+		// preset must not silently re-enable a switch the user turned off. Older
+		// presets still carry these fields; they are ignored here.
 		setAutoCaptionSettings({ ...snapshot.autoCaptionSettings });
-		setWhisperExecutablePath(snapshot.whisperExecutablePath);
-		setWhisperModelPath(snapshot.whisperModelPath);
 	}, []);
 
 	const rememberWallpaperChoice = useCallback((nextWallpaper: string) => {
@@ -2085,6 +2084,8 @@ export default function VideoEditor() {
 		applyEditorDocument(controller.undo(controller.revision));
 		syncHistoryButtons();
 	}, [applyEditorDocument, observeEditorDocument, syncHistoryButtons]);
+	const handleUndoRef = useRef<(() => void) | null>(null);
+	handleUndoRef.current = handleUndo;
 	const handleRedo = useCallback(() => {
 		observeEditorDocument();
 		const controller = editorDocumentControllerRef.current;
@@ -2342,8 +2343,7 @@ export default function VideoEditor() {
 					setCurrentProjectPath(null);
 					setLastSavedSnapshot(null);
 					pendingFreshRecordingAutoZoomPathRef.current =
-						(freshPresetSnapshot?.autoApplyFreshRecordingAutoZooms ??
-						initialEditorPreferences.autoApplyFreshRecordingAutoZooms)
+						loadEditorPreferences().autoApplyFreshRecordingAutoZooms
 							? sourceVideoUrl
 							: null;
 					setWebcam((prev) => ({
@@ -2413,8 +2413,7 @@ export default function VideoEditor() {
 					setCurrentProjectPath(null);
 					setLastSavedSnapshot(null);
 					pendingFreshRecordingAutoZoomPathRef.current =
-						(freshPresetSnapshot?.autoApplyFreshRecordingAutoZooms ??
-						initialEditorPreferences.autoApplyFreshRecordingAutoZooms)
+						loadEditorPreferences().autoApplyFreshRecordingAutoZooms
 							? sourceVideoUrl
 							: null;
 					applySessionPresentation(sessionResult.session);
@@ -3670,6 +3669,33 @@ export default function VideoEditor() {
 		},
 		[selectedZoomId],
 	);
+
+	// Clears every zoom region at once (one undo step), so a recording with
+	// unwanted auto-zooms can be cleaned up without deleting them one by one.
+	const handleDeleteAllZooms = useCallback(() => {
+		const removedIds = currentEditorDocumentRef.current.editor.zoomRegions.map(
+			(region) => region.id,
+		);
+		if (removedIds.length === 0) return;
+		setZoomRegions([]);
+		setSelectedZoomId(null);
+		for (const id of removedIds) {
+			extensionHost.emitEvent({ type: "timeline:region-removed", data: { id } });
+		}
+		toast.success(
+			t("timeline.zoom.removedAllZooms", "Removed {{count}} zoom(s)", {
+				count: removedIds.length,
+			}),
+			{
+				// Longer than the 4 s default so the Undo action is reachable.
+				duration: 8000,
+				action: {
+					label: t("timeline.zoom.undo", "Undo"),
+					onClick: () => handleUndoRef.current?.(),
+				},
+			},
+		);
+	}, [t]);
 
 	const handleSelectClip = useCallback((id: string | null) => {
 		setSelectedClipId(id);
@@ -5583,8 +5609,7 @@ export default function VideoEditor() {
 			hiddenRanges: freshSession?.webcamPath ? freshSession.webcamHiddenRanges : undefined,
 		}));
 		pendingFreshRecordingAutoZoomPathRef.current =
-			(freshPreset?.autoApplyFreshRecordingAutoZooms ??
-			initialEditorPreferences.autoApplyFreshRecordingAutoZooms)
+			loadEditorPreferences().autoApplyFreshRecordingAutoZooms
 				? sourceUrl
 				: null;
 		setLastSavedSnapshot(null);
@@ -7254,6 +7279,17 @@ export default function VideoEditor() {
 									title={t("timeline.zoom.suggestZooms")}
 								>
 									<WandSparkles className="w-4 h-4" />
+								</Button>
+								<Button
+									onClick={handleDeleteAllZooms}
+									disabled={zoomRegions.length === 0}
+									variant="ghost"
+									size="icon"
+									className="h-7 w-7 rounded-full text-muted-foreground transition-all hover:bg-red-500/10 hover:text-red-400 disabled:opacity-30"
+									title={t("timeline.zoom.removeAllZooms", "Remove all zooms")}
+									aria-label={t("timeline.zoom.removeAllZooms", "Remove all zooms")}
+								>
+									<ZoomClearAll className="w-4 h-4" />
 								</Button>
 								<Button
 									onClick={() => timelineRef.current?.splitClip()}

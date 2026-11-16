@@ -1,5 +1,7 @@
 import {
 	ArrowClockwiseIcon,
+	ArrowsInSimpleIcon,
+	ArrowsOutSimpleIcon,
 	CaretUpIcon,
 	DotsThreeVerticalIcon,
 	MicrophoneIcon,
@@ -23,7 +25,10 @@ import { useVideoDevices } from "../../hooks/useVideoDevices";
 import { Button } from "../ui/button";
 import { useRecorderAutomation } from "./automation/useRecorderAutomation";
 import { HudInteractionContext } from "./contexts/HudInteractionContext";
-import { canToggleFloatingWebcamPreview } from "./floatingWebcamPreview";
+import {
+	canToggleFloatingWebcamPreview,
+	WEBCAM_PREVIEW_SIZE_PX,
+} from "./floatingWebcamPreview";
 import { useHudBarDrag } from "./hooks/useHudBarDrag";
 import { useLaunchHudInteractionState } from "./hooks/useLaunchHudInteractionState";
 import { useLaunchWindowActions } from "./hooks/useLaunchWindowActions";
@@ -164,6 +169,11 @@ function LaunchWindowContent() {
 		handleWebcamPreviewPointerUp,
 		setWebcamPreviewNode,
 		setRecordingWebcamPreviewNode,
+		webcamPreviewSize,
+		cycleWebcamPreviewSize,
+		webcamPreviewCollapsed,
+		setWebcamPreviewCollapsed,
+		wasWebcamPreviewJustDragged,
 	} = useWebcamPreviewOverlay({
 		webcamEnabled: webcamEnabled && !automationControlled,
 		webcamDeviceId,
@@ -171,6 +181,27 @@ function LaunchWindowContent() {
 		webcamPopoverOpen: openId === "webcam",
 		hudOverlayMousePassthroughSupported,
 	});
+
+	// With the floating camera visible, "hide" folds only the control bar into a
+	// small pill so the camera stays on screen. Without it, the whole HUD window
+	// is minimized as before.
+	const [hudBarCollapsed, setHudBarCollapsed] = useState(false);
+	const handleHideHud = useCallback(() => {
+		if (showRecordingWebcamPreview) {
+			if (openId) requestClose(openId);
+			setHudBarCollapsed(true);
+			return;
+		}
+		window.electronAPI?.hudOverlayHide?.();
+	}, [openId, requestClose, showRecordingWebcamPreview]);
+
+	useEffect(() => {
+		return window.electronAPI?.onHudOverlayExpandBar?.(() => setHudBarCollapsed(false));
+	}, []);
+
+	useEffect(() => {
+		if (!showRecordingWebcamPreview) setHudBarCollapsed(false);
+	}, [showRecordingWebcamPreview]);
 
 	const {
 		recordingHudOffset,
@@ -382,7 +413,7 @@ function LaunchWindowContent() {
 			onToggleMicrophone={() => setMicrophoneEnabled(!microphoneEnabled)}
 			onPauseResume={paused ? resumeRecording : pauseRecording}
 			onStopRecording={toggleRecording}
-			onHideHud={() => window.electronAPI?.hudOverlayHide?.()}
+			onHideHud={handleHideHud}
 			onCancelRecording={cancelRecording}
 			formatTime={formatTime}
 		/>
@@ -576,7 +607,7 @@ function LaunchWindowContent() {
 				variant="ghost"
 				size="icon"
 				iconSize="lg"
-				onClick={() => window.electronAPI?.hudOverlayHide?.()}
+				onClick={handleHideHud}
 				title={t("recording.hideHud")}
 			>
 				<MinusIcon size={16} />
@@ -606,6 +637,36 @@ function LaunchWindowContent() {
 
 	const hudMode = finalizing ? "finalizing" : recording ? "recording" : "idle";
 
+	const collapsedBar = (
+		<div
+			className={`${styles.collapsedBar} launch-theme mb-2 pointer-events-auto`}
+			data-hud-interactive
+			data-testid="hud-collapsed-bar"
+			onMouseEnter={handleHudMouseEnter}
+			onMouseLeave={handleHudMouseLeave}
+		>
+			{recording && (
+				<span className={styles.collapsedRecording}>
+					<span className={paused ? styles.collapsedDotPaused : styles.collapsedDot} />
+					<span className={styles.collapsedTime}>{formatTime(elapsed)}</span>
+				</span>
+			)}
+			<button
+				type="button"
+				className={styles.collapsedExpand}
+				onClick={() => setHudBarCollapsed(false)}
+				title={t("recording.showHud", "Show controls")}
+				aria-label={t("recording.showHud", "Show controls")}
+			>
+				<CaretUpIcon size={14} />
+			</button>
+		</div>
+	);
+
+	const webcamPreviewPx = WEBCAM_PREVIEW_SIZE_PX[webcamPreviewSize];
+	const webcamSizeLabel =
+		webcamPreviewSize === "small" ? "S" : webcamPreviewSize === "medium" ? "M" : "L";
+
 	return (
 		<HudInteractionContext.Provider
 			value={{ onMouseEnter: handleHudMouseEnter, onMouseLeave: handleHudMouseLeave }}
@@ -632,7 +693,9 @@ function LaunchWindowContent() {
 								transform: `translate3d(${recordingHudOffset.x}px, ${recordingHudOffset.y}px, 0)`,
 							}}
 						>
+							{hudBarCollapsed ? collapsedBar : null}
 							<motion.div
+								style={hudBarCollapsed ? { display: "none" } : undefined}
 								ref={hudBarRef}
 								layout={!showRecordingWebcamPreview && !isHudDragging}
 								transition={hudStateTransition}
@@ -700,11 +763,26 @@ function LaunchWindowContent() {
 						{showRecordingWebcamPreview && (
 							<div
 								ref={recordingWebcamPreviewContainerRef}
-								className={`${styles.recordingWebcamPreview} ${styles.electronNoDrag} pointer-events-auto`}
+								className={`${styles.recordingWebcamPreview} launch-theme ${
+									webcamPreviewCollapsed ? styles.recordingWebcamPreviewCollapsed : ""
+								} ${styles.electronNoDrag} pointer-events-auto`}
 								data-hud-interactive
-								title={t("recording.webcam")}
+								data-testid="hud-webcam-preview"
+								title={
+									webcamPreviewCollapsed
+										? t("recording.expandWebcamPreview", "Show camera preview")
+										: t("recording.webcam")
+								}
 								style={{
 									transform: `translate(${webcamPreviewOffset.x}px, ${webcamPreviewOffset.y}px)`,
+									...(webcamPreviewCollapsed
+										? null
+										: { width: webcamPreviewPx, height: webcamPreviewPx }),
+								}}
+								onClick={() => {
+									if (webcamPreviewCollapsed && !wasWebcamPreviewJustDragged()) {
+										setWebcamPreviewCollapsed(false);
+									}
 								}}
 								onMouseEnter={handleHudMouseEnter}
 								onMouseLeave={handleHudMouseLeave}
@@ -713,13 +791,55 @@ function LaunchWindowContent() {
 								onPointerUp={handleWebcamPreviewPointerUp}
 								onPointerCancel={handleWebcamPreviewPointerUp}
 							>
-								<video
-									ref={setRecordingWebcamPreviewNode}
-									className={styles.recordingWebcamPreviewVideo}
-									muted
-									playsInline
-									style={{ transform: "scaleX(-1)" }}
-								/>
+								{webcamPreviewCollapsed ? (
+									<VideoCameraIcon size={20} className={styles.recordingWebcamPreviewIcon} />
+								) : (
+									<>
+										<video
+											ref={setRecordingWebcamPreviewNode}
+											className={styles.recordingWebcamPreviewVideo}
+											muted
+											playsInline
+											style={{ transform: "scaleX(-1)" }}
+										/>
+										<div className={styles.recordingWebcamPreviewTools}>
+											<button
+												type="button"
+												className={styles.recordingWebcamPreviewTool}
+												onPointerDown={(event) => event.stopPropagation()}
+												onClick={(event) => {
+													event.stopPropagation();
+													cycleWebcamPreviewSize();
+												}}
+												title={t("recording.webcamPreviewSize", "Preview size")}
+												aria-label={t("recording.webcamPreviewSize", "Preview size")}
+											>
+												{webcamPreviewSize === "large" ? (
+													<ArrowsInSimpleIcon size={12} />
+												) : (
+													<ArrowsOutSimpleIcon size={12} />
+												)}
+												<span>{webcamSizeLabel}</span>
+											</button>
+											<button
+												type="button"
+												className={styles.recordingWebcamPreviewTool}
+												onPointerDown={(event) => event.stopPropagation()}
+												onClick={(event) => {
+													event.stopPropagation();
+													setWebcamPreviewCollapsed(true);
+												}}
+												title={t("recording.collapseWebcamPreview", "Collapse camera preview")}
+												aria-label={t(
+													"recording.collapseWebcamPreview",
+													"Collapse camera preview",
+												)}
+											>
+												<MinusIcon size={12} />
+											</button>
+										</div>
+									</>
+								)}
 							</div>
 						)}
 					</div>

@@ -62,7 +62,14 @@
 		"liveChangeFailed": "Couldn't apply the change",
 		"liveChangeSwitchedSource": "Recording source switched",
 		"sourceUnavailablePaused": "The recorded window was closed — recording paused",
-		"sourceUnavailableChooseSource": "Choose another window or screen to continue, or stop the recording."
+		"sourceUnavailableChooseSource": "Choose another window or screen to continue, or stop the recording.",
+		"showHud": "Show controls",
+		"webcamPreviewSize": "Preview size",
+		"collapseWebcamPreview": "Collapse camera preview",
+		"expandWebcamPreview": "Show camera preview",
+		"webcamDisconnected": "Camera disconnected — reconnecting…",
+		"webcamReconnected": "Camera reconnected",
+		"webcamReconnectFailed": "Camera could not be reconnected. Pause and choose the camera again."
 	},
 	"sourceSelector": {
 		"loadingSources": "Loading sources...",

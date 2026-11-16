@@ -254,6 +254,7 @@ interface Window {
 		hudOverlayDrag: (phase: "start" | "move" | "end", screenX: number, screenY: number) => void;
 		hudOverlayHide: () => void;
 		hudOverlayClose: () => void;
+		onHudOverlayExpandBar?: (callback: () => void) => () => void;
 		hudOverlayRendererReady: () => void;
 		getHudOverlayCaptureProtection: () => Promise<{ success: boolean; enabled: boolean }>;
 		getHudOverlayMousePassthroughSupported: () => Promise<{

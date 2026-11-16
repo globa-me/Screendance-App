@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
-import { canShowFloatingWebcamPreview } from "../floatingWebcamPreview";
+import {
+	canShowFloatingWebcamPreview,
+	loadWebcamPreviewSize,
+	nextWebcamPreviewSize,
+	saveWebcamPreviewSize,
+	type WebcamPreviewSize,
+} from "../floatingWebcamPreview";
 
 const WEBCAM_PREVIEW_DRAG_THRESHOLD = 6;
 const DEFAULT_WEBCAM_PREVIEW_OFFSET = { x: 0, y: 0 };
@@ -19,6 +25,19 @@ export function useWebcamPreviewOverlay({
 }) {
 	const [showFloatingWebcamPreview, setShowFloatingWebcamPreview] = useState(true);
 	const [webcamPreviewOffset, setWebcamPreviewOffset] = useState(DEFAULT_WEBCAM_PREVIEW_OFFSET);
+	// Size (S/M/L) is remembered across launches; "collapsed" folds the preview
+	// into a small camera button without stopping the camera.
+	const [webcamPreviewSize, setWebcamPreviewSize] = useState<WebcamPreviewSize>(() =>
+		loadWebcamPreviewSize(),
+	);
+	const [webcamPreviewCollapsed, setWebcamPreviewCollapsed] = useState(false);
+	const cycleWebcamPreviewSize = useCallback(() => {
+		setWebcamPreviewSize((current) => {
+			const next = nextWebcamPreviewSize(current);
+			saveWebcamPreviewSize(next);
+			return next;
+		});
+	}, []);
 	const webcamPreviewOffsetRef = useRef(DEFAULT_WEBCAM_PREVIEW_OFFSET);
 	const webcamPreviewRef = useRef<HTMLVideoElement | null>(null);
 	const recordingWebcamPreviewRef = useRef<HTMLVideoElement | null>(null);
@@ -39,6 +58,13 @@ export function useWebcamPreviewOverlay({
 		dragging: boolean;
 	} | null>(null);
 	const isWebcamPreviewDraggingRef = useRef(false);
+	// A drag ends with a click on the same element; ignore that click so
+	// dragging the collapsed camera button does not also expand it.
+	const lastWebcamPreviewDragEndRef = useRef(0);
+	const wasWebcamPreviewJustDragged = useCallback(
+		() => performance.now() - lastWebcamPreviewDragEndRef.current < 300,
+		[],
+	);
 	const showRecordingWebcamPreview =
 		webcamEnabled &&
 		canShowFloatingWebcamPreview(
@@ -58,6 +84,7 @@ export function useWebcamPreviewOverlay({
 			webcamPreviewDragStartRef.current = null;
 			isWebcamPreviewDraggingRef.current = false;
 			setShowFloatingWebcamPreview(true);
+			setWebcamPreviewCollapsed(false);
 		}
 	}, [webcamEnabled]);
 
@@ -164,6 +191,7 @@ export function useWebcamPreviewOverlay({
 			event.currentTarget.releasePointerCapture(event.pointerId);
 		}
 		if (wasDragging) {
+			lastWebcamPreviewDragEndRef.current = performance.now();
 			window.electronAPI?.hudOverlaySetIgnoreMouse?.(true);
 		}
 	}, []);
@@ -281,5 +309,10 @@ export function useWebcamPreviewOverlay({
 		setWebcamPreviewNode,
 		setRecordingWebcamPreviewNode,
 		showRecordingWebcamPreview,
+		webcamPreviewSize,
+		cycleWebcamPreviewSize,
+		webcamPreviewCollapsed,
+		setWebcamPreviewCollapsed,
+		wasWebcamPreviewJustDragged,
 	};
 }

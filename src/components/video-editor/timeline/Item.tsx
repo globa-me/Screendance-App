@@ -49,6 +49,13 @@ const ZOOM_LABELS: Record<number, string> = {
 	6: "5×",
 };
 
+/**
+ * Narrowest on-screen width for short timeline items. It must exceed the
+ * timeline's resize-handle width (28px, i.e. 14px at each edge) so a middle
+ * strip stays available for selecting and dragging.
+ */
+export const TIMELINE_ITEM_MIN_HIT_WIDTH_PX = 44;
+
 function formatMs(ms: number): string {
 	const totalSeconds = ms / 1000;
 	const minutes = Math.floor(totalSeconds / 60);
@@ -143,11 +150,20 @@ export default function Item({
 		onSelect?.();
 		onSelectId?.(id);
 	};
+	// Short regions (a 1–2 s zoom on a 6+ minute timeline) are only a few pixels
+	// wide and the whole item would fall inside the resize-handle zone, so they
+	// could neither be grabbed nor moved without zooming the timeline far in.
+	// Give them a centred minimum hit width instead.
+	const hitTargetMinPx = isClip || isAudio ? MIN_ITEM_PX : TIMELINE_ITEM_MIN_HIT_WIDTH_PX;
+	const rawWidth = typeof itemStyle.width === "number" ? itemStyle.width : null;
+	const widenBy = rawWidth !== null && rawWidth < hitTargetMinPx ? hitTargetMinPx - rawWidth : 0;
 	const safeItemStyle = {
 		...itemStyle,
-		minWidth: MIN_ITEM_PX,
+		minWidth: Math.max(MIN_ITEM_PX, hitTargetMinPx),
+		marginLeft: widenBy ? -widenBy / 2 : undefined,
 		height: "100%",
 		overflow: "hidden",
+		zIndex: widenBy ? 5 : undefined,
 	};
 
 	return (

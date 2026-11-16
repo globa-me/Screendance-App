@@ -14,6 +14,13 @@ export class LiveWebcamCompositor {
 	private cameraStream: MediaStream | null = null;
 	private drawTimer: ReturnType<typeof setInterval> | null = null;
 	private outputStream: MediaStream | null = null;
+	private detachEndedListener: (() => void) | null = null;
+	/**
+	 * Called when the attached camera track ends on its own (for example a
+	 * wireless Continuity Camera iPhone drops the link). The owner may attach a
+	 * fresh stream; until then the last drawn frame stays on the canvas.
+	 */
+	onCameraEnded: ((endedStream: MediaStream) => void) | null = null;
 
 	constructor(
 		width: number,
@@ -38,6 +45,10 @@ export class LiveWebcamCompositor {
 		return this.cameraStream !== null;
 	}
 
+	isCurrentCamera(stream: MediaStream): boolean {
+		return this.cameraStream === stream;
+	}
+
 	/** Starts drawing and returns the stream to record. */
 	start(): MediaStream {
 		if (!this.outputStream) {
@@ -55,6 +66,18 @@ export class LiveWebcamCompositor {
 	async setCamera(stream: MediaStream | null): Promise<void> {
 		const previous = this.cameraStream;
 		this.cameraStream = stream;
+		this.detachEndedListener?.();
+		this.detachEndedListener = null;
+		if (stream) {
+			const track = stream.getVideoTracks()[0];
+			if (track) {
+				const handleEnded = () => {
+					if (this.cameraStream === stream) this.onCameraEnded?.(stream);
+				};
+				track.addEventListener("ended", handleEnded);
+				this.detachEndedListener = () => track.removeEventListener("ended", handleEnded);
+			}
+		}
 		if (previous && previous !== stream) {
 			for (const track of previous.getTracks()) track.stop();
 		}
@@ -72,6 +95,7 @@ export class LiveWebcamCompositor {
 	}
 
 	dispose(): void {
+		this.onCameraEnded = null;
 		if (this.drawTimer) {
 			clearInterval(this.drawTimer);
 			this.drawTimer = null;
